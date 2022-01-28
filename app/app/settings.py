@@ -38,6 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    'django_extensions',
+
     'accounts.apps.AccountsConfig',
 
 ]
@@ -133,3 +135,4 @@ AUTH_USER_MODEL = "accounts.User"
 # Accounts Config
 PHONE_NUMBER_CONFIRMATION_DAYS = 1
 CONFIRMATION_CODE_LENGTH = 6
+DIAL_OUT_CODE = '+'
