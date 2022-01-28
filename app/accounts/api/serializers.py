@@ -27,13 +27,23 @@ class RegisterSerializer(serializers.Serializer):
         qs_country = AvailableCountry.objects.filter(iso_code=iso_code)
 
         if not qs_country.exists():
-            raise serializers.ValidationError(_(f"Country not found with this iso code {iso_code}"))
+            raise serializers.ValidationError(
+                _(f"Country not found with this iso code {iso_code}"))
 
-        country = qs_country.first()
+        country: AvailableCountry = qs_country.first()
         phone_number = data.get("phone_number", "")
 
         if not re.match(country.phone_number_regex, phone_number):
-            raise serializers.ValidationError(_(f'Invalid phone number {phone_number}'))
+            raise serializers.ValidationError(
+                _(f'Invalid phone number {phone_number}'))
+
+        int_phone_number = "{0}{1}{2}".format(
+            settings.DIAL_OUT_CODE,
+            country.calling_code,
+            phone_number
+        )
+
+        data['phone_number'] = int_phone_number
 
         return data
 

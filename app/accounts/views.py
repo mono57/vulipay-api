@@ -14,17 +14,27 @@ class RegisterCreateAPIView(CreateAPIView):
 
     def perform_create(self, serializer):
         data = serializer.data
+        int_phone_number = data.get('phone_number')
+
+        proceed = PhoneNumberConfirmationCode.objects.force_expired(int_phone_number)
 
         code: PhoneNumberConfirmationCode = PhoneNumberConfirmationCode.create(
-            data.get('phone_number')
+            int_phone_number
         )
-        code.send_key()
+        # code.send_key()
 
         headers = self.get_success_headers(data)
         return Response(
             serializer.data,
             status=status.HTTP_201_CREATED,
-            headers=headers)
+            headers=headers
+        )
+
+class ResendConfirmationCodeAPIView(APIView):
+    def post(self, request, *args, **kwargs):
+        print(request.data)
+        # PhoneNumberConfirmationCode =
+        return Response(request.data, status=status.HTTP_200_OK)
 
 class ConfirmCodeCreateAPIView(CreateAPIView):
     serializer_class = ConfirmCodeSerializer
@@ -49,4 +59,5 @@ class ConfirmCodeCreateAPIView(CreateAPIView):
         return Response(
             serializer.data,
             status=status.HTTP_201_CREATED,
-            headers=headers)
+            headers=headers
+        )
