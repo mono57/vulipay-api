@@ -1,23 +1,19 @@
-from typing import Union
-from django.db.models import Q, Manager
-from django.db.models.base import Model
-from django.utils import timezone
+import datetime
+
 from django.conf import settings
 from django.contrib.auth.models import BaseUserManager
+from django.db.models import Manager, Q
+from django.db.models.base import Model
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-
-import datetime
 
 
 class UserManager(BaseUserManager):
     def create_user(self, phone_number, **kwargs):
         if not phone_number:
-            raise ValueError(_('Phone number must be set'))
+            raise ValueError(_("Phone number must be set"))
 
-        user = self.model(
-            phone_number=phone_number,
-            **kwargs
-        )
+        user = self.model(phone_number=phone_number, **kwargs)
 
         user.save()
 
@@ -25,12 +21,9 @@ class UserManager(BaseUserManager):
 
     def create_superuser(self, email, password, **kwargs):
         if not email:
-            raise ValueError(_('Email must be set'))
+            raise ValueError(_("Email must be set"))
 
-        user = self.model(
-            email=self.normalize_email(email),
-            **kwargs
-        )
+        user = self.model(email=self.normalize_email(email), **kwargs)
         user.set_password(password)
 
         user.is_active = True
@@ -46,12 +39,12 @@ class PhoneNumberConfirmationCodeManager(Manager):
     def expired_keys(self):
         return self.filter(self.expired_q())
 
-    # def force_expired(self, int_phone_number):
-    #     unexpired_keys = self.unexpired_keys()
-    #     phone_number_unexpired_keys = unexpired_keys.filter(
-    #         phone_number = int_phone_number
-    #     )
-    #     phone_number_unexpired_keys.update()
+    def get_last_created_code(self, int_phone_number):
+        code = (
+            self.filter(phone_number=int_phone_number).order_by("-created_at").first()
+        )
+
+        return code
 
     def unexpired_keys(self):
         return self.exclude(self.expired_keys())
@@ -64,22 +57,6 @@ class PhoneNumberConfirmationCodeManager(Manager):
 
     def to_seconds_datetime(_datetime):
         return _datetime.timestamp()
-
-    def check_can_send_code(self, int_phone_number):
-        qs = self.filter(Q(phone_number=int_phone_number) & self.expired_q)
-        last_code = qs.last()
-
-        remaining_time = 30 # seconds
-
-        if not last_code:
-            return True, remaining_time
-
-        now_seconds = self.to_seconds_datetime(datetime.datetime.now())
-        time_threshold = last_code.sent + last_code.waiting_time
-
-        remaining_time =  time_threshold - now_seconds
-
-        return now_seconds > time_threshold, remaining_time
 
 
 class AvailableCountryManager(Manager):
