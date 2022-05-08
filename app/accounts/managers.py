@@ -10,14 +10,19 @@ from django.utils.translation import gettext_lazy as _
 
 class UserManager(BaseUserManager):
     def create_user(self, phone_number, **kwargs):
-        if not phone_number:
-            raise ValueError(_("Phone number must be set"))
+        safe_phone_number = self.validate_phone_number(phone_number)
 
-        user = self.model(phone_number=phone_number, **kwargs)
+        user = self.model(phone_number=safe_phone_number, **kwargs)
 
         user.save()
 
         return user
+
+    def validate_phone_number(self, phone_number):
+        if not phone_number:
+            raise ValueError(_("Phone number must be set"))
+
+        return phone_number
 
     def create_superuser(self, email, password, **kwargs):
         if not email:

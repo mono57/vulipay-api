@@ -14,7 +14,7 @@ from app.utils.twilio_client import MessageClient
 
 
 class User(AbstractBaseUser, PermissionsMixin):
-    email = models.EmailField(_("Email address"), unique=True)
+    email = models.EmailField(_("Email address"), unique=True, blank=True)
     phone_number = models.CharField(_("Phone number"), max_length=20)
 
     is_active = models.BooleanField(default=False)
@@ -28,6 +28,23 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+
+    @classmethod
+    def get_or_create(cls, phone_number, country_iso_code):
+
+        user, created = cls.objects.get_or_create(phone_number=phone_number)
+
+        if not created:
+            return user
+
+        PhoneNumber.create(
+            phone_number=phone_number,
+            user=user,
+            country_iso_code=country_iso_code,
+            verified=True,
+        )
+
+        return user
 
 
 class AvailableCountry(TimestampModel):
@@ -79,6 +96,18 @@ class PhoneNumber(TimestampModel):
     def __str__(self):
         return f"({self.country.calling_code}) {self.number}"
 
+    @classmethod
+    def create(
+        cls, phone_number: str, user: User, country_iso_code: str, verified=False
+    ):
+        country = AvailableCountry.objects.get(iso_code=country_iso_code)
+
+        obj = cls.objects.create(
+            number=phone_number, user=user, country=country, verified=verified
+        )
+
+        return obj
+
 
 class PhoneNumberConfirmationCode(TimestampModel):
     phone_number = models.CharField(max_length=20)
@@ -92,7 +121,11 @@ class PhoneNumberConfirmationCode(TimestampModel):
     def __str__(self):
         return self.key
 
+    @property
     def key_expired(self):
+        if self.verified:
+            return True
+
         expiration_date = self.sent + datetime.timedelta(days=settings.CODE_EXPIRE_DAYS)
 
         return expiration_date <= timezone.now()
@@ -117,6 +150,10 @@ class PhoneNumberConfirmationCode(TimestampModel):
         rt = self.get_remaining_time()
 
         return rt <= 0
+
+    def verify(self):
+        self.verified = True
+        self.save()
 
     def send_key(self):
         body = MessageClient._BODY_VIRIFICATION.format(self.key)

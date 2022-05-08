@@ -77,13 +77,17 @@ WSGI_APPLICATION = "app.wsgi.application"
 
 DATABASES = {
     "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": "db.sqlite3",
+    },
+    "postgres": {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.environ.get("DATABASE_NAME"),
         "USER": os.environ.get("DATABASE_USER"),
         "PASSWORD": os.environ.get("DATABASE_USER_PASSWORD"),
         "HOST": os.environ.get("DATABASE_HOST", "127.0.0.1"),
         "PORT": "5432",
-    }
+    },
 }
 
 
@@ -138,3 +142,4 @@ AUTH_USER_MODEL = "accounts.User"
 PHONE_NUMBER_CONFIRMATION_DAYS = 1
 CONFIRMATION_CODE_LENGTH = 6
 DIAL_OUT_CODE = "+"
+CODE_EXPIRE_DAYS = 1
