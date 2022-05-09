@@ -1,5 +1,8 @@
-from accounts.views import (ConfirmCodeCreateAPIView, RegisterCreateAPIView,
-                            ResendConfirmationCodeAPIView)
+from accounts.views import (
+    ConfirmCodeCreateAPIView,
+    RegisterCreateAPIView,
+    ResendConfirmationCodeAPIView,
+)
 from django.urls import path
 
 app_name = "accounts"

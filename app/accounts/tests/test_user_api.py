@@ -17,9 +17,9 @@ from rest_framework.test import APIClient
 
 User = get_user_model()
 
-CREATE_USER_URL = reverse("accounts:register")
-RESEND_CONFIRM_CODE_URL = reverse("accounts:resend-code")
-CONFIRM_CODE_URL = reverse("accounts:confirm_code")
+CREATE_USER_URL = reverse("api:accounts:register")
+RESEND_CONFIRM_CODE_URL = reverse("api:accounts:resend-code")
+CONFIRM_CODE_URL = reverse("api:accounts:confirm_code")
 
 
 class TestPublicUserApi(TestCase):
@@ -60,46 +60,3 @@ class TestPublicUserApi(TestCase):
             self.assertTrue(len(response_dict.keys()) == 4)
             self.assertTrue("waiting_time" in response_dict.keys())
             self.assertEqual(response_dict["waiting_time"], 30)
-
-    def test_can_verify_code(self):
-        confirmation_payload = {
-            "phone_number": "698049742",
-            "country_iso_code": "CM",
-            "code": 234353,
-        }
-
-        key = 234353
-
-        CodeFactory(
-            key=key, phone_number="+237698049742", sent=datetime.now(timezone.utc)
-        )
-
-        response = self.client.post(CONFIRM_CODE_URL, confirmation_payload)
-
-        self.assertTrue(response.status_code == status.HTTP_200_OK)
-
-    def test_cannot_verify_same_code_twice(self):
-        key = 234353
-
-        confirmation_payload = {
-            "phone_number": "698049742",
-            "country_iso_code": "CM",
-            "code": key,
-        }
-
-        CodeFactory(
-            key=key, phone_number="+237698049742", sent=datetime.now(timezone.utc)
-        )
-
-        response1 = self.client.post(CONFIRM_CODE_URL, confirmation_payload)
-        response2 = self.client.post(CONFIRM_CODE_URL, confirmation_payload)
-
-        self.assertTrue(response1.status_code == status.HTTP_200_OK)
-        self.assertTrue(response2.status_code == status.HTTP_400_BAD_REQUEST)
-
-    def test_resend_user_confirmation_code(self):
-        response = self.client.post(RESEND_CONFIRM_CODE_URL, self.registration_payload)
-        self.assertTrue(response.status_code == status.HTTP_200_OK)
-
-    def test_can_confirm_code(self):
-        pass
