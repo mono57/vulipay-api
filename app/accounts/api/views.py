@@ -1,3 +1,4 @@
+from yaml import serialize
 from accounts.api.serializers import (ConfirmCodeSerializer,
                                       CreateCodeNotAllowSerializer,
                                       RegisterSerializer)
@@ -56,7 +57,7 @@ class RegisterCreateAPIView(CreateAPIView):
 
 class ResendConfirmationCodeAPIView(APIView):
     def post(self, request, *args, **kwargs):
-        # PhoneNumberConfirmationCode =
+        serializer = Re
         return Response(request.data, status=status.HTTP_200_OK)
 
 

@@ -1,4 +1,4 @@
-from accounts.views import (
+from accounts.api.views import (
     ConfirmCodeCreateAPIView,
     RegisterCreateAPIView,
     ResendConfirmationCodeAPIView,
