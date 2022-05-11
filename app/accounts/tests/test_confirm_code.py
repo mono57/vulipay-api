@@ -1,20 +1,18 @@
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
+from accounts.models import AvailableCountry
+from accounts.tests.factories import CodeFactory
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
-
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from accounts.models import AvailableCountry
-from accounts.tests.factories import CodeFactory
-
 User = get_user_model()
 
-CONFIRM_CODE_URL = reverse("api:accounts:confirm_code")
+CONFIRM_CODE_URL = reverse("api:accounts:verify_code")
 
 
 class ConfirmCodeTestCase(TestCase):

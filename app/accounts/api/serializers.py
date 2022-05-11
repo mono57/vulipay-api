@@ -77,8 +77,3 @@ class ConfirmCodeSerializer(RegisterSerializer):
         code_obj.verify()
 
         return data
-
-
-class CreateCodeNotAllowSerializer(serializers.Serializer):
-    waiting_time = serializers.IntegerField()
-    remaining_time = serializers.IntegerField()

@@ -1,5 +1,5 @@
+import datetime
 import json
-from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 from accounts.api.serializers import ConfirmCodeSerializer
@@ -8,7 +8,6 @@ from accounts.models import PhoneNumberConfirmationCode as Code
 from accounts.tests.factories import AvailableCountryFactory, CodeFactory
 from django.contrib.auth import get_user_model
 from django.db.models import Q
-from django.http import HttpResponse
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -17,12 +16,10 @@ from rest_framework.test import APIClient
 
 User = get_user_model()
 
-CREATE_USER_URL = reverse("api:accounts:register")
-RESEND_CONFIRM_CODE_URL = reverse("api:accounts:resend-code")
-CONFIRM_CODE_URL = reverse("api:accounts:confirm_code")
-
 
 class TestPublicUserApi(TestCase):
+    GENERATE_CODE_URL = reverse("api:accounts:generate_code")
+
     def setUp(self):
         self.client = APIClient()
 
@@ -45,11 +42,13 @@ class TestPublicUserApi(TestCase):
 
         self.assertTrue(isinstance(country, AvailableCountry))
 
-    def test_create_inactive_user(self):
+    def test_should_create_new_code(self):
         with patch(
             "app.utils.twilio_client.MessageClient.send_message"
         ) as mocked_send_message:
-            response = self.client.post(CREATE_USER_URL, self.registration_payload)
+            response = self.client.post(
+                self.GENERATE_CODE_URL, self.registration_payload
+            )
 
             self.assertTrue(response.status_code == status.HTTP_201_CREATED)
 
@@ -60,3 +59,50 @@ class TestPublicUserApi(TestCase):
             self.assertTrue(len(response_dict.keys()) == 4)
             self.assertTrue("waiting_time" in response_dict.keys())
             self.assertEqual(response_dict["waiting_time"], 30)
+
+    def test_should_not_create_code_until_waiting_time(self):
+        with patch(
+            "app.utils.twilio_client.MessageClient.send_message"
+        ) as mocked_send_message:
+            self.client.post(self.GENERATE_CODE_URL, self.registration_payload)
+            mocked_send_message.assert_called_once()
+
+        with patch(
+            "app.utils.twilio_client.MessageClient.send_message"
+        ) as mocked_send_message:
+            response = self.client.post(
+                self.GENERATE_CODE_URL, self.registration_payload
+            )
+
+            self.assertTrue(response.status_code == status.HTTP_401_UNAUTHORIZED)
+
+            mocked_send_message.assert_not_called()
+
+    def test_should_increase_waiting_time_before_send_new_code(self):
+        with patch(
+            "app.utils.twilio_client.MessageClient.send_message"
+        ) as mocked_send_message:
+            self.client.post(self.GENERATE_CODE_URL, self.registration_payload)
+            mocked_send_message.assert_called_once()
+
+        with patch("accounts.models.datetime") as mocked_datetime:
+            mocked_datetime.datetime.now.return_value = datetime.datetime.now(
+                timezone.utc
+            ) + datetime.timedelta(seconds=30)
+
+            with patch(
+                "app.utils.twilio_client.MessageClient.send_message"
+            ) as mocked_send_message:
+                response = self.client.post(
+                    self.GENERATE_CODE_URL, self.registration_payload
+                )
+
+                mocked_send_message.assert_called_once()
+
+                self.assertTrue(response.status_code == status.HTTP_201_CREATED)
+
+                response_dict: dict = json.loads(response.content)
+
+                self.assertTrue(len(response_dict.keys()) == 4)
+                self.assertTrue("waiting_time" in response_dict.keys())
+                self.assertTrue(response_dict["waiting_time"] > 30)

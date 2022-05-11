@@ -1,14 +1,10 @@
-from accounts.api.views import (
-    ConfirmCodeCreateAPIView,
-    RegisterCreateAPIView,
-    ResendConfirmationCodeAPIView,
-)
+from accounts.api.views import (ConfirmCodeCreateAPIView,
+                                GenerateCodeCreateAPIView)
 from django.urls import path
 
 app_name = "accounts"
 
 urlpatterns = [
-    path("register/", RegisterCreateAPIView.as_view(), name="register"),
-    path("resend-code/", ResendConfirmationCodeAPIView.as_view(), name="resend-code"),
-    path("confirm/", ConfirmCodeCreateAPIView.as_view(), name="confirm_code"),
+    path("codes/", GenerateCodeCreateAPIView.as_view(), name="generate_code"),
+    path("verify/", ConfirmCodeCreateAPIView.as_view(), name="verify_code"),
 ]

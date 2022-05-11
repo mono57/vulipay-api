@@ -1,7 +1,4 @@
-from yaml import serialize
-from accounts.api.serializers import (ConfirmCodeSerializer,
-                                      CreateCodeNotAllowSerializer,
-                                      RegisterSerializer)
+from accounts.api.serializers import ConfirmCodeSerializer, RegisterSerializer
 from accounts.models import AvailableCountry, PhoneNumber
 from accounts.models import PhoneNumberConfirmationCode as Code
 from accounts.models import User as UserModel
@@ -10,12 +7,11 @@ from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.generics import CreateAPIView
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 User: UserModel = get_user_model()
 
 
-class RegisterCreateAPIView(CreateAPIView):
+class GenerateCodeCreateAPIView(CreateAPIView):
     serializer_class = RegisterSerializer
 
     def create(self, request, *args, **kwargs):
@@ -40,7 +36,7 @@ class RegisterCreateAPIView(CreateAPIView):
             waiting_time = 30
 
         else:
-            waiting_time += 30
+            waiting_time = code.waiting_time + 30
 
         code: Code = Code.create(int_phone_number, waiting_time)
         code.waiting_time = waiting_time
@@ -53,12 +49,6 @@ class RegisterCreateAPIView(CreateAPIView):
             data,
             status=status.HTTP_201_CREATED,
         )
-
-
-class ResendConfirmationCodeAPIView(APIView):
-    def post(self, request, *args, **kwargs):
-        serializer = Re
-        return Response(request.data, status=status.HTTP_200_OK)
 
 
 class ConfirmCodeCreateAPIView(CreateAPIView):
