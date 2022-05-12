@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.generics import CreateAPIView
 from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
 
 User: UserModel = get_user_model()
 
@@ -63,6 +64,12 @@ class ConfirmCodeCreateAPIView(CreateAPIView):
         phone_number: str = data.get("phone_number")
         country_iso_code: str = data.get("country_iso_code")
 
-        User.get_or_create(phone_number=phone_number, country_iso_code=country_iso_code)
+        user = User.get_or_create(
+            phone_number=phone_number, country_iso_code=country_iso_code
+        )
 
-        return Response(data={}, status=status.HTTP_200_OK)
+        refresh = RefreshToken.for_user(user)
+
+        data = {"refresh": str(refresh), "access": str(refresh.access_token)}
+
+        return Response(data, status=status.HTTP_200_OK)

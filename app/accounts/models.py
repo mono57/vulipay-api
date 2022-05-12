@@ -126,7 +126,9 @@ class PhoneNumberConfirmationCode(TimestampModel):
         if self.verified:
             return True
 
-        expiration_date = self.sent + datetime.timedelta(days=settings.CODE_EXPIRE_DAYS)
+        expiration_date = self.sent + datetime.timedelta(
+            days=settings.CODE_EXPIRATION_DAYS
+        )
 
         return expiration_date <= timezone.now()
 

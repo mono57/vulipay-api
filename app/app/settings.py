@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "rest_framework_simplejwt",
     "django_extensions",
     "accounts.apps.AccountsConfig",
 ]
@@ -110,6 +111,11 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    )
+}
 
 # Internationalization
 # https://docs.djangoproject.com/en/3.2/topics/i18n/
@@ -142,4 +148,4 @@ AUTH_USER_MODEL = "accounts.User"
 PHONE_NUMBER_CONFIRMATION_DAYS = 1
 CONFIRMATION_CODE_LENGTH = 6
 DIAL_OUT_CODE = "+"
-CODE_EXPIRE_DAYS = 1
+CODE_EXPIRATION_DAYS = 1
