@@ -117,6 +117,11 @@ REST_FRAMEWORK = {
     )
 }
 
+SIMPLE_JWT = {
+    'USER_ID_FIELD': 'phone_number',
+    'USER_ID_CLAIM': 'user',
+}
+
 # Internationalization
 # https://docs.djangoproject.com/en/3.2/topics/i18n/
 
