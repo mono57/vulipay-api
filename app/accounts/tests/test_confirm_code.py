@@ -47,7 +47,6 @@ class ConfirmCodeTestCase(TestCase):
         )
 
         response = self.client.post(CONFIRM_CODE_URL, confirmation_payload)
-
         self.assertTrue(response.status_code == status.HTTP_200_OK)
 
     def test_should_not_verify_same_code_twice(self):
