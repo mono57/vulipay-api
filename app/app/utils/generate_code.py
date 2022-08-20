@@ -1,3 +1,6 @@
+from typing import Union
+import string
+
 from django.db import models
 from django.db.models import Q
 from django.conf import settings
@@ -5,12 +8,15 @@ from django.conf import settings
 import string, random
 
 def generate_code(
-        Model: models.Model,
+        Model: Union[models.Model, None],
         lookup_field="key",
         unique=True,
         sequence=string.digits,
         length=settings.CONFIRMATION_CODE_LENGTH
-    ) -> str:
+    ):
+
+    if Model is None:
+        return random.choices(sequence, k=length)
 
     code_exists, key = True, ''
 

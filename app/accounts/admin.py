@@ -1,3 +1,6 @@
 from django.contrib import admin
+from accounts.models import *
 
-# Register your models here.
+class UserModelAdmin(admin.ModelAdmin):
+    list_display = ('phone_number', 'email')
+

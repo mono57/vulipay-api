@@ -15,7 +15,7 @@ from app.utils.twilio_client import MessageClient
 
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(_("Email address"), unique=True, blank=True)
-    phone_number = models.CharField(_("Phone number"), max_length=20)
+    phone_number = models.CharField(_("Phone number"), max_length=20, unique=True)
 
     is_active = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
@@ -59,16 +59,6 @@ class AvailableCountry(TimestampModel):
         return f"({self.calling_code}) - {self.name} - {self.iso_code}"
 
 
-class Currency(TimestampModel):
-    iso_code = models.CharField(max_length=8)
-    name = models.CharField(max_length=100)
-    symbol = models.CharField(max_length=5)
-    country = models.ForeignKey(AvailableCountry, null=True, on_delete=models.SET_NULL)
-
-    def __str__(self):
-        return "{} - {} - {}".format(self.name, self.iso_code, self.symbol)
-
-
 class NetworkProvider(TimestampModel):
     name = models.CharField(max_length=30, verbose_name=_("name"))
 
@@ -77,7 +67,7 @@ class NetworkProvider(TimestampModel):
 
 
 class PhoneNumber(TimestampModel):
-    number = models.CharField(max_length=20)
+    number = models.CharField(max_length=20, unique=True)
     primary = models.BooleanField(default=False)
     verified = models.BooleanField(default=False)
     provider = models.ForeignKey(

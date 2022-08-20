@@ -16,7 +16,7 @@ class RegisterSerializer(serializers.Serializer):
     phone_number = serializers.CharField()
     int_phone_number = serializers.CharField(required=False)
 
-    def clean_phone_number(self, phone_number):
+    def validate_phone_number(self, phone_number):
         # First level validation: International phone number validation
         return phone_number
 
