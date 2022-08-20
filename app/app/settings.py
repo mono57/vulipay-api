@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "django_extensions",
     "accounts.apps.AccountsConfig",
+    "banking.apps.BankingConfig",
 ]
 
 MIDDLEWARE = [
@@ -149,8 +150,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "accounts.User"
 
 
-# Accounts Config
+# Project Config
 PHONE_NUMBER_CONFIRMATION_DAYS = 1
 CONFIRMATION_CODE_LENGTH = 6
 DIAL_OUT_CODE = "+"
 CODE_EXPIRATION_DAYS = 1
+
+ACCOUNT_NUMBER_LENGTH = 12
