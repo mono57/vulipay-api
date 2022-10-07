@@ -1,4 +1,4 @@
--r ../base.txt
+-r base.txt
 
 psycopg2==2.9.3
 Werkzeug[watchdog]==2.2.2

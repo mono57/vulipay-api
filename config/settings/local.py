@@ -39,6 +39,7 @@ INSTALLED_APPS += ["django_extensions"]
 
 # Project related config
 INSTALLED_APPS += [
-    "accounts",
-    "banking",
+    "users.apps.UsersConfig",
+    "otp_auth.apps.OtpAuthConfig",
+    "countries.apps.CountriesConfig",
 ]
