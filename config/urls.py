@@ -1,7 +1,19 @@
-from importlib.resources import path
-
 from django.conf import settings
 from django.conf.urls.static import static
-from django.urls import include
+from django.urls import include, path
+from django.views.generic.base import View
+from django.http import JsonResponse
 
-urlpatterns = [] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+class Index(View):
+    response = {
+        'api_version': '2.0.0',
+        'project': 'vulipay',
+        'author': 'Amono Aymar'
+    }
+    def get(self, request, *args, **kwargs):
+        print('request', request)
+        return JsonResponse(self.response)
+
+urlpatterns = [
+    path('', Index.as_view())
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
