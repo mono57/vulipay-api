@@ -36,10 +36,3 @@ INTERNAL_IPS = [".".join(ip.split(".")[:-1] + ["1"]) for ip in ips]
 # django-extensions
 
 INSTALLED_APPS += ["django_extensions"]
-
-# Project related config
-INSTALLED_APPS += [
-    "users.apps.UsersConfig",
-    "otp_auth.apps.OtpAuthConfig",
-    "countries.apps.CountriesConfig",
-]

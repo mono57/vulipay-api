@@ -1,6 +1,6 @@
 import datetime
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.db.models import Q
@@ -9,10 +9,9 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
-from users.models import PhoneNumberConfirmationCode as Code
-from users.tests.factories import AvailableCountryFactory, CodeFactory
 
-from app.countries.models import AvailableCountry
+from accounts.tests.factories import AvailableCountryFactory
+from accounts.models import AvailableCountry
 
 User = get_user_model()
 

@@ -51,13 +51,15 @@ DJANGO_APPS = [
 
 THIRD_PARTY_APPS = []
 
-LOCAL_APPS = []
+LOCAL_APPS = [
+    "accounts.apps.AccountsConfig"
+]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 # AUTHENTICATION
 
-AUTH_USER_MODEL = "users.User"
+AUTH_USER_MODEL = "accounts.User"
 
 # PASSWORDS
 

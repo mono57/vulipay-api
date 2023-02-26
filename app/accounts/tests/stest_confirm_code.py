@@ -7,9 +7,9 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
-from users.tests.factories import PassCodeFactory
 
-from app.countries.models import AvailableCountry
+from accounts.tests.factories import PassCodeFactory
+from accounts.models import AvailableCountry
 
 User = get_user_model()
 

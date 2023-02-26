@@ -1,7 +1,7 @@
 from django.db import IntegrityError
 from django.test import TestCase
 
-from app.countries.models import AvailableCountry
+from accounts.models import AvailableCountry
 
 
 class TextCountry(TestCase):

@@ -11,7 +11,6 @@ class Index(View):
         'author': 'Amono Aymar'
     }
     def get(self, request, *args, **kwargs):
-        print('request', request)
         return JsonResponse(self.response)
 
 urlpatterns = [
