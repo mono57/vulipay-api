@@ -6,23 +6,26 @@ from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from django.utils import timezone
 
-from utils.generate_code import generate_code
-from utils.models import AppModel
-from utils.twilio_client import MessageClient
+from app.utils.generate_code import generate_code
+from app.utils.models import AppModel
+from app.utils.twilio_client import MessageClient
 
-from accounts.managers import UserManager, AvailableCountryManager, PassCodeManager
+from app.accounts.managers import UserManager, AvailableCountryManager, PassCodeManager
 
+def increase_waiting_time(waiting_time):
+    # compute waiting time base on mathematic formula
+    return waiting_time + 30
 
 class AvailableCountry(AppModel):
     name = models.CharField(max_length=30)  # i.e Chad
-    calling_code = models.CharField(max_length=5, unique=True)  # i.e 235
+    dial_code = models.CharField(max_length=5, unique=True)  # i.e 235
     iso_code = models.CharField(max_length=10, unique=True)  # i.e TD
-    phone_number_regex = models.CharField(max_length=50)
+    phone_number_regex = models.CharField(max_length=50, blank=True, null=True)
 
     objects = AvailableCountryManager()
 
     def __str__(self):
-        return f"({self.calling_code}) - {self.name} - {self.iso_code}"
+        return f"({self.dial_code}) - {self.name} - {self.iso_code}"
 
 
 # class Currency(AppModel):
@@ -37,12 +40,18 @@ class AvailableCountry(AppModel):
 
 class PassCode(AppModel):
     phone_number = models.CharField(max_length=20)
+    country_iso_code = models.CharField(max_length=2)
     key = models.CharField(max_length=8)
     sent_date = models.DateTimeField(null=True)
     verified = models.BooleanField(default=False)
     waiting_time = models.IntegerField(default=30)  # waiting time to send new code
 
     objects = PassCodeManager()
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['phone_number', 'country_iso_code'])
+        ]
 
     def __str__(self):
         return self.key
@@ -53,20 +62,43 @@ class PassCode(AppModel):
             return True
 
         expiration_date = self.sent_date + datetime.timedelta(
-            days=settings.CODE_EXPIRATION_DAYS
+            seconds=self.waiting_time
         )
 
-        return expiration_date <= timezone.now()
+        return expiration_date < timezone.now()
+
+    @property
+    def is_verified(self):
+        return self.verified
 
     @classmethod
-    def create(cls, int_phone_number, waiting_time=30):
+    def create(cls, phone_number, country_iso_code):
+        last_code: cls = cls.objects.get_last_created_code(phone_number, country_iso_code)
+
+        if last_code and not last_code.is_verified and not last_code.waiting_time_expired():
+            return last_code
+
+        waiting_time = settings.DEFAULT_WAITING_TIME_SECONDS
+
+        if last_code and not last_code.is_verified and last_code.waiting_time_expired():
+            waiting_time = increase_waiting_time(last_code.waiting_time)
+
         key = generate_code(cls)
 
         code = cls._default_manager.create(
-            phone_number=int_phone_number, waiting_time=waiting_time, key=key
-        )
+            phone_number=phone_number,
+            country_iso_code=country_iso_code,
+            waiting_time=waiting_time,
+            key=key)
+
+        code.send_key()
 
         return code
+
+    @classmethod
+    def verify(cls, intl_phone_number):
+        last_code: cls = cls.objects.get_last_created_code(intl_phone_number)
+
 
     def get_remaining_time(self):
         time_threshold = self.sent_date.timestamp() + self.waiting_time
@@ -76,12 +108,12 @@ class PassCode(AppModel):
 
         return remaining_time
 
-    def can_create_next_code(self):
+    def waiting_time_expired(self):
         rt = self.get_remaining_time()
 
         return rt <= 0
 
-    def verify(self):
+    def set_as_verified(self):
         self.verified = True
         self.save()
 
@@ -141,7 +173,7 @@ class PhoneNumber(AppModel):
     country = models.ForeignKey(AvailableCountry, on_delete=models.CASCADE, related_name="phone_numbers")
 
     def __str__(self):
-        return f"({self.country.calling_code}) {self.number}"
+        return f"({self.country.dial_code}) {self.number}"
 
     @classmethod
     def create(cls, phone_number: str, user: User, country_iso_code: str, verified=False):

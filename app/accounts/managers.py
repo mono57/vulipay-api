@@ -53,18 +53,13 @@ class PassCodeManager(Manager):
     def expired_keys(self):
         return self.filter(self.expired_q())
 
-    def get_last_created_code(self, int_phone_number):
+    def get_last_created_code(self, phone_number, country_iso_code):
         code = (
-            self.filter(phone_number=int_phone_number)
-            .values("code")
-            .order_by("-created_at")
-            .first()
+            self.filter(Q(phone_number=phone_number) & Q(country_iso_code=country_iso_code))
+            .last()
         )
 
         return code
-
-    def get_last_unexpired_code(self, int_phone_number):
-        pass
 
     def unexpired_keys(self):
         return self.exclude(self.expired_keys())

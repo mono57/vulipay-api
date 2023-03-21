@@ -1,14 +1,14 @@
 from django.db import IntegrityError
 from django.test import TestCase
 
-from accounts.models import AvailableCountry
+from app.accounts.models import AvailableCountry
 
 
 class TextCountry(TestCase):
     def setUp(self):
         self.payload = {
             "name": "Tchad",
-            "calling_code": "235",
+            "dial_code": "235",
             "iso_code": "TD",
             "phone_number_regex": "",
         }

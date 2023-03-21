@@ -8,8 +8,8 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from accounts.tests.factories import PassCodeFactory
-from accounts.models import AvailableCountry
+from app.accounts.tests.factories import PassCodeFactory
+from app.accounts.models import AvailableCountry
 
 User = get_user_model()
 
@@ -27,7 +27,7 @@ class ConfirmCodeTestCase(TestCase):
 
         self.country_payload = {
             "name": "Cameroun",
-            "calling_code": "237",
+            "dial_code": "237",
             "phone_number_regex": "^6[5-9][0-9]{7}$",
             "iso_code": "CM",
         }
