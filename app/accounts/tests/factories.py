@@ -1,6 +1,6 @@
 from factory.django import DjangoModelFactory
 from factory import Faker as faker
-from accounts.models import *
+from app.accounts.models import *
 
 
 class UserFactory(DjangoModelFactory):
@@ -16,9 +16,9 @@ class AvailableCountryFactory(DjangoModelFactory):
         model = AvailableCountry
 
     name = faker('country')
-    calling_code = "237"
+    dial_code = "237"
     iso_code = "CM"
-    country_code_regex = ""
+    country_code_regex = "ZRESDF"
 
 
 class PassCodeFactory(DjangoModelFactory):

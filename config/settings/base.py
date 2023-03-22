@@ -49,10 +49,12 @@ DJANGO_APPS = [
     "django.forms",
 ]
 
-THIRD_PARTY_APPS = []
+THIRD_PARTY_APPS = [
+    "phonenumber_field"
+]
 
 LOCAL_APPS = [
-    "accounts.apps.AccountsConfig"
+    "app.accounts",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -190,3 +192,4 @@ PHONE_NUMBER_CONFIRMATION_DAYS = 1
 CONFIRMATION_CODE_LENGTH = 6
 DIAL_OUT_CODE = "+"
 CODE_EXPIRATION_DAYS = 1
+DEFAULT_WAITING_TIME_SECONDS = 30

@@ -1,3 +1,4 @@
 # General
 USE_DOCKER=yes
 IPYTHONDIR=/app/.ipython
+DEBUG=True

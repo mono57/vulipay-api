@@ -4,7 +4,7 @@ FROM python:${PYTHON_VERSION} as python
 
 FROM python as python-build-stage
 
-ARG BUILD_ENVIRONMENT=local
+ARG BUILD_ENVIRONMENT=darwin
 
 RUN apt-get update && apt-get install --no-install-recommends -y \
   build-essential \
@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 COPY ./requirements .
 
 RUN pip wheel --wheel-dir /usr/src/app/wheels  \
-  -r ${BUILD_ENVIRONMENT}.txt
+  -r local/${BUILD_ENVIRONMENT}.txt
 
 
 FROM python as python-run-stage

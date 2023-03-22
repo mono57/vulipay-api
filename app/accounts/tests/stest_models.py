@@ -1,6 +1,6 @@
 from django.test import TestCase
 
-from accounts.tests.factories import *
+from app.accounts.tests.factories import *
 
 
 class UserTestCase(TestCase):
