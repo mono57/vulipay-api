@@ -1,0 +1,132 @@
+from unittest.mock import patch
+
+from django.db import IntegrityError
+from django.test import TestCase, TransactionTestCase
+from django.conf import settings
+from django.contrib.auth import get_user_model
+
+from app.accounts.models import AvailableCountry, PassCode, User as UserModel
+
+User: UserModel = get_user_model()
+
+class PassCodeTestCase(TransactionTestCase):
+    def setUp(self):
+        self.payload = {
+            'phone_number': '698049742',
+            'country_iso_code': 'CM',
+            'key': '987657'
+        }
+
+    def test_it_should_not_create_passcide_if_one_required_fields_miss(self):
+        with self.assertRaises(IntegrityError):
+            del self.payload['phone_number']
+            PassCode.objects.create(**self.payload)
+
+        with self.assertRaises(IntegrityError):
+            del self.payload['country_iso_code']
+            PassCode.objects.create(**self.payload)
+
+        with self.assertRaises(IntegrityError):
+            del self.payload['key']
+            PassCode.objects.create(**self.payload)
+
+    def test_it_should_create_passcode(self):
+        passcode: PassCode = PassCode.objects.create(**self.payload)
+
+        self.assertTrue(isinstance(passcode, PassCode))
+        self.assertEqual(PassCode.objects.count(), 1)
+        self.assertEqual(passcode.phone_number, self.payload['phone_number'])
+        self.assertEqual(passcode.country_iso_code, self.payload['country_iso_code'])
+        self.assertEqual(passcode.key, self.payload['key'])
+
+    # To be defined
+
+    # def test_it_should_not_create_same_passcode_twice(self):
+    #     PassCode.objects.create(**self.payload)
+
+    #     with self.assertRaises(IntegrityError):
+    #         PassCode.objects.create(**self.payload)
+
+    #     self.assertEqual(PassCode.objects.count(), 1)
+
+    def test_it_should_have_default_waiting_time(self):
+        passcode: PassCode = PassCode.objects.create(**self.payload)
+
+        self.assertTrue(passcode.waiting_time is not None)
+        self.assertEqual(passcode.waiting_time, settings.DEFAULT_WAITING_TIME_SECONDS)
+
+
+class AvailableCountryTestCase(TransactionTestCase):
+    def setUp(self):
+        self.payload = {
+            "name": "Cameroun",
+            "dial_code": "237",
+            "iso_code": "CM",
+            "phone_number_regex": "REGEX",
+        }
+
+    def test_it_should_not_create_country_if_one_required_field_miss(self):
+        with self.assertRaises(IntegrityError):
+            del self.payload['name']
+            AvailableCountry.objects.create(**self.payload)
+
+        with self.assertRaises(IntegrityError):
+            del self.payload['dial_code']
+            AvailableCountry.objects.create(**self.payload)
+
+        with self.assertRaises(IntegrityError):
+            del self.payload['iso_code']
+            AvailableCountry.objects.create(**self.payload)
+
+        with self.assertRaises(IntegrityError):
+            del self.payload['phone_number_regex']
+            AvailableCountry.objects.create(**self.payload)
+
+
+    def test_it_should_create_country(self):
+        country: AvailableCountry = AvailableCountry.objects.create(**self.payload)
+
+        self.assertTrue(isinstance(country, AvailableCountry))
+        self.assertEqual(AvailableCountry.objects.count(), 1)
+        self.assertEqual(country.name, self.payload['name'])
+        self.assertEqual(country.dial_code, self.payload['dial_code'])
+        self.assertEqual(country.iso_code, self.payload['iso_code'])
+        self.assertEqual(country.phone_number_regex, self.payload['phone_number_regex'])
+
+    def test_it_should_not_create_country_twice(self):
+        AvailableCountry.objects.create(**self.payload)
+
+        with self.assertRaises(IntegrityError):
+            AvailableCountry.objects.create(**self.payload)
+
+class UserAdminTestCase(TestCase):
+    def setUp(self):
+        self.email = 'test.email@vulipay.com'
+        self.password = '1342345'
+
+    def test_it_should_create_valid_superuser(self):
+        with patch("app.accounts.models.User.set_password") as mocked_make_password:
+            user: UserModel = User.objects.create_superuser(self.email, self.password)
+
+            self.assertTrue(isinstance(user, UserModel))
+            self.assertTrue(user.is_active)
+            self.assertTrue(user.is_staff)
+            self.assertTrue(user.is_superuser)
+            self.assertTrue(user.password is not None)
+            self.assertEqual(user.email, self.email)
+            self.assertTrue(user.first_name is None)
+            self.assertTrue(user.last_name is None)
+
+            mocked_make_password.assert_called_once_with(self.password)
+
+    def test_it_should_not_create_superuser_if_email_is_missing(self):
+        with patch("app.accounts.models.User.set_password") as mocked_make_password:
+            with self.assertRaises(ValueError):
+                User.objects.create_superuser(None, None)
+            mocked_make_password.assert_not_called()
+
+
+class UserTestCase(TestCase):
+    def setUp(self):
+        return super().setUp()
+

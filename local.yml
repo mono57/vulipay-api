@@ -34,3 +34,7 @@ services:
       - vulipay_local_postgres_data_backups:/backups:z
     env_file:
       - ./.envs/.local/.postgres
+    ports:
+      - "5455:5432"
+    expose:
+      - 5432

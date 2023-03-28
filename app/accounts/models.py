@@ -6,9 +6,7 @@ from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from django.utils import timezone
 
-from app.utils.generate_code import generate_code
-from app.utils.models import AppModel
-from app.utils.twilio_client import MessageClient
+from app.core.utils import MessageClient, generate_code, AppModel, AppCharField
 
 from app.accounts.managers import UserManager, AvailableCountryManager, PassCodeManager
 
@@ -17,10 +15,10 @@ def increase_waiting_time(waiting_time):
     return waiting_time + 30
 
 class AvailableCountry(AppModel):
-    name = models.CharField(max_length=30)  # i.e Chad
-    dial_code = models.CharField(max_length=5, unique=True)  # i.e 235
-    iso_code = models.CharField(max_length=10, unique=True)  # i.e TD
-    phone_number_regex = models.CharField(max_length=50, blank=True, null=True)
+    name = AppCharField(max_length=30)  # i.e Chad
+    dial_code = AppCharField(max_length=5, unique=True)  # i.e 235
+    iso_code = AppCharField(max_length=10, unique=True)  # i.e TD
+    phone_number_regex = AppCharField(max_length=50)
 
     objects = AvailableCountryManager()
 
@@ -39,9 +37,9 @@ class AvailableCountry(AppModel):
 
 
 class PassCode(AppModel):
-    phone_number = models.CharField(max_length=20)
-    country_iso_code = models.CharField(max_length=2)
-    key = models.CharField(max_length=8)
+    phone_number = AppCharField(max_length=20)
+    country_iso_code = AppCharField(max_length=2)
+    key = AppCharField(max_length=8)
     sent_date = models.DateTimeField(null=True)
     verified = models.BooleanField(default=False)
     waiting_time = models.IntegerField(default=30)  # waiting time to send new code
@@ -129,8 +127,8 @@ class PassCode(AppModel):
 
 class User(AbstractBaseUser, AppModel, PermissionsMixin):
     email = models.EmailField(_("Email address"), unique=True, blank=True)
-    first_name = models.CharField(_("Firstname"), max_length=50)
-    last_name = models.CharField(_("Lastname"), max_length=50)
+    first_name = AppCharField(_("Firstname"), max_length=50, null=True)
+    last_name = AppCharField(_("Lastname"), max_length=50, null=True)
 
     is_active = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
@@ -138,32 +136,32 @@ class User(AbstractBaseUser, AppModel, PermissionsMixin):
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
 
-    objects = UserManager()
+    objects: UserManager = UserManager()
 
     def __str__(self):
         return self.email
 
-    @classmethod
-    def get_or_create(cls, phone_number, country_iso_code, **kwargs):
-        user, created = cls.objects.get_or_create(phone_number=phone_number, **kwargs)
+    # @classmethod
+    # def get_or_create(cls, phone_number, country_iso_code, **kwargs):
+    #     user, created = cls.objects.get_or_create(phone_number=phone_number, **kwargs)
 
-        if not created:
-            return user
+    #     if not created:
+    #         return user
 
-        PhoneNumber.create(
-            phone_number=phone_number,
-            user=user,
-            country_iso_code=country_iso_code,
-            verified=True)
+    #     PhoneNumber.create(
+    #         phone_number=phone_number,
+    #         user=user,
+    #         country_iso_code=country_iso_code,
+    #         verified=True)
 
-        return user
+    #     return user
 
 
 class PhoneNumber(AppModel):
-    number = models.CharField(max_length=20)
+    number = AppCharField(max_length=20)
     primary = models.BooleanField(default=False)
     verified = models.BooleanField(default=False)
-    network_supplier = models.CharField(_("Network Supplier"), max_length=50)
+    network_supplier = AppCharField(_("Network Supplier"), max_length=50)
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
