@@ -8,21 +8,6 @@ from django.utils import timezone
 
 
 class UserManager(BaseUserManager):
-    def create_user(self, phone_number, **kwargs):
-        safe_phone_number = self.validate_phone_number(phone_number)
-
-        user = self.model(phone_number=safe_phone_number, **kwargs)
-
-        user.save()
-
-        return user
-
-    def validate_phone_number(self, phone_number):
-        if not phone_number:
-            raise ValueError(_("Phone number must be set"))
-
-        return phone_number
-
     def create_superuser(self, email, password, **kwargs):
         if not email:
             raise ValueError(_("Email must be set"))
