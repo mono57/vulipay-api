@@ -8,17 +8,17 @@ from django.db.models import Q
 
 def generate_code(
     Model: models.Model,
-    lookup_field="key",
+    lookup_field="code",
     unique=True,
     sequence=string.digits,
-    length=settings.CONFIRMATION_CODE_LENGTH,
+    length=settings.VERIFICATION_CODE_LENGTH,
 ) -> str:
 
-    code_exists, key = True, ""
+    code_exists, code = True, ""
 
     while code_exists and unique:
-        key = random.choices(sequence, k=length)
-        kwargs = {lookup_field: key}
+        code = random.choices(sequence, k=length)
+        kwargs = {lookup_field: code}
         code_exists = Model.objects.filter(**kwargs).exists()
 
-    return "".join(key)
+    return "".join(code)

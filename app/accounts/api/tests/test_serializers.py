@@ -1,7 +1,10 @@
-from django.test import TestCase
+from unittest.mock import patch
+import datetime
 
-from app.accounts.api.serializers import PassCodeSerializer
-from app.accounts.models import AvailableCountry
+from django.test import TestCase, SimpleTestCase
+from django.utils import timezone
+from app.accounts.api.serializers import PassCodeSerializer, VerifyPassCodeSerializer
+from app.accounts.models import AvailableCountry, PassCode
 
 class TestAccountSerializer(TestCase):
     payload = {
@@ -44,12 +47,95 @@ class TestAccountSerializer(TestCase):
         self.assertFalse(s.is_valid())
         self.assertIn("phone_number", s.errors)
 
-
-    def test_should_serialize_without_error(self):
+    def test_it_should_serialize_without_error(self):
         data = {
-            "phone_number": 698049742,
+            "phone_number": '698049742',
             "country_iso_code": "CM"
         }
 
         s = self.serializer(data=data)
         assert s.is_valid() == True
+
+
+class VerifyPassCodeSerializerTestCase(TestCase):
+    def setUp(self):
+        self.data = {
+            "phone_number": '698493823',
+            "country_iso_code": "CM",
+            "code": "234543"
+        }
+        country_payload = {
+            "name": "Cameroun",
+            "dial_code": "237",
+            "iso_code": "CM",
+            "phone_number_regex": "",
+        }
+        self.passcode_payload = {
+            "phone_number": '698493823',
+            "country_iso_code": "CM",
+            "code": "234543",
+            "sent_date": datetime.datetime.now(timezone.utc)
+        }
+        self.serializer = VerifyPassCodeSerializer
+        AvailableCountry.objects.create(**country_payload)
+
+    def test_it_should_not_validate_if_code_is_missing(self):
+        del self.data['code']
+        s = self.serializer(data=self.data)
+
+        self.assertFalse(s.is_valid())
+        self.assertIn("code", s.errors)
+        self.assertEqual('required', s.errors.get('code')[0].code)
+
+    def test_it_should_not_validate_if_code_not_digits(self):
+        self.data['code'] = 'ER3353'
+        s = self.serializer(data=self.data)
+
+        self.assertFalse(s.is_valid())
+        self.assertIn("code", s.errors)
+        self.assertEqual('invalid_code', s.errors.get('code')[0].code)
+
+    def test_it_should_not_validate_if_bad_code_length(self):
+        self.data['code'] = '3353'
+        s = self.serializer(data=self.data)
+
+        self.assertFalse(s.is_valid())
+        self.assertIn("code", s.errors)
+        self.assertEqual('invalid_code', s.errors.get('code')[0].code)
+
+    def test_it_should_not_validate_if_passcode_has_not_found(self):
+        s = self.serializer(data=self.data)
+
+        with patch("app.accounts.models.PassCode.objects.get_last_created_code") as mocked_get_last_created_code:
+            mocked_get_last_created_code.return_value = None
+
+            self.assertFalse(s.is_valid())
+
+            mocked_get_last_created_code.assert_called_once_with(
+                self.data.get('phone_number'),
+                self.data.get('country_iso_code'))
+
+            self.assertIn('code', s.errors)
+            self.assertEqual('code_not_found', s.errors.get('code')[0].code)
+
+    def test_it_should_verify_passcode(self):
+        with patch("app.accounts.models.PassCode.objects.get_last_created_code") as mocked_get_last_created_code:
+            mocked_get_last_created_code.return_value = PassCode.objects.create(**self.passcode_payload)
+
+            s = self.serializer(data=self.data)
+
+            self.assertTrue(s.is_valid())
+
+            mocked_get_last_created_code.assert_called_once_with(self.data.get('phone_number'), self.data.get('country_iso_code'))
+
+    def test_it_should_not_verify_passcode_when_expired(self):
+        with patch("app.accounts.models.PassCode.objects.get_last_created_code") as mocked_get_last_created_code:
+            self.passcode_payload['sent_date'] = datetime.datetime.now(timezone.utc) - datetime.timedelta(seconds=40)
+            mocked_get_last_created_code.return_value = PassCode.objects.create(**self.passcode_payload)
+
+            s = self.serializer(data=self.data)
+            self.assertFalse(s.is_valid())
+            self.assertIn('code', s.errors)
+            self.assertEqual('code_expired', s.errors.get('code')[0].code)
+
+            mocked_get_last_created_code.assert_called_once_with(self.data.get('phone_number'), self.data.get('country_iso_code'))

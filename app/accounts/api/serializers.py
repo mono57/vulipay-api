@@ -5,10 +5,12 @@ from phonenumbers import NumberParseException
 
 from rest_framework import serializers
 from phonenumber_field.phonenumber import PhoneNumber as PhoneNumberWrapper
+from rest_framework_simplejwt.tokens import RefreshToken
 
-from app.accounts.models import AvailableCountry, PhoneNumber, PassCode
+from app.accounts.crypto import PassCodeGenerator
+from app.accounts.models import AvailableCountry, PhoneNumber, PassCode, User as UserModel
 
-User = get_user_model()
+User: UserModel = get_user_model()
 
 class PassCodeSerializer(serializers.Serializer):
     country_iso_code = serializers.CharField()
@@ -36,10 +38,10 @@ class PassCodeSerializer(serializers.Serializer):
         try:
             wrapper = PhoneNumberWrapper.from_string(phone_number=phone_number, region=country_iso_code)
         except NumberParseException:
-            raise serializers.ValidationError({ **self.default_error_messages }, 'invalid_phone_number')
+            raise serializers.ValidationError({**self.default_error_messages}, 'invalid_phone_number')
 
         if not wrapper.is_valid():
-            raise serializers.ValidationError({ **self.default_error_messages }, 'invalid_phone_number')
+            raise serializers.ValidationError({**self.default_error_messages}, 'invalid_phone_number')
 
         return data
 
@@ -57,31 +59,61 @@ class PassCodeSerializer(serializers.Serializer):
         }
         return repr
 
-# class ConfirmCodeSerializer(RegisterSerializer):
-#     code = serializers.CharField()
+class VerifyPassCodeSerializer(PassCodeSerializer):
+    code = serializers.CharField()
 
-#     def validate_code(self, code: str):
-#         if not code.isdigit() and not len(code) == settings.CONFIRMATION_CODE_LENGTH:
-#             raise serializers.ValidationError(_("Invalid code"))
+    def validate_code(self, code: str):
+        passcode_wrapper = PassCodeGenerator.from_code(code)
 
-#         return code
+        if not passcode_wrapper.is_valid():
+            raise serializers.ValidationError(_('Invalid Code'), 'invalid_code')
 
-#     def validate(self, data):
-#         data = super().validate(data)
+        return code
 
-#         int_phone_number = data.get("int_phone_number")
-#         code = data.get("code")
+    def validate(self, data):
+        data = super().validate(data)
 
-#         code_obj: PassCode = PassCode.objects.filter(
-#             Q(phone_number=int_phone_number) & Q(key=code)
-#         ).last()
+        phone_number = data.get("phone_number")
+        country_iso_code = data.get("country_iso_code")
 
-#         if code_obj is None:
-#             raise serializers.ValidationError(_(f"Code not found: {code}"))
+        passcode: PassCode = PassCode.objects.get_last_created_code(phone_number, country_iso_code)
 
-#         if code_obj.key_expired:
-#             raise serializers.ValidationError(_(f"Code: {code} has expired"))
+        if passcode is None:
+            raise serializers.ValidationError({'code': _("The code has not found")}, 'code_not_found')
 
-#         code_obj.verify()
+        if passcode.key_expired:
+            raise serializers.ValidationError({'code': _("The code has been expired")}, 'code_expired')
 
-#         return data
+        code = data.get("code")
+
+        verified = passcode.verify(code)
+
+        if not verified:
+            raise serializers.ValidationError({'code': _("The code you provided is invalid")}, 'invalid_code')
+
+        return data
+
+    def create(self, validated_data):
+        user = PhoneNumber.objects.get_user(
+            validated_data.get('phone_number'),
+            validated_data.get('country_iso_code')
+        )
+
+        if user is not None:
+            return user
+
+        phone_number: PhoneNumber = PhoneNumber.create(
+            phone_number=validated_data.get('phone_number'),
+            country_iso_code=validated_data.get('country_iso_code'),
+            verified=True)
+
+        user = phone_number.user
+
+        return user
+
+    def to_representation(self, instance: User):
+        refresh = RefreshToken.for_user(instance)
+
+        repr = {"refresh": str(refresh), "access": str(refresh.access_token)}
+
+        return repr

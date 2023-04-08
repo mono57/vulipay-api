@@ -5,5 +5,12 @@ from app.accounts.api import views as accounts_views
 app_name = "api"
 
 urlpatterns = [
-    path('accounts/passcodes', accounts_views.PassCodeCreateAPIView.as_view(), name="accounts_passcodes"),
+    path(
+        'accounts/passcodes',
+        accounts_views.PassCodeCreateAPIView.as_view(),
+        name="accounts_passcodes"),
+    path(
+        'accounts/passcodes/verify',
+        accounts_views.VerifyPassCodeCreateAPIView.as_view(),
+        name="accounts_passcodes_verify"),
 ]

@@ -18,7 +18,7 @@ class AvailableCountryFactory(DjangoModelFactory):
     name = faker('country')
     dial_code = "237"
     iso_code = "CM"
-    country_code_regex = "ZRESDF"
+    phone_number_regex = "ZRESDF"
 
 
 class PassCodeFactory(DjangoModelFactory):

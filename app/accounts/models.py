@@ -6,9 +6,9 @@ from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from django.utils import timezone
 
-from app.core.utils import MessageClient, generate_code, AppModel, AppCharField
+from app.core.utils import MessageClient, generate_code, AppModel, AppCharField, get_carrier
 
-from app.accounts.managers import UserManager, AvailableCountryManager, PassCodeManager
+from app.accounts.managers import PhoneNumberManager, UserManager, AvailableCountryManager, PassCodeManager
 
 def increase_waiting_time(waiting_time):
     # compute waiting time base on mathematic formula
@@ -39,7 +39,7 @@ class AvailableCountry(AppModel):
 class PassCode(AppModel):
     phone_number = AppCharField(max_length=20)
     country_iso_code = AppCharField(max_length=2)
-    key = AppCharField(max_length=8)
+    code = AppCharField(max_length=8)
     sent_date = models.DateTimeField(null=True)
     verified = models.BooleanField(default=False)
     waiting_time = models.IntegerField(default=30)  # waiting time to send new code
@@ -52,11 +52,11 @@ class PassCode(AppModel):
         ]
 
     def __str__(self):
-        return self.key
+        return self.code
 
     @property
     def key_expired(self):
-        if self.verified:
+        if self.is_verified:
             return True
 
         expiration_date = self.sent_date + datetime.timedelta(
@@ -81,22 +81,25 @@ class PassCode(AppModel):
         if last_code and not last_code.is_verified and last_code.waiting_time_expired():
             waiting_time = increase_waiting_time(last_code.waiting_time)
 
-        key = generate_code(cls)
+        code = generate_code(cls)
 
         code = cls._default_manager.create(
             phone_number=phone_number,
             country_iso_code=country_iso_code,
             waiting_time=waiting_time,
-            key=key)
+            code=code)
 
-        code.send_key()
+        code.send_code()
 
         return code
 
-    @classmethod
-    def verify(cls, intl_phone_number):
-        last_code: cls = cls.objects.get_last_created_code(intl_phone_number)
+    def verify(self, code):
+        matched = self.code = code
 
+        if matched:
+            self.set_verified()
+
+        return matched
 
     def get_remaining_time(self):
         time_threshold = self.sent_date.timestamp() + self.waiting_time
@@ -111,12 +114,12 @@ class PassCode(AppModel):
 
         return rt <= 0
 
-    def set_as_verified(self):
-        self.verified = True
+    def set_verified(self, is_verified=True):
+        self.verified = is_verified
         self.save()
 
-    def send_key(self):
-        body = MessageClient._BODY_VIRIFICATION.format(self.key)
+    def send_code(self):
+        body = MessageClient._BODY_VIRIFICATION.format(self.code)
 
         MessageClient.send_message(body, self.phone_number)
 
@@ -156,27 +159,54 @@ class User(AbstractBaseUser, AppModel, PermissionsMixin):
 
     #     return user
 
-
 class PhoneNumber(AppModel):
     number = AppCharField(max_length=20)
     primary = models.BooleanField(default=False)
     verified = models.BooleanField(default=False)
-    network_supplier = AppCharField(_("Network Supplier"), max_length=50)
+    carrier = AppCharField(_("Carrier"), max_length=50)
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
         related_name="phone_numbers",
         verbose_name=_("User"),
     )
-    country = models.ForeignKey(AvailableCountry, on_delete=models.CASCADE, related_name="phone_numbers")
+    country = models.ForeignKey(
+        AvailableCountry,
+        on_delete=models.CASCADE,
+        related_name="phone_numbers")
+
+    objects = PhoneNumberManager()
 
     def __str__(self):
         return f"({self.country.dial_code}) {self.number}"
 
-    @classmethod
-    def create(cls, phone_number: str, user: User, country_iso_code: str, verified=False):
-        country = AvailableCountry.objects.get(iso_code=country_iso_code)
+    @property
+    def is_primary(self):
+        return self.is_verified and self.primary
 
-        obj = cls.objects.create(number=phone_number, user=user, country=country, verified=verified)
+    @property
+    def is_verified(self):
+        return self.verified
+
+    @classmethod
+    def create(cls, phone_number: str, country_iso_code: str, verified=True):
+        country_id = AvailableCountry.objects.values('id') \
+            .get(iso_code=country_iso_code) \
+            .get('id')
+
+        user = User.objects.create_user()
+
+        carrier = get_carrier(phone_number, country_iso_code)
+
+        obj = cls.objects.create(
+            number=phone_number,
+            user_id=user.id,
+            country_id=country_id,
+            carrier=carrier,
+            verified=verified)
 
         return obj
+
+    def set_primary(self):
+        self.primary = True
+        self.save()

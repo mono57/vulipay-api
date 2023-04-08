@@ -5,7 +5,7 @@ from django.test import TestCase, TransactionTestCase
 from django.conf import settings
 from django.contrib.auth import get_user_model
 
-from app.accounts.models import AvailableCountry, PassCode, User as UserModel
+from app.accounts.models import AvailableCountry, PassCode, PhoneNumber, User as UserModel
 
 User: UserModel = get_user_model()
 
@@ -14,7 +14,7 @@ class PassCodeTestCase(TransactionTestCase):
         self.payload = {
             'phone_number': '698049742',
             'country_iso_code': 'CM',
-            'key': '987657'
+            'code': '987657'
         }
 
     def test_it_should_not_create_passcide_if_one_required_fields_miss(self):
@@ -27,7 +27,7 @@ class PassCodeTestCase(TransactionTestCase):
             PassCode.objects.create(**self.payload)
 
         with self.assertRaises(IntegrityError):
-            del self.payload['key']
+            del self.payload['code']
             PassCode.objects.create(**self.payload)
 
     def test_it_should_create_passcode(self):
@@ -37,7 +37,7 @@ class PassCodeTestCase(TransactionTestCase):
         self.assertEqual(PassCode.objects.count(), 1)
         self.assertEqual(passcode.phone_number, self.payload['phone_number'])
         self.assertEqual(passcode.country_iso_code, self.payload['country_iso_code'])
-        self.assertEqual(passcode.key, self.payload['key'])
+        self.assertEqual(passcode.code, self.payload['code'])
 
     # To be defined
 
@@ -104,6 +104,8 @@ class UserAdminTestCase(TestCase):
         self.email = 'test.email@vulipay.com'
         self.password = '1342345'
 
+    # need to be redefine to have a great separation of concerns
+    # test manager methods in test_managers file
     def test_it_should_create_valid_superuser(self):
         with patch("app.accounts.models.User.set_password") as mocked_make_password:
             user: UserModel = User.objects.create_superuser(self.email, self.password)
@@ -130,3 +132,42 @@ class UserTestCase(TestCase):
     def setUp(self):
         return super().setUp()
 
+
+class PhoneNumberTestCase(TestCase):
+    def setUp(self):
+        self.country_payload = {
+            "name": "Cameroun",
+            "dial_code": "237",
+            "iso_code": "CM",
+            "phone_number_regex": "REGEX",
+        }
+
+        self.phone_number_payload = {
+            'phone_number': '698049742',
+            'country_iso_code': 'CM'
+        }
+
+        AvailableCountry.objects.create(**self.country_payload)
+
+    def test_it_should_create_phone_number_instance(self):
+        phone_number: PhoneNumber = PhoneNumber.create(**{**self.phone_number_payload})
+
+        self.assertTrue(isinstance(phone_number, PhoneNumber))
+
+    def test_it_should_set_phone_number_as_primary(self):
+        phone_number: PhoneNumber = PhoneNumber.create(**{**self.phone_number_payload})
+
+        self.assertFalse(phone_number.is_primary)
+
+        phone_number.set_primary()
+
+        self.assertTrue(phone_number.is_primary)
+
+    def test_it_should_created_verified_phone_number(self):
+        phone_number: PhoneNumber = PhoneNumber.create(**self.phone_number_payload)
+
+        self.assertTrue(phone_number.is_verified)
+        self.assertEqual(phone_number.number, self.phone_number_payload.get('phone_number'))
+
+    def test_should_not_login_with_no_primary_number(self):
+        pass
