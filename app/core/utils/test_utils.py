@@ -1,42 +1,29 @@
-import logging
+from django.test import TestCase, SimpleTestCase
 
-from django.test import TestCase
-from django.urls import reverse
+from app.core.utils.models import TimestampModel
+from app.core.utils.network_carrier import get_carrier, NO_CARRIER
 
-from rest_framework.response import Response
-from rest_framework.test import APIClient
-
-def client_action_wrapper(action):
-    def wrapper_method(self, *args, **kwargs) -> Response:
-        if self.view_name is None:
-            raise ValueError("Must give value for `view_name` property")
-
-        reverse_args = kwargs.pop("reverse_args", tuple())
-        reverse_kwargs = kwargs.pop("reverse_kwargs", dict())
-
-        url = reverse(self.view_name, args=reverse_args, kwargs=reverse_kwargs)
-
-        return getattr(self.client, action)(url, *args, **kwargs)
-
-    return wrapper_method
-
-class APIViewTestCase(TestCase):
-    client_class = APIClient
-    logger = logging.getLogger("django.request")
-
-    def authenticate_with_token(self, token):
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
-
-    view_name = None
-
-    view_post = client_action_wrapper("post")
-    view_get = client_action_wrapper("get")
-
+class TestGetCarrier(SimpleTestCase):
     def setUp(self):
-        super().setUp()
-        self.previous_level = self.logger.getEffectiveLevel()
-        self.logger.setLevel(logging.ERROR)
+        self.phone_number = '698049334'
+        self.country_iso_code = 'CM'
 
-    def tearDown(self):
-        super().tearDown()
-        self.logger.setLevel(self.previous_level)
+    def test_should_return_str_carrier_name(self):
+        carrier = get_carrier(self.phone_number, self.country_iso_code)
+
+        self.assertTrue(isinstance(carrier, str))
+
+    def test_it_should_return_correct_carrier_name(self):
+        carrier = get_carrier(self.phone_number, self.country_iso_code)
+
+        self.assertIn('orange', carrier.lower())
+
+    def test_it_should_return_unknow_if_not_identify(self):
+        carrier = get_carrier('60344544', self.country_iso_code)
+
+        self.assertEqual(carrier, NO_CARRIER)
+
+    def test_it_should_have_country_code_as_prefix(self):
+        carrier = get_carrier(self.phone_number, self.country_iso_code)
+
+        self.assertEqual(self.country_iso_code, carrier[:2])
