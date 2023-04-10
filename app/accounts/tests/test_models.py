@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 from django.db import IntegrityError
 from django.test import TestCase, TransactionTestCase
 from django.conf import settings
+from django.utils import timezone
 from django.contrib.auth import get_user_model
 from django.test.utils import override_settings
 
@@ -15,7 +16,8 @@ class PassCodeTestCase(TransactionTestCase):
         self.payload = {
             'phone_number': '698049742',
             'country_iso_code': 'CM',
-            'code': '987657'
+            'code': '987657',
+            'sent_date': timezone.now()
         }
         self.passcode_payload = {
             'phone_number': '698049742',
@@ -60,20 +62,24 @@ class PassCodeTestCase(TransactionTestCase):
             self.assertTrue(first_passcode.expired)
             self.assertFalse(last_passcode.expired)
 
-    # def test_it_should_not_create_same_passcode_twice(self):
-    #     PassCode.objects.create(**self.payload)
-
-    #     with self.assertRaises(IntegrityError):
-    #         PassCode.objects.create(**self.payload)
-
-    #     self.assertEqual(PassCode.objects.count(), 1)
-
     def test_it_should_have_default_waiting_time(self):
         passcode: PassCode = PassCode.objects.create(**self.payload)
 
         self.assertTrue(passcode.waiting_time is not None)
         self.assertEqual(passcode.waiting_time, settings.DEFAULT_WAITING_TIME_SECONDS)
 
+
+    def test_it_should_expired_code(self):
+        passcode: PassCode = PassCode.objects.create(**self.payload)
+        passcode.set_expired()
+
+        self.assertTrue(passcode.expired)
+
+    def test_it_should_return_remaining_time_seconds(self):
+        passcode: PassCode = PassCode.objects.create(**self.payload)
+        r_time = passcode.get_remaining_time()
+
+        self.assertTrue(isinstance(r_time, float))
 
 class AvailableCountryTestCase(TransactionTestCase):
     def setUp(self):
