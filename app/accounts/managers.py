@@ -82,6 +82,7 @@ class PhoneNumberManager(Manager):
         except self.model.DoesNotExist:
             return None
 
+    # improve performance
     def get_user(self, phone_number, country_iso_code):
         qs = self.filter(Q(number=phone_number) & Q(country__iso_code=country_iso_code))
 

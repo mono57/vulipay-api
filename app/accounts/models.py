@@ -42,6 +42,7 @@ class PassCode(AppModel):
     code = AppCharField(max_length=8)
     sent_date = models.DateTimeField(null=True)
     verified = models.BooleanField(default=False)
+    expired = models.BooleanField(default=False)
     waiting_time = models.IntegerField(default=30)  # waiting time to send new code
 
     objects = PassCodeManager()
@@ -56,7 +57,7 @@ class PassCode(AppModel):
 
     @property
     def key_expired(self):
-        if self.is_verified:
+        if self.expired or self.verified:
             return True
 
         expiration_date = self.sent_date + datetime.timedelta(
@@ -79,6 +80,7 @@ class PassCode(AppModel):
         waiting_time = settings.DEFAULT_WAITING_TIME_SECONDS
 
         if last_code and not last_code.is_verified and last_code.waiting_time_expired():
+            last_code.set_expired()
             waiting_time = increase_waiting_time(last_code.waiting_time)
 
         code = generate_code(cls)
@@ -94,7 +96,7 @@ class PassCode(AppModel):
         return code
 
     def verify(self, code):
-        matched = self.code = code
+        matched = self.code == code
 
         if matched:
             self.set_verified()
@@ -116,6 +118,10 @@ class PassCode(AppModel):
 
     def set_verified(self, is_verified=True):
         self.verified = is_verified
+        self.save()
+
+    def set_expired(self):
+        self.expired = True
         self.save()
 
     def send_code(self):

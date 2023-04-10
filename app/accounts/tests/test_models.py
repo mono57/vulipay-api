@@ -1,9 +1,11 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.db import IntegrityError
 from django.test import TestCase, TransactionTestCase
 from django.conf import settings
+from django.utils import timezone
 from django.contrib.auth import get_user_model
+from django.test.utils import override_settings
 
 from app.accounts.models import AvailableCountry, PassCode, PhoneNumber, User as UserModel
 
@@ -14,10 +16,15 @@ class PassCodeTestCase(TransactionTestCase):
         self.payload = {
             'phone_number': '698049742',
             'country_iso_code': 'CM',
-            'code': '987657'
+            'code': '987657',
+            'sent_date': timezone.now()
+        }
+        self.passcode_payload = {
+            'phone_number': '698049742',
+            'country_iso_code': 'CM'
         }
 
-    def test_it_should_not_create_passcide_if_one_required_fields_miss(self):
+    def test_it_should_not_create_passcode_if_one_required_fields_miss(self):
         with self.assertRaises(IntegrityError):
             del self.payload['phone_number']
             PassCode.objects.create(**self.payload)
@@ -39,15 +46,21 @@ class PassCodeTestCase(TransactionTestCase):
         self.assertEqual(passcode.country_iso_code, self.payload['country_iso_code'])
         self.assertEqual(passcode.code, self.payload['code'])
 
-    # To be defined
+    @patch('app.accounts.models.PassCode.send_code')
+    def test_it_should_expire_previous_code_before_create_one(self, mocked_send_code: MagicMock):
+        PassCode.create(**self.passcode_payload)
 
-    # def test_it_should_not_create_same_passcode_twice(self):
-    #     PassCode.objects.create(**self.payload)
+        with patch('app.accounts.models.PassCode.waiting_time_expired') as mocked_waiting_time:
+            mocked_waiting_time.return_value = True
+            PassCode.create(**self.passcode_payload)
 
-    #     with self.assertRaises(IntegrityError):
-    #         PassCode.objects.create(**self.payload)
+            qs = PassCode.objects.filter(**self.passcode_payload)
+            first_passcode: PassCode = qs.first()
+            last_passcode: PassCode = qs.last()
 
-    #     self.assertEqual(PassCode.objects.count(), 1)
+            self.assertEqual(qs.count(), 2)
+            self.assertTrue(first_passcode.expired)
+            self.assertFalse(last_passcode.expired)
 
     def test_it_should_have_default_waiting_time(self):
         passcode: PassCode = PassCode.objects.create(**self.payload)
@@ -55,6 +68,18 @@ class PassCodeTestCase(TransactionTestCase):
         self.assertTrue(passcode.waiting_time is not None)
         self.assertEqual(passcode.waiting_time, settings.DEFAULT_WAITING_TIME_SECONDS)
 
+
+    def test_it_should_expired_code(self):
+        passcode: PassCode = PassCode.objects.create(**self.payload)
+        passcode.set_expired()
+
+        self.assertTrue(passcode.expired)
+
+    def test_it_should_return_remaining_time_seconds(self):
+        passcode: PassCode = PassCode.objects.create(**self.payload)
+        r_time = passcode.get_remaining_time()
+
+        self.assertTrue(isinstance(r_time, float))
 
 class AvailableCountryTestCase(TransactionTestCase):
     def setUp(self):
