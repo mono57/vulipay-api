@@ -1,9 +1,11 @@
-import datetime
+import datetime as dt
 
 from django.conf import settings
 from django.contrib.auth.models import BaseUserManager
 from django.utils.translation import gettext_lazy as _
-from django.db.models import Manager, Q
+from django.db.models import Manager, Q, F
+from django.db.models.functions import Cast
+from django.db import models
 from django.utils import timezone
 
 
@@ -58,13 +60,31 @@ class PassCodeManager(Manager):
     # def expired_keys(self):
     #     return self.filter(self.expired_q())
 
-    def get_last_created_code(self, phone_number, country_iso_code):
+    def get_last_code(self, phone_number, country_iso_code):
         code = (
             self.filter(Q(phone_number=phone_number) & Q(country_iso_code=country_iso_code))
             .last()
         )
 
         return code
+
+    def check_can_verify(self, phone_number, country_iso_code):
+        dt_now = timezone.now()
+        qs = super().get_queryset()
+        qs_processable_passcode = qs.filter(next_attempt_on__lte=dt_now);
+        print('qs.first exits', qs_processable_passcode.exists())
+        # qs = self.filter(
+        #     Q(country_iso_code=country_iso_code) &
+        #     Q(phone_number=phone_number) &
+        #     Q(verified=False) &
+        #     Q(expired=False) &
+        #     Q(next_attempt_on__gte=dt_now))
+        passcode = qs_processable_passcode.last()
+        print('dt.datetime.now(timezone.utc)', dt_now)
+        print('manager next_attempt_on',passcode.next_attempt_on)
+        print(qs_processable_passcode.query)
+        print('super().get_queryset().last().next_attempt_on', super().get_queryset().last().next_attempt_on)
+        return qs.exists(), qs.last()
 
     # def unexpired_keys(self):
     #     return self.exclude(self.expired_keys())
@@ -81,6 +101,14 @@ class PhoneNumberManager(Manager):
             return self.get(user=user, primary=True)
         except self.model.DoesNotExist:
             return None
+
+    def get_or_none(self, **kwargs):
+        qs = self.filter(**kwargs)
+
+        if qs.exists():
+            return qs.first()
+
+        return None
 
     # improve performance
     def get_user(self, phone_number, country_iso_code):

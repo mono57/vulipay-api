@@ -1,3 +1,4 @@
+import datetime
 from unittest.mock import patch
 
 from django.test import TestCase
@@ -52,7 +53,7 @@ class PassCodeManagerTestCase(TestCase):
         PassCode.objects.create(**self.passcode_payload)
 
     def test_it_should_return_the_one_created_passcode(self):
-        passcode:PassCode = PassCode.objects.get_last_created_code(self.phone_number, self.country_iso_code)
+        passcode:PassCode = PassCode.objects.get_last_code(self.phone_number, self.country_iso_code)
 
         self.assertTrue(isinstance(passcode, PassCode))
         self.assertEqual(passcode.phone_number, self.passcode_payload.get('phone_number'))
@@ -71,7 +72,7 @@ class PassCodeManagerTestCase(TestCase):
 
         PassCode.objects.create(**passcode_payload2)
 
-        passcode = PassCode.objects.get_last_created_code(self.phone_number, self.country_iso_code)
+        passcode = PassCode.objects.get_last_code(self.phone_number, self.country_iso_code)
 
         self.assertTrue(isinstance(passcode, PassCode))
         self.assertEqual(passcode.phone_number, passcode_payload2.get('phone_number'))
@@ -79,6 +80,31 @@ class PassCodeManagerTestCase(TestCase):
         self.assertEqual(passcode.code, passcode_payload2.get('code'))
         self.assertEqual(PassCode.objects.count(), 2)
 
+    # def test_it_should_return_true_on_check_can_verify_for_not_found_passcode(self):
+    #     can_verify, _ = PassCode.objects.check_can_verify(self.phone_number, self.country_iso_code)
+
+    #     self.assertTrue(can_verify)
+
+    # def test_it_should_return_true_on_check_can_verify(self):
+    #     PassCode.objects.create(**self.passcode_payload)
+
+    #     can_verify, _ = PassCode.objects.check_can_verify(self.phone_number, self.country_iso_code)
+
+        # self.assertTrue(can_verify)
+
+    def test_it_should_return_false_on_check_can_verify(self):
+        print('all passcode', PassCode.objects.all().count())
+        passcode: PassCode = PassCode.objects.create(**self.passcode_payload)
+        print('bef-created', passcode.created_at)
+        print('bef-last_attempt_on', passcode.last_attempt_on)
+        print('bef-next_attempt_on', passcode.next_attempt_on)
+        passcode.verify("234542")
+        print('bef-updated', passcode.updated_at)
+        print('af-last_attempt_on', passcode.last_attempt_on)
+        print('af-next_attempt_on', passcode.next_attempt_on)
+        can_verify, next = PassCode.objects.check_can_verify(self.phone_number, self.country_iso_code)
+        print('can_verify', can_verify)
+        self.assertFalse(can_verify)
 
 
 class PhoneNumberManagerTestCase(TestCase):
