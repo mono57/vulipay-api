@@ -1,5 +1,3 @@
-import math
-from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 from phonenumbers import NumberParseException
@@ -10,9 +8,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import status
 
 from app.accounts.crypto import PassCodeGenerator
-from app.accounts.models import AvailableCountry, PhoneNumber, PassCode, User as UserModel
+from app.accounts.models import AvailableCountry, PhoneNumber, PassCode, Account
 
-User: UserModel = get_user_model()
 class PassCodeSerializer(serializers.Serializer):
     country_iso_code = serializers.CharField()
     phone_number = serializers.CharField()
@@ -102,26 +99,30 @@ class VerifyPassCodeSerializer(PassCodeSerializer):
         return data
 
     def create(self, validated_data):
-        phone_number = PhoneNumber.objects.get_or_none(**validated_data)
+        account = PhoneNumber.objects.get_account(
+            validated_data.get('phone_number'),
+            validated_data.get('country_iso_code')
+        )
 
-        if phone_number is not None:
-            return phone_number
+        if account is not None:
+            return account
 
         phone_number: PhoneNumber = PhoneNumber.create(
             phone_number=validated_data.get('phone_number'),
             country_iso_code=validated_data.get('country_iso_code'),
             verified=True)
 
-        return phone_number
+        account = phone_number.account
 
-    def to_representation(self, instance: PhoneNumber):
-        if getattr(self.errors, 'status_code', None) == status.HTTP_400_BAD_REQUEST and 'unprocessable_verification' in self.errors:
-            self.errors['invalid'].status_code = 422
-            return super().to_representation(instance)
+        return account
 
-        user = instance.user
-        refresh = RefreshToken.for_user(user)
+    def to_representation(self, instance: Account):
+        refresh = RefreshToken.for_user(instance)
 
         repr = {"refresh": str(refresh), "access": str(refresh.access_token)}
 
         return repr
+
+class AccountPaymentCodeSerializer(serializers.Serializer):
+    payment_code = serializers.CharField()
+

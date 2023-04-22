@@ -5,7 +5,6 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
-python manage.py makemigrations accounts
 python manage.py migrate
 python manage.py makemigrations
 python manage.py migrate

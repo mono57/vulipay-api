@@ -1,13 +1,11 @@
 from django.conf import settings
 
 from rest_framework import generics
-from rest_framework.response import Response
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.permissions import IsAuthenticated
 
-from app.accounts.models import PassCode, User as UserModel
-from app.accounts.api.serializers import PassCodeSerializer, VerifyPassCodeSerializer
+from app.accounts.api.serializers import PassCodeSerializer, VerifyPassCodeSerializer, AccountPaymentCodeSerializer
+from app.accounts.models import Account
 
-User: UserModel = settings.AUTH_USER_MODEL
 
 class PassCodeCreateAPIView(generics.CreateAPIView):
     http_method_names = ['post']
@@ -17,3 +15,11 @@ class VerifyPassCodeCreateAPIView(generics.CreateAPIView):
     http_method_names = ['post']
     serializer_class = VerifyPassCodeSerializer
 
+class AccountPaymentCodeRetrieveAPIView(generics.RetrieveAPIView):
+    serializer_class = AccountPaymentCodeSerializer
+    # permission_classes = [IsAuthenticated]
+    lookup_field = 'number'
+    queryset = Account.objects.all()
+
+    def get_queryset(self):
+        return super().get_queryset().values('payment_code')

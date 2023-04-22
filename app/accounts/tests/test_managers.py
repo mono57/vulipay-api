@@ -2,41 +2,22 @@ import datetime
 from unittest.mock import patch
 
 from django.test import TestCase
-from django.contrib.auth import get_user_model
 
-from app.accounts.models import AvailableCountry, PassCode, PhoneNumber
+from app.accounts.models import AvailableCountry, PassCode, PhoneNumber, Account
 from app.accounts.managers import *
 from app.accounts.tests.factories import AvailableCountryFactory
 
-User = get_user_model()
-
-class UserManagerTestCase(TestCase):
+class AccountManagerTestCase(TestCase):
     def setUp(self):
-        self.user_payload = {
-            'email': 'test@email.com',
-            'password': 'testPassword1'
-        }
+        pass
 
-    def test_it_should_create_a_superuser(self):
-        with patch("app.accounts.models.User.set_password") as mocked_set_password:
-            user = User.objects.create_superuser(**self.user_payload)
+    def test_it_should_generate_account_number(self):
+        number = AccountManager.generate_account_number()
 
-            mocked_set_password.assert_called_once_with(self.user_payload.get('password'))
-
-            self.assertTrue(isinstance(user, User))
-            self.assertTrue(user.is_active)
-            self.assertTrue(user.is_staff)
-            self.assertTrue(user.is_superuser)
-            self.assertTrue(user.password is not None)
-            self.assertEqual(User.objects.count(), 1)
-
-    # def test_it_should_not_create_superadmin_for_wrong_email(self):
-    #     with patch("app.accounts.models.User.set_password") as mocked_set_password:
-    #         self.user_payload['email'] = 'test'
-
-    #         # with self.assertRaises(ValueError):
-    #         User.objects.create_superuser(**self.user_payload)
-    #         self.assertEqual(User.objects.count(), 0)
+        self.assertIsNotNone(number)
+        self.assertIsInstance(number, str)
+        self.assertTrue(number.isdigit())
+        self.assertTrue(len(number), 16)
 
 
 class PassCodeManagerTestCase(TestCase):
@@ -109,13 +90,13 @@ class PassCodeManagerTestCase(TestCase):
 
 class PhoneNumberManagerTestCase(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user()
+        self.account = Account.objects.create()
         self.country: AvailableCountry = AvailableCountryFactory.create()
 
         self.phone_number_payload = {
             'number': '698049742',
             'carrier': 'Orange CM',
-            'user': self.user,
+            'account': self.account,
             'country': self.country,
         }
 
@@ -123,19 +104,19 @@ class PhoneNumberManagerTestCase(TestCase):
         PhoneNumber.objects.create(**{**self.phone_number_payload, 'number': '687943045'})
 
     def test_it_should_return_primary_phone_number(self):
-        primary_phone_number: PhoneNumber = PhoneNumber.objects.get_primary(self.user)
+        primary_phone_number: PhoneNumber = PhoneNumber.objects.get_primary(self.account)
 
         self.assertTrue(isinstance(primary_phone_number, PhoneNumber))
         self.assertTrue(primary_phone_number.primary)
         self.assertEqual(primary_phone_number.number, self.phone_number_payload.get('number'))
 
-    def test_it_should_return_phone_number_user(self):
-        user = PhoneNumber.objects.get_user(self.phone_number_payload.get('number'), AvailableCountryFactory.iso_code)
+    def test_it_should_return_phone_number_account(self):
+        account = PhoneNumber.objects.get_account(self.phone_number_payload.get('number'), AvailableCountryFactory.iso_code)
 
-        self.assertTrue(isinstance(user, User))
-        self.assertEqual(self.user.id, user.id)
+        self.assertTrue(isinstance(account, Account))
+        self.assertEqual(self.account.id, account.id)
 
-    def test_it_should_return_none_if_phone_number_not_exists(self):
-        user = PhoneNumber.objects.get_user('687943041', AvailableCountryFactory.iso_code)
+    def test_it_should_not_get_account_if_phone_number_not_exists(self):
+        account = PhoneNumber.objects.get_account('687943041', AvailableCountryFactory.iso_code)
 
-        self.assertTrue(user is None)
+        self.assertTrue(account is None)

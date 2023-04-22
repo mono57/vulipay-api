@@ -7,8 +7,8 @@ from django.conf import settings
 from django.utils import timezone
 
 from app.core.utils import MessageClient, generate_code, AppModel, AppCharField, get_carrier
-
-from app.accounts.managers import PhoneNumberManager, UserManager, AvailableCountryManager, PassCodeManager
+from accounts.crypto import Hasher
+from app.accounts.managers import PhoneNumberManager, AccountManager, AvailableCountryManager, PassCodeManager
 
 def increase_waiting_time(waiting_time):
     # compute waiting time base on mathematic formula
@@ -159,47 +159,38 @@ class PassCode(AppModel):
         self.save()
 
 
-class User(AbstractBaseUser, AppModel, PermissionsMixin):
-    email = models.EmailField(_("Email address"), unique=True, blank=True)
-    first_name = AppCharField(_("Firstname"), max_length=50, null=True)
-    last_name = AppCharField(_("Lastname"), max_length=50, null=True)
+class Account(AppModel):
+    number = AppCharField(_('Account number'), max_length=16, unique=True, null=False)
+    payment_code = AppCharField(_('Payment Qr Code'), max_length=255, null=False, blank=True)
+    owner_email = models.EmailField(_("Email address"), unique=True, null=True, blank=True)
+    owner_first_name = AppCharField(_("Firstname"), max_length=50, null=True, blank=True)
+    owner_last_name = AppCharField(_("Lastname"), max_length=50, null=True, blank=True)
 
     is_active = models.BooleanField(default=False)
-    is_staff = models.BooleanField(default=False)
 
-    USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = []
 
-    objects: UserManager = UserManager()
+    objects: AccountManager = AccountManager()
 
     def __str__(self):
         return self.email
 
-    # @classmethod
-    # def get_or_create(cls, phone_number, country_iso_code, **kwargs):
-    #     user, created = cls.objects.get_or_create(phone_number=phone_number, **kwargs)
+    def save(self, **kwargs):
+        if self.number is None:
+            self.number = AccountManager.generate_account_number()
+            self.payment_code = Hasher.hash(self.number)
+        super().save(**kwargs)
 
-    #     if not created:
-    #         return user
-
-    #     PhoneNumber.create(
-    #         phone_number=phone_number,
-    #         user=user,
-    #         country_iso_code=country_iso_code,
-    #         verified=True)
-
-    #     return user
 
 class PhoneNumber(AppModel):
     number = AppCharField(max_length=20)
     primary = models.BooleanField(default=False)
     verified = models.BooleanField(default=False)
     carrier = AppCharField(_("Carrier"), max_length=50)
-    user = models.ForeignKey(
-        User,
+    account = models.ForeignKey(
+        Account,
         on_delete=models.CASCADE,
         related_name="phone_numbers",
-        verbose_name=_("User"),
+        verbose_name=_("Account"),
     )
     country = models.ForeignKey(
         AvailableCountry,
@@ -225,13 +216,13 @@ class PhoneNumber(AppModel):
             .get(iso_code=country_iso_code) \
             .get('id')
 
-        user = User.objects.create_user()
+        account = Account.objects.create()
 
         carrier = get_carrier(phone_number, country_iso_code)
 
         obj = cls.objects.create(
             number=phone_number,
-            user_id=user.id,
+            account_id=account.id,
             country_id=country_id,
             carrier=carrier,
             verified=verified)

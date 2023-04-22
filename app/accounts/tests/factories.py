@@ -5,7 +5,7 @@ from app.accounts.models import *
 
 class UserFactory(DjangoModelFactory):
     class Meta:
-        model = User
+        model = Account
 
     first_name = faker('first_name')
     last_name = faker('last_name')

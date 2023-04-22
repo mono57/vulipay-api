@@ -21,7 +21,7 @@ def client_action_wrapper(action):
     return wrapper_method
 
 class APIViewTestCase(TestCase):
-    client_class = APIClient
+    client_class: APIClient = APIClient
     logger = logging.getLogger("django.request")
 
     def authenticate_with_token(self, token):
