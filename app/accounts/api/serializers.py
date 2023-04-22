@@ -114,3 +114,7 @@ class VerifyPassCodeSerializer(PassCodeSerializer):
         repr = {"refresh": str(refresh), "access": str(refresh.access_token)}
 
         return repr
+
+class AccountPaymentCodeSerializer(serializers.Serializer):
+    payment_code = serializers.CharField()
+

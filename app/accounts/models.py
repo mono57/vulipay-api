@@ -7,7 +7,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from app.core.utils import MessageClient, generate_code, AppModel, AppCharField, get_carrier
-
+from accounts.crypto import Hasher
 from app.accounts.managers import PhoneNumberManager, AccountManager, AvailableCountryManager, PassCodeManager
 
 def increase_waiting_time(waiting_time):
@@ -136,11 +136,10 @@ class PassCode(AppModel):
 
 class Account(AppModel):
     number = AppCharField(_('Account number'), max_length=16, unique=True, null=False)
+    payment_code = AppCharField(_('Payment Qr Code'), max_length=255, null=False, blank=True)
     owner_email = models.EmailField(_("Email address"), unique=True, null=True, blank=True)
     owner_first_name = AppCharField(_("Firstname"), max_length=50, null=True, blank=True)
     owner_last_name = AppCharField(_("Lastname"), max_length=50, null=True, blank=True)
-    payment_qrcode_encrypted = AppCharField(_('Payment Qr Code'), max_length=20, null=True, blank=True)
-    payment_qrcode_base64 = models.TextField(blank=True, null=True)
 
     is_active = models.BooleanField(default=False)
 
@@ -153,22 +152,9 @@ class Account(AppModel):
     def save(self, **kwargs):
         if self.number is None:
             self.number = AccountManager.generate_account_number()
+            self.payment_code = Hasher.hash(self.number)
         super().save(**kwargs)
 
-    # @classmethod
-    # def get_or_create(cls, phone_number, country_iso_code, **kwargs):
-    #     user, created = cls.objects.get_or_create(phone_number=phone_number, **kwargs)
-
-    #     if not created:
-    #         return user
-
-    #     PhoneNumber.create(
-    #         phone_number=phone_number,
-    #         user=user,
-    #         country_iso_code=country_iso_code,
-    #         verified=True)
-
-    #     return user
 
 class PhoneNumber(AppModel):
     number = AppCharField(max_length=20)

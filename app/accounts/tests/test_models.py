@@ -125,14 +125,15 @@ class AccountTestCase(TestCase):
         self.account: Account = Account.objects.create()
         self.account_number = self.account.number
 
-
     def test_it_should_have_account_number(self):
         self.assertIsNotNone(self.account.number)
 
     def test_it_assert_should_not_change_account_number(self):
         self.account.save()
-
         self.assertEqual(self.account_number, self.account.number)
+
+    def test_it_should_have_payment_code(self):
+        self.assertIsNotNone(self.account.payment_code)
 
 class PhoneNumberTestCase(TestCase):
     def setUp(self):
