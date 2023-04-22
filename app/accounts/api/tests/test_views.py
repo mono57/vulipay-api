@@ -1,13 +1,12 @@
-import json, datetime
+import datetime
 from unittest.mock import patch
 
-from django.test import TestCase
 from django.utils import timezone
 from django.conf import settings
 
 from rest_framework import status
 
-from app.accounts.models import AvailableCountry, PassCode, PhoneNumber
+from app.accounts.models import AvailableCountry, PassCode, Account
 from app.core.utils import APIViewTestCase
 
 twilio_send_message_path = "app.core.utils.twilio_client.MessageClient.send_message"
@@ -149,46 +148,25 @@ class VerifyPassCodeAPIViewTestCase(APIViewTestCase):
         self.assertTrue(response1.status_code == status.HTTP_201_CREATED)
         self.assertTrue(response2.status_code == status.HTTP_400_BAD_REQUEST)
 
-    # def test_should_not_create_user_with_same_phone_number_twice(self):
-    #     code1 = 234353
+class AccountPaymentCodeRetrieveAPIViewTestCase(APIViewTestCase):
+    view_name = 'api:accounts_payment_code'
 
-    #     confirmation_payload1 = {
-    #         "phone_number": "698049742",
-    #         "country_iso_code": "CM",
-    #         "code": code1,
-    #     }
+    def setUp(self):
+        super().setUp()
+        self.account: Account = Account.objects.create()
+        self.account_number = self.account.number
 
-    #     code2 = 234351
+    # def test_it_should_raise_unauthorize_error(self):
+    #     response = self.view_get(reverse_kwargs={"number": self.account_number})
 
-    #     confirmation_payload2 = {
-    #         "phone_number": "698049742",
-    #         "country_iso_code": "CM",
-    #         "code": code2,
-    #     }
+    #     self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    #     PassCodeFactory(
-    #         code=code1, phone_number="+237698049742", sent=datetime.now(timezone.utc)
-    #     )
-    #     PassCodeFactory(
-    #         code=code2, phone_number="+237698049742", sent=datetime.now(timezone.utc)
-    #     )
+    def test_it_should_return_payment_code(self):
+        response = self.view_get(reverse_kwargs={"number": self.account_number})
 
-    #     response1 = self.client.post(CONFIRM_CODE_URL, confirmation_payload1)
+        data = response.data
 
-    #     self.assertTrue(response1.status_code == status.HTTP_200_OK)
-    #     self.assertTrue(
-    #         User.objects.filter(
-    #             phone_number=confirmation_payload1.get("phone_number")
-    #         ).count()
-    #         == 1
-    #     )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('payment_code', data)
+        self.assertEqual(data.get('payment_code'), self.account.payment_code)
 
-    #     response2 = self.client.post(CONFIRM_CODE_URL, confirmation_payload2)
-
-    #     self.assertTrue(response2.status_code == status.HTTP_200_OK)
-    #     self.assertTrue(
-    #         User.objects.filter(
-    #             phone_number=confirmation_payload1.get("phone_number")
-    #         ).count()
-    #         == 1
-    #     )

@@ -4,12 +4,8 @@ from django.db import IntegrityError
 from django.test import TestCase, TransactionTestCase
 from django.conf import settings
 from django.utils import timezone
-from django.contrib.auth import get_user_model
-from django.test.utils import override_settings
 
-from app.accounts.models import AvailableCountry, PassCode, PhoneNumber, User as UserModel
-
-User: UserModel = get_user_model()
+from app.accounts.models import AvailableCountry, PassCode, PhoneNumber, Account
 
 class PassCodeTestCase(TransactionTestCase):
     def setUp(self):
@@ -124,39 +120,20 @@ class AvailableCountryTestCase(TransactionTestCase):
         with self.assertRaises(IntegrityError):
             AvailableCountry.objects.create(**self.payload)
 
-class UserAdminTestCase(TestCase):
+class AccountTestCase(TestCase):
     def setUp(self):
-        self.email = 'test.email@vulipay.com'
-        self.password = '1342345'
+        self.account: Account = Account.objects.create()
+        self.account_number = self.account.number
 
-    # need to be redefine to have a great separation of concerns
-    # test manager methods in test_managers file
-    def test_it_should_create_valid_superuser(self):
-        with patch("app.accounts.models.User.set_password") as mocked_make_password:
-            user: UserModel = User.objects.create_superuser(self.email, self.password)
+    def test_it_should_have_account_number(self):
+        self.assertIsNotNone(self.account.number)
 
-            self.assertTrue(isinstance(user, UserModel))
-            self.assertTrue(user.is_active)
-            self.assertTrue(user.is_staff)
-            self.assertTrue(user.is_superuser)
-            self.assertTrue(user.password is not None)
-            self.assertEqual(user.email, self.email)
-            self.assertTrue(user.first_name is None)
-            self.assertTrue(user.last_name is None)
+    def test_it_assert_should_not_change_account_number(self):
+        self.account.save()
+        self.assertEqual(self.account_number, self.account.number)
 
-            mocked_make_password.assert_called_once_with(self.password)
-
-    def test_it_should_not_create_superuser_if_email_is_missing(self):
-        with patch("app.accounts.models.User.set_password") as mocked_make_password:
-            with self.assertRaises(ValueError):
-                User.objects.create_superuser(None, None)
-            mocked_make_password.assert_not_called()
-
-
-class UserTestCase(TestCase):
-    def setUp(self):
-        return super().setUp()
-
+    def test_it_should_have_payment_code(self):
+        self.assertIsNotNone(self.account.payment_code)
 
 class PhoneNumberTestCase(TestCase):
     def setUp(self):
@@ -194,5 +171,8 @@ class PhoneNumberTestCase(TestCase):
         self.assertTrue(phone_number.is_verified)
         self.assertEqual(phone_number.number, self.phone_number_payload.get('phone_number'))
 
-    def test_should_not_login_with_no_primary_number(self):
-        pass
+    def test_it_should_create_account_for_new_phone_number(self):
+        phone_number: PhoneNumber = PhoneNumber.create(**{**self.phone_number_payload})
+
+        self.assertEqual(Account.objects.count(), 1)
+        self.assertEqual(Account.objects.last(), phone_number.account)

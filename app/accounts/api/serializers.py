@@ -1,4 +1,3 @@
-from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 from phonenumbers import NumberParseException
@@ -8,9 +7,7 @@ from phonenumber_field.phonenumber import PhoneNumber as PhoneNumberWrapper
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from app.accounts.crypto import PassCodeGenerator
-from app.accounts.models import AvailableCountry, PhoneNumber, PassCode, User as UserModel
-
-User: UserModel = get_user_model()
+from app.accounts.models import AvailableCountry, PhoneNumber, PassCode, Account
 
 class PassCodeSerializer(serializers.Serializer):
     country_iso_code = serializers.CharField()
@@ -94,26 +91,30 @@ class VerifyPassCodeSerializer(PassCodeSerializer):
         return data
 
     def create(self, validated_data):
-        user = PhoneNumber.objects.get_user(
+        account = PhoneNumber.objects.get_account(
             validated_data.get('phone_number'),
             validated_data.get('country_iso_code')
         )
 
-        if user is not None:
-            return user
+        if account is not None:
+            return account
 
         phone_number: PhoneNumber = PhoneNumber.create(
             phone_number=validated_data.get('phone_number'),
             country_iso_code=validated_data.get('country_iso_code'),
             verified=True)
 
-        user = phone_number.user
+        account = phone_number.account
 
-        return user
+        return account
 
-    def to_representation(self, instance: User):
+    def to_representation(self, instance: Account):
         refresh = RefreshToken.for_user(instance)
 
         repr = {"refresh": str(refresh), "access": str(refresh.access_token)}
 
         return repr
+
+class AccountPaymentCodeSerializer(serializers.Serializer):
+    payment_code = serializers.CharField()
+

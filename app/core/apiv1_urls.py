@@ -13,4 +13,8 @@ urlpatterns = [
         'accounts/passcodes/verify',
         accounts_views.VerifyPassCodeCreateAPIView.as_view(),
         name="accounts_passcodes_verify"),
+    path(
+        'accounts/<str:number>/payment-code',
+        accounts_views.AccountPaymentCodeRetrieveAPIView.as_view(),
+        name="accounts_payment_code"),
 ]
