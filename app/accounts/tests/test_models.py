@@ -14,68 +14,48 @@ class PassCodeTestCase(TransactionTestCase):
             'phone_number': '698049742',
             'country_iso_code': 'CM',
             'code': '987657',
-            'sent_date': timezone.now()
+            'sent_on': timezone.now(),
+            'next_verif_attempt_on': timezone.now(),
+            'next_passcode_on': timezone.now(),
         }
         self.passcode_payload = {
             'phone_number': '698049742',
             'country_iso_code': 'CM'
         }
 
-    def test_it_should_not_create_passcode_if_one_required_fields_miss(self):
-        with self.assertRaises(IntegrityError):
-            del self.payload['phone_number']
-            PassCode.objects.create(**self.payload)
+    @patch('app.accounts.models.PassCode.send_code')
+    def test_it_should_create_and_send_new_passcode(self, mocked_send_code: MagicMock):
+        passcode: PassCode = PassCode.create(**self.passcode_payload)
 
-        with self.assertRaises(IntegrityError):
-            del self.payload['country_iso_code']
-            PassCode.objects.create(**self.payload)
-
-        with self.assertRaises(IntegrityError):
-            del self.payload['code']
-            PassCode.objects.create(**self.payload)
-
-    def test_it_should_create_passcode(self):
-        passcode: PassCode = PassCode.objects.create(**self.payload)
+        mocked_send_code.assert_called_once()
 
         self.assertTrue(isinstance(passcode, PassCode))
-        self.assertEqual(PassCode.objects.count(), 1)
-        self.assertEqual(passcode.phone_number, self.payload['phone_number'])
-        self.assertEqual(passcode.country_iso_code, self.payload['country_iso_code'])
-        self.assertEqual(passcode.code, self.payload['code'])
+        self.assertEqual(passcode.phone_number, self.passcode_payload['phone_number'])
+        self.assertEqual(passcode.country_iso_code, self.passcode_payload['country_iso_code'])
+        self.assertIsInstance(passcode.next_verif_attempt_on, datetime.datetime)
+        self.assertIsInstance(passcode.next_passcode_on, datetime.datetime)
 
     @patch('app.accounts.models.PassCode.send_code')
     def test_it_should_expire_previous_code_before_create_one(self, mocked_send_code: MagicMock):
         PassCode.create(**self.passcode_payload)
+        PassCode.create(**self.passcode_payload)
 
-        with patch('app.accounts.models.PassCode.is_time_expired_for') as mocked_is_time_expired_for:
-            mocked_is_time_expired_for.return_value = True
-            PassCode.create(**self.passcode_payload)
+        mocked_send_code.assert_called()
 
-            qs = PassCode.objects.filter(**self.passcode_payload)
-            first_passcode: PassCode = qs.first()
-            last_passcode: PassCode = qs.last()
+        qs = PassCode.objects.filter(**self.passcode_payload)
+        passcode1: PassCode = qs.first()
+        passcode2: PassCode = qs.last()
 
-            self.assertEqual(qs.count(), 2)
-            self.assertTrue(first_passcode.expired)
-            self.assertFalse(last_passcode.expired)
+        self.assertEqual(qs.count(), 2)
+        self.assertTrue(passcode1.expired)
+        self.assertFalse(passcode2.expired)
 
-    def test_it_should_have_default_waiting_time(self):
-        passcode: PassCode = PassCode.objects.create(**self.payload)
-
-        self.assertTrue(passcode.waiting_time is not None)
-        self.assertEqual(passcode.waiting_time, settings.DEFAULT_WAITING_TIME_SECONDS)
 
     def test_it_should_expired_code(self):
         passcode: PassCode = PassCode.objects.create(**self.payload)
         passcode.set_expired()
 
         self.assertTrue(passcode.expired)
-
-    def test_it_should_return_remaining_time_seconds(self):
-        passcode: PassCode = PassCode.objects.create(**self.payload)
-        r_time = passcode.get_remaining_time(passcode.sent_date, passcode.waiting_time)
-
-        self.assertTrue(isinstance(r_time, float))
 
     def test_it_should_set_verified_passcode(self):
         passcode: PassCode = PassCode.objects.create(**self.payload)
@@ -106,36 +86,29 @@ class PassCodeTestCase(TransactionTestCase):
         mocked_increate_next_attempt_time.assert_not_called()
         mocked_set_verified.assert_called_once()
 
-    def test_it_should_not_increase_next_attempt_time_on_creation(self):
+    @patch('app.accounts.models.compute_next_verif_attempt_time')
+    def test_it_should_increase_next_attempt_date(self, mocked_compute: MagicMock):
         passcode: PassCode = PassCode.objects.create(**self.payload)
-
-        self.assertIsNone(passcode.last_attempt_on)
-        self.assertEqual(passcode.attempt_count, 0)
-
-    def test_it_should_increase_next_attempt_date_by_30_seconds(self):
-        passcode: PassCode = PassCode.objects.create(**self.payload)
+        time_now = timezone.now()
+        mocked_compute.return_value = time_now
 
         passcode.increate_next_attempt_time()
 
-        self.assertIsNotNone(passcode.last_attempt_on)
-        self.assertEqual(passcode.next_attempt_on, passcode.last_attempt_on + datetime.timedelta(seconds=30))
+        mocked_compute.assert_called_once_with(passcode.attempt_count)
+        self.assertEqual(passcode.next_verif_attempt_on, time_now)
         self.assertEqual(passcode.attempt_count, 1)
 
-    # def test_it_should_try_to_verify(self):
-    #     passcode: PassCode = PassCode.objects.create(**self.payload)
+    @patch('app.accounts.models.compute_next_verif_attempt_time')
+    def test_it_should_increase_next_passcode_on_along_with_verify_on(self, mocked_compute: MagicMock):
+        passcode: PassCode = PassCode.objects.create(**self.payload)
+        time_now = timezone.now() + datetime.timedelta(minutes=5)
+        mocked_compute.return_value = time_now
 
-    #     passcode.verify('345432')
+        passcode.increate_next_attempt_time()
 
-    #     can_verify = PassCode.objects.check_can_verify(
-    #         self.passcode_payload.get('phone_number'),
-    #         self.passcode_payload.get('country_iso_code'))
+        self.assertEqual(passcode.next_passcode_on, time_now)
 
-    #     self.assertTrue(can_verify)
 
-    # def text_it_should_return_false_on_check_can_verify(self):
-    #     passcode: PassCode = PassCode.objects.create(self.payload)
-
-    #     passcode.verify()
 
 class AvailableCountryTestCase(TransactionTestCase):
     def setUp(self):

@@ -6,6 +6,8 @@ from .models import AppModel
 from .fields import AppCharField
 from .network_carrier import get_carrier
 from .api_view_testcase import APIViewTestCase
+from .exceptions import UnprocessableEntityError
+
 
 __all__ = [
     'generate_code',
@@ -14,5 +16,6 @@ __all__ = [
     'AppCharField',
     'AppModel',
     'get_carrier',
-    'APIViewTestCase'
+    'APIViewTestCase',
+    'UnprocessableEntityError'
 ]

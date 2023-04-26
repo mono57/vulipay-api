@@ -29,7 +29,9 @@ class PassCodeManagerTestCase(TestCase):
             "phone_number": self.phone_number,
             "country_iso_code": self.country_iso_code,
             "code": "234543",
-            "sent_date": datetime.datetime.now(timezone.utc)
+            "sent_on": timezone.now(),
+            "next_passcode_on": timezone.now(),
+            "next_verif_attempt_on": timezone.now(),
         }
         PassCode.objects.create(**self.passcode_payload)
 
@@ -48,7 +50,9 @@ class PassCodeManagerTestCase(TestCase):
             "phone_number": self.phone_number,
             "country_iso_code": self.country_iso_code,
             "code": "234541",
-            "sent_date": datetime.datetime.now(timezone.utc)
+            "sent_on": timezone.now(),
+            "next_passcode_on": timezone.now(),
+            "next_verif_attempt_on": timezone.now(),
         }
 
         PassCode.objects.create(**passcode_payload2)
@@ -61,32 +65,60 @@ class PassCodeManagerTestCase(TestCase):
         self.assertEqual(passcode.code, passcode_payload2.get('code'))
         self.assertEqual(PassCode.objects.count(), 2)
 
-    # def test_it_should_return_true_on_check_can_verify_for_not_found_passcode(self):
-    #     can_verify, _ = PassCode.objects.check_can_verify(self.phone_number, self.country_iso_code)
+    def test_it_should_allow_create_new_passcode(self):
+        can_process, next_passcode_on = PassCode.objects.can_create_passcode(self.phone_number, self.country_iso_code)
 
-    #     self.assertTrue(can_verify)
+        self.assertTrue(can_process)
+        self.assertIsNone(next_passcode_on)
 
-    # def test_it_should_return_true_on_check_can_verify(self):
-    #     PassCode.objects.create(**self.passcode_payload)
+    def test_it_should_allow_create_new_passcode(self):
+        can_process, next_passcode_on = PassCode.objects.can_create_passcode(self.phone_number, self.country_iso_code)
 
-    #     can_verify, _ = PassCode.objects.check_can_verify(self.phone_number, self.country_iso_code)
+        self.assertTrue(can_process)
+        self.assertIsNone(next_passcode_on)
 
-        # self.assertTrue(can_verify)
+    def test_it_should_not_allow_create_new_passcode(self):
+        time_now = timezone.now() + datetime.timedelta(minutes=1)
+        passcode_payload = {
+            **self.passcode_payload,
+            "phone_number": '675564466',
+            "next_passcode_on": time_now,
+            "next_verif_attempt_on": timezone.now(),
+        }
+        PassCode.objects.create(**passcode_payload)
+        can_process, next_passcode_on = PassCode.objects.can_create_passcode('675564466', self.country_iso_code)
 
-    def test_it_should_return_false_on_check_can_verify(self):
-        print('all passcode', PassCode.objects.all().count())
-        passcode: PassCode = PassCode.objects.create(**self.passcode_payload)
-        print('bef-created', passcode.created_at)
-        print('bef-last_attempt_on', passcode.last_attempt_on)
-        print('bef-next_attempt_on', passcode.next_attempt_on)
-        passcode.verify("234542")
-        print('bef-updated', passcode.updated_at)
-        print('af-last_attempt_on', passcode.last_attempt_on)
-        print('af-next_attempt_on', passcode.next_attempt_on)
-        can_verify, next = PassCode.objects.check_can_verify(self.phone_number, self.country_iso_code)
-        print('can_verify', can_verify)
-        self.assertFalse(can_verify)
+        self.assertFalse(can_process)
+        self.assertIsNotNone(next_passcode_on)
+        self.assertEqual(next_passcode_on, time_now)
 
+    def test_it_should_not_allow_verify_otp(self):
+        time_now = timezone.now() + datetime.timedelta(minutes=5)
+
+        passcode_payload = {
+            **self.passcode_payload,
+            "phone_number": '675564466',
+            "next_verif_attempt_on": time_now,
+        }
+        PassCode.objects.create(**passcode_payload)
+        can_process, next_attempt_on = PassCode.objects.can_verify('675564466', self.country_iso_code)
+
+        self.assertFalse(can_process)
+        self.assertIsNotNone(next_attempt_on)
+        self.assertEqual(next_attempt_on, time_now)
+
+    def test_it_should_verify_otp(self):
+        time_now = timezone.now()
+        passcode_payload = {
+            **self.passcode_payload,
+            "phone_number": '675564466',
+            "next_verif_attempt_on": time_now,
+        }
+        PassCode.objects.create(**passcode_payload)
+        can_process, next_attempt_on = PassCode.objects.can_verify('675564466', self.country_iso_code)
+
+        self.assertTrue(can_process)
+        self.assertIsNone(next_attempt_on)
 
 class PhoneNumberManagerTestCase(TestCase):
     def setUp(self):

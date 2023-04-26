@@ -1,6 +1,6 @@
 import logging
 
-from django.test import TestCase
+from django.test import TransactionTestCase
 from django.urls import reverse
 
 from rest_framework.response import Response
@@ -20,7 +20,7 @@ def client_action_wrapper(action):
 
     return wrapper_method
 
-class APIViewTestCase(TestCase):
+class APIViewTestCase(TransactionTestCase):
     client_class: APIClient = APIClient
     logger = logging.getLogger("django.request")
 
