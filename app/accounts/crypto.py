@@ -11,7 +11,7 @@ class PassCodeGenerator(object):
         return cls(code=code)
 
     def is_valid(self):
-        return self.code.isdigit() and len(self.code) == settings.PASS_CODE_LENGTH
+        return self.code.isdigit() and len(self.code) == settings.PASSCODE_LENGTH
 
 class Hasher:
     @classmethod

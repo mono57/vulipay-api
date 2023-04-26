@@ -14,6 +14,18 @@ def increase_waiting_time(waiting_time):
     # compute waiting time base on mathematic formula
     return waiting_time + 30
 
+def compute_next_attempt_time(count) -> datetime.datetime:
+    dt_now = timezone.now()
+    time_diff = dt_now + datetime.timedelta(seconds=30*count)
+
+    return time_diff
+
+def compute_next_verif_attempt_time(count) -> datetime.datetime:
+    dt_now = timezone.now()
+    time_diff = dt_now + datetime.timedelta(minutes=10)
+
+    return time_diff
+
 class AvailableCountry(AppModel):
     name = AppCharField(max_length=30)  # i.e Chad
     dial_code = AppCharField(max_length=5, unique=True)  # i.e 235
@@ -21,6 +33,11 @@ class AvailableCountry(AppModel):
     phone_number_regex = AppCharField(max_length=50)
 
     objects = AvailableCountryManager()
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['iso_code'])
+        ]
 
     def __str__(self):
         return f"({self.dial_code}) - {self.name} - {self.iso_code}"
@@ -40,10 +57,14 @@ class PassCode(AppModel):
     phone_number = AppCharField(max_length=20)
     country_iso_code = AppCharField(max_length=2)
     code = AppCharField(max_length=8)
-    sent_date = models.DateTimeField(null=True)
+    sent_on = models.DateTimeField(null=True)
     verified = models.BooleanField(default=False)
     expired = models.BooleanField(default=False)
-    waiting_time = models.IntegerField(default=30)  # waiting time to send new code
+    next_passcode_on = models.DateTimeField(null=False)
+    next_verif_attempt_on = models.DateTimeField(null=False)
+    last_attempt_on = models.DateTimeField(null=True)
+    attempt_count = models.IntegerField(default=0)
+    passcode_count = models.IntegerField(default=1)
 
     objects = PassCodeManager()
 
@@ -57,14 +78,14 @@ class PassCode(AppModel):
 
     @property
     def key_expired(self):
-        if self.expired or self.verified:
+        if self.expired:
             return True
 
-        expiration_date = self.sent_date + datetime.timedelta(
-            seconds=self.waiting_time
+        sent_threshold = self.sent_on + datetime.timedelta(
+            seconds=settings.OTP_TIMESTAMP
         )
 
-        return expiration_date < timezone.now()
+        return sent_threshold < timezone.now()
 
     @property
     def is_verified(self):
@@ -72,23 +93,24 @@ class PassCode(AppModel):
 
     @classmethod
     def create(cls, phone_number, country_iso_code):
-        last_code: cls = cls.objects.get_last_created_code(phone_number, country_iso_code)
+        last_code: cls = cls.objects.get_last_code(phone_number, country_iso_code)
 
-        if last_code and not last_code.is_verified and not last_code.waiting_time_expired():
-            return last_code
+        passcode_count = 1
+        next_passcode_on = compute_next_attempt_time(passcode_count)
 
-        waiting_time = settings.DEFAULT_WAITING_TIME_SECONDS
-
-        if last_code and not last_code.is_verified and last_code.waiting_time_expired():
+        if last_code and not last_code.is_verified:
             last_code.set_expired()
-            waiting_time = increase_waiting_time(last_code.waiting_time)
+            passcode_count = last_code.passcode_count + 1
+            next_passcode_on = compute_next_attempt_time(passcode_count)
 
         code = generate_code(cls)
 
         code = cls._default_manager.create(
             phone_number=phone_number,
             country_iso_code=country_iso_code,
-            waiting_time=waiting_time,
+            next_verif_attempt_on=timezone.now(),
+            next_passcode_on=next_passcode_on,
+            passcode_count=passcode_count,
             code=code)
 
         code.send_code()
@@ -98,26 +120,27 @@ class PassCode(AppModel):
     def verify(self, code):
         matched = self.code == code
 
-        if matched:
+        if not matched:
+            self.increate_next_attempt_time()
+        else:
             self.set_verified()
 
         return matched
 
-    def get_remaining_time(self):
-        time_threshold = self.sent_date.timestamp() + self.waiting_time
-        dt_now = datetime.datetime.now(timezone.utc)
+    def increate_next_attempt_time(self):
+        verif_attempt_count = self.attempt_count + 1
+        next_verif_attempt_on = compute_next_verif_attempt_time(verif_attempt_count)
 
-        remaining_time = time_threshold - dt_now.timestamp()
+        self.last_attempt_on = timezone.now()
+        self.next_passcode_on = next_verif_attempt_on
+        self.next_verif_attempt_on = next_verif_attempt_on
+        self.attempt_count = verif_attempt_count
 
-        return remaining_time
-
-    def waiting_time_expired(self):
-        rt = self.get_remaining_time()
-
-        return rt <= 0
+        self.save()
 
     def set_verified(self, is_verified=True):
         self.verified = is_verified
+        self.expired = is_verified
         self.save()
 
     def set_expired(self):
@@ -129,7 +152,7 @@ class PassCode(AppModel):
 
         MessageClient.send_message(body, self.phone_number)
 
-        self.sent_date = datetime.datetime.now(timezone.utc)
+        self.sent_on = datetime.datetime.now(timezone.utc)
 
         self.save()
 

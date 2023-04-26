@@ -36,5 +36,3 @@ services:
       - ./.envs/.local/.postgres
     ports:
       - "5455:5432"
-    expose:
-      - 5432

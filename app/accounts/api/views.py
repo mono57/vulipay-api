@@ -3,13 +3,13 @@ from django.conf import settings
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 
-from app.accounts.api.serializers import PassCodeSerializer, VerifyPassCodeSerializer, AccountPaymentCodeSerializer
+from app.accounts.api.serializers import CreatePasscodeSerializer, VerifyPassCodeSerializer, AccountPaymentCodeSerializer
 from app.accounts.models import Account
 
 
 class PassCodeCreateAPIView(generics.CreateAPIView):
     http_method_names = ['post']
-    serializer_class = PassCodeSerializer
+    serializer_class = CreatePasscodeSerializer
 
 class VerifyPassCodeCreateAPIView(generics.CreateAPIView):
     http_method_names = ['post']

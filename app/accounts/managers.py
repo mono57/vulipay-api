@@ -1,8 +1,11 @@
-import datetime, random
+import datetime
+import random
 
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
-from django.db.models import Manager, Q
+from django.db.models import Manager, Q, F
+from django.db.models.functions import Cast
+from django.db import models
 from django.utils import timezone
 
 
@@ -22,25 +25,30 @@ class AvailableCountryManager(Manager):
 
 
 class PassCodeManager(Manager):
-    # def expired_keys(self):
-    #     return self.filter(self.expired_q())
-
-    def get_last_created_code(self, phone_number, country_iso_code):
-        code = (
-            self.filter(Q(phone_number=phone_number) & Q(country_iso_code=country_iso_code))
-            .last()
-        )
-
+    def get_last_code(self, phone_number, country_iso_code):
+        code = self.filter(Q(phone_number=phone_number) & Q(country_iso_code=country_iso_code)).last()
         return code
 
-    # def unexpired_keys(self):
-    #     return self.exclude(self.expired_keys())
+    def not_expired_q(self, phone_number, country_iso_code):
+        return Q(country_iso_code=country_iso_code) & Q(phone_number=phone_number) & Q(expired=False)
 
-    # def expired_q(self):
-    #     sent_threshold = timezone.now() - datetime.timedelta(
-    #         days=settings.PHONE_NUMBER_CONFIRMATION_DAYS
-    #     )
-    #     return Q(sent_date__lt=sent_threshold)
+    def can_create_passcode(self, phone_number, country_iso_code):
+        qs = self.filter(self.not_expired_q(phone_number, country_iso_code)
+                         & Q(next_passcode_on__gte=timezone.now())).values('next_passcode_on')
+
+        qs_exits = qs.exists()
+        next_passcode_on = qs.first().get('next_passcode_on') if qs_exits else None
+
+        return not qs_exits, next_passcode_on
+
+    def can_verify(self, phone_number, country_iso_code):
+        qs = self.filter(self.not_expired_q(phone_number, country_iso_code)
+                         & Q(next_verif_attempt_on__gte=timezone.now())).values('next_verif_attempt_on')
+
+        qs_exits = qs.exists()
+        next_verif_attempt_on = qs.first().get('next_verif_attempt_on') if qs_exits else None
+
+        return not qs_exits, next_verif_attempt_on
 
 class PhoneNumberManager(Manager):
     def get_primary(self, account):
@@ -48,6 +56,14 @@ class PhoneNumberManager(Manager):
             return self.get(account=account, primary=True)
         except self.model.DoesNotExist:
             return None
+
+    def get_or_none(self, **kwargs):
+        qs = self.filter(**kwargs)
+
+        if qs.exists():
+            return qs.first()
+
+        return None
 
     # improve performance
     def get_account(self, phone_number, country_iso_code):

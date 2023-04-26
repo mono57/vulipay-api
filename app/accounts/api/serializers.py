@@ -1,15 +1,15 @@
-from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
-from phonenumbers import NumberParseException
 
 from rest_framework import serializers
-from phonenumber_field.phonenumber import PhoneNumber as PhoneNumberWrapper
 from rest_framework_simplejwt.tokens import RefreshToken
+from phonenumbers import NumberParseException
+from phonenumber_field.phonenumber import PhoneNumber as PhoneNumberWrapper
 
+from app.core.utils import UnprocessableEntityError
 from app.accounts.crypto import PassCodeGenerator
 from app.accounts.models import AvailableCountry, PhoneNumber, PassCode, Account
 
-class PassCodeSerializer(serializers.Serializer):
+class AbstractPassCodeSerializer(serializers.Serializer):
     country_iso_code = serializers.CharField()
     phone_number = serializers.CharField()
 
@@ -42,6 +42,21 @@ class PassCodeSerializer(serializers.Serializer):
 
         return data
 
+class CreatePasscodeSerializer(AbstractPassCodeSerializer):
+    def validate(self, data):
+        data = super().validate(data)
+        phone_number = data.get("phone_number")
+        country_iso_code = data.get("country_iso_code")
+
+        can_process, next_passcode_on = PassCode.objects.can_create_passcode(phone_number, country_iso_code)
+
+        if not can_process:
+            raise UnprocessableEntityError(
+                f'You can\'t send new OTP right now because of your multiple attempts. Please try again in {next_passcode_on} seconds.',
+                'unprocessable_passcode')
+
+        return data
+
     def create(self, validated_data):
         code: PassCode = PassCode.create(
             validated_data['phone_number'],
@@ -52,11 +67,11 @@ class PassCodeSerializer(serializers.Serializer):
     def to_representation(self, instance: PassCode):
         repr = {
             **super().to_representation(instance),
-            "waiting_time": instance.get_remaining_time()
+            "next_passcode_on": instance.next_passcode_on
         }
         return repr
 
-class VerifyPassCodeSerializer(PassCodeSerializer):
+class VerifyPassCodeSerializer(AbstractPassCodeSerializer):
     code = serializers.CharField()
 
     def validate_code(self, code: str):
@@ -73,7 +88,14 @@ class VerifyPassCodeSerializer(PassCodeSerializer):
         phone_number = data.get("phone_number")
         country_iso_code = data.get("country_iso_code")
 
-        passcode: PassCode = PassCode.objects.get_last_created_code(phone_number, country_iso_code)
+        can_process, next_verif_attempt_on = PassCode.objects.can_verify(phone_number, country_iso_code)
+
+        if not can_process:
+            raise UnprocessableEntityError(
+                f'You can\'t verify our OTP right now because of your multiple attempts. Please try again in {next_verif_attempt_on} seconds.',
+                'unprocessable_passcode')
+
+        passcode: PassCode = PassCode.objects.get_last_code(phone_number, country_iso_code)
 
         if passcode is None:
             raise serializers.ValidationError({'code': _("The code has not found")}, 'code_not_found')

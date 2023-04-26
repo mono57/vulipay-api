@@ -11,7 +11,7 @@ def generate_code(
     lookup_field="code",
     unique=True,
     sequence=string.digits,
-    length=settings.VERIFICATION_CODE_LENGTH,
+    length=settings.PASSCODE_LENGTH,
 ) -> str:
 
     code_exists, code = True, ""
