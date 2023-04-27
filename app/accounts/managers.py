@@ -14,16 +14,6 @@ class AccountManager(Manager):
     def generate_account_number(cls):
         return str(random.randint(0, 65535))
 
-class AvailableCountryManager(Manager):
-    def get_code(self, iso_code: str):
-        qs = self.filter(iso_code=iso_code).values("code")
-
-        if qs.exists():
-            return qs.first().get("code")
-
-        return None
-
-
 class PassCodeManager(Manager):
     def get_last_code(self, phone_number, country_iso_code):
         code = self.filter(Q(phone_number=phone_number) & Q(country_iso_code=country_iso_code)).last()
@@ -56,14 +46,6 @@ class PhoneNumberManager(Manager):
             return self.get(account=account, primary=True)
         except self.model.DoesNotExist:
             return None
-
-    def get_or_none(self, **kwargs):
-        qs = self.filter(**kwargs)
-
-        if qs.exists():
-            return qs.first()
-
-        return None
 
     # improve performance
     def get_account(self, phone_number, country_iso_code):

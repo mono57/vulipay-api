@@ -1,14 +1,13 @@
 import datetime
 
 from django.db import models
-from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from django.utils import timezone
 
 from app.core.utils import MessageClient, generate_code, AppModel, AppCharField, get_carrier
 from accounts.crypto import Hasher
-from app.accounts.managers import PhoneNumberManager, AccountManager, AvailableCountryManager, PassCodeManager
+from app.accounts.managers import PhoneNumberManager, AccountManager, PassCodeManager
 
 def increase_waiting_time(waiting_time):
     # compute waiting time base on mathematic formula
@@ -31,8 +30,6 @@ class AvailableCountry(AppModel):
     dial_code = AppCharField(max_length=5, unique=True)  # i.e 235
     iso_code = AppCharField(max_length=10, unique=True)  # i.e TD
     phone_number_regex = AppCharField(max_length=50)
-
-    objects = AvailableCountryManager()
 
     class Meta:
         indexes = [

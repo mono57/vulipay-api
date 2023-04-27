@@ -2,7 +2,7 @@ import datetime
 from unittest.mock import patch
 
 from django.test import TestCase
-
+from django.db import models
 from app.accounts.models import AvailableCountry, PassCode, PhoneNumber, Account
 from app.accounts.managers import *
 from app.accounts.tests.factories import AvailableCountryFactory
@@ -152,3 +152,10 @@ class PhoneNumberManagerTestCase(TestCase):
         account = PhoneNumber.objects.get_account('687943041', AvailableCountryFactory.iso_code)
 
         self.assertTrue(account is None)
+
+    def test_it_should_not_return_account(self):
+        account = Account.objects.create()
+
+        with self.assertRaises(models.Model.DoesNotExist):
+            PhoneNumber.objects.get_primary(account)
+
