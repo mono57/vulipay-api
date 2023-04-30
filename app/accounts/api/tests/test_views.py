@@ -1,13 +1,15 @@
 from unittest.mock import patch
 
 from django.utils import timezone
-
+from django.urls import reverse
 from rest_framework import status
 
 from app.accounts.models import AvailableCountry, PassCode, Account
 from app.core.utils import APIViewTestCase
 
 twilio_send_message_path = "app.core.utils.twilio_client.MessageClient.send_message"
+
+access_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjgzMDY3MDIzLCJpYXQiOjE2ODI2MzUwMjMsImp0aSI6IjU3ZjJmN2QzYjVjODQzZjVhYWNkMTY1MDgwZWYxMTdjIiwidXNlciI6MX0.PPTFDF5CfyJcxw6QFfOMsek_kCpJDZukqkWrarujiBA"
 
 class PassCodeCreateAPIViewTestCase(APIViewTestCase):
     view_name = 'api:accounts_passcodes'
@@ -138,3 +140,33 @@ class AccountPaymentCodeRetrieveAPIViewTestCase(APIViewTestCase):
         self.assertIn('payment_code', data)
         self.assertEqual(data.get('payment_code'), self.account.payment_code)
 
+
+class AccountPaymentDetailsTestCase(APIViewTestCase):
+    view_name = 'api:accounts_payment_details'
+
+    def setUp(self):
+        super().setUp()
+        self.payment_code = '126543TDS23YTHGSFGHY34GHFDSD'
+
+        self.account_payload = {
+            'owner_first_name': 'Aymar',
+            'owner_last_name': 'Amono',
+        }
+        with patch('app.accounts.models.Hasher.hash') as mocked_hash:
+            mocked_hash.return_value = self.payment_code
+            Account.objects.create(**self.account_payload)
+
+    def test_it_should_raise_access_denied_error(self):
+        response = self.view_get(reverse_kwargs={'payment_code': self.payment_code})
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_it_should_retrieve_account_payment_details_information(self):
+        # self.authenticate_with_access_token(access_token)
+        reserve_url = reverse(self.view_name, kwargs={'payment_code': self.payment_code})
+        authorization = 'Bearer ' + access_token
+        response = self.client_class.get(reserve_url, HTTP_AUTHORIZATION=authorization)
+        print('Response data', response.data)
+        # response = self.view_get(reverse_kwargs={'payment_code': self.payment_code})
+        # data = response.data
+        # self.assertEqual(response.status_code, status.HTTP_200_OK)

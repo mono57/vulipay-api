@@ -24,7 +24,7 @@ class APIViewTestCase(TransactionTestCase):
     client_class: APIClient = APIClient
     logger = logging.getLogger("django.request")
 
-    def authenticate_with_token(self, token):
+    def authenticate_with_access_token(self, token):
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
     view_name = None

@@ -140,3 +140,8 @@ class VerifyPassCodeSerializer(AbstractPassCodeSerializer):
 class AccountPaymentCodeSerializer(serializers.Serializer):
     payment_code = serializers.CharField()
 
+
+class AccountDetailsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Account
+        fields = ('number', 'owner_first_name', 'owner_last_name')
