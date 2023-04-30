@@ -1,4 +1,7 @@
-# General
-USE_DOCKER=yes
-IPYTHONDIR=/app/.ipython
+USE_DOCKER='yes'
+IPYTHONDIR='/app/.ipython'
 DEBUG=True
+JWT_SECRET_KEY='(qd5!se-^=)5so5vd&ndi+apn%%c+s0x^#4n95f(f$3m@5u6_%'
+DJANGO_SECRET_KEY='xv24$7i1c4mh6s6nw1*nrm(f&a=z#@gt5jkk^jd#82ryuk$_ko'
+TWILIO_ACCOUNT_SSID='AC2523ace8723c5bd005fee3dd0b5dc68c'
+TWILIO_AUTH_TOKEN='1fa33a85e7ce21772bac250881c96aa2'
