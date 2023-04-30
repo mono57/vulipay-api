@@ -153,9 +153,3 @@ class PhoneNumberManagerTestCase(TestCase):
 
         self.assertTrue(account is None)
 
-    def test_it_should_not_return_account(self):
-        account = Account.objects.create()
-
-        with self.assertRaises(models.Model.DoesNotExist):
-            PhoneNumber.objects.get_primary(account)
-

@@ -36,3 +36,10 @@ INTERNAL_IPS = [".".join(ip.split(".")[:-1] + ["1"]) for ip in ips]
 # django-extensions
 
 INSTALLED_APPS += ["django_extensions"]
+
+SIMPLE_JWT = {
+    **SIMPLE_JWT,
+    "SIGNING_KEY": env("JWT_SECRET_KEY", default="36r_!xm+r$egega@)pgb*1&uv^wl56j5j0+cjs039z&n(gy523"),
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=5),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=10),
+}
