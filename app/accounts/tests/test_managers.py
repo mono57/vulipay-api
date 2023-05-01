@@ -22,12 +22,11 @@ class AccountManagerTestCase(TestCase):
 
 class PassCodeManagerTestCase(TestCase):
     def setUp(self):
-        self.phone_number = '698493823'
-        self.country_iso_code = "CM"
+        self.intl_phonenumber = '+237698493823'
+        self.intl_phonenumber2 = '+237675564466'
 
         self.passcode_payload = {
-            "phone_number": self.phone_number,
-            "country_iso_code": self.country_iso_code,
+            "intl_phonenumber": self.intl_phonenumber,
             "code": "234543",
             "sent_on": timezone.now(),
             "next_passcode_on": timezone.now(),
@@ -36,19 +35,17 @@ class PassCodeManagerTestCase(TestCase):
         PassCode.objects.create(**self.passcode_payload)
 
     def test_it_should_return_the_one_created_passcode(self):
-        passcode:PassCode = PassCode.objects.get_last_code(self.phone_number, self.country_iso_code)
+        passcode:PassCode = PassCode.objects.get_last_code(self.intl_phonenumber)
 
         self.assertTrue(isinstance(passcode, PassCode))
-        self.assertEqual(passcode.phone_number, self.passcode_payload.get('phone_number'))
-        self.assertEqual(passcode.country_iso_code, self.passcode_payload.get('country_iso_code'))
+        self.assertEqual(passcode.intl_phonenumber, self.passcode_payload.get('intl_phonenumber'))
         self.assertEqual(passcode.code, self.passcode_payload.get('code'))
         self.assertEqual(PassCode.objects.count(), 1)
 
 
     def test_it_should_return_the_last_created_passcode(self):
         passcode_payload2 = {
-            "phone_number": self.phone_number,
-            "country_iso_code": self.country_iso_code,
+            "intl_phonenumber": self.intl_phonenumber,
             "code": "234541",
             "sent_on": timezone.now(),
             "next_passcode_on": timezone.now(),
@@ -57,22 +54,21 @@ class PassCodeManagerTestCase(TestCase):
 
         PassCode.objects.create(**passcode_payload2)
 
-        passcode = PassCode.objects.get_last_code(self.phone_number, self.country_iso_code)
+        passcode: PassCode = PassCode.objects.get_last_code(self.intl_phonenumber)
 
         self.assertTrue(isinstance(passcode, PassCode))
-        self.assertEqual(passcode.phone_number, passcode_payload2.get('phone_number'))
-        self.assertEqual(passcode.country_iso_code, passcode_payload2.get('country_iso_code'))
+        self.assertEqual(passcode.intl_phonenumber, passcode_payload2.get('intl_phonenumber'))
         self.assertEqual(passcode.code, passcode_payload2.get('code'))
         self.assertEqual(PassCode.objects.count(), 2)
 
     def test_it_should_allow_create_new_passcode(self):
-        can_process, next_passcode_on = PassCode.objects.can_create_passcode(self.phone_number, self.country_iso_code)
+        can_process, next_passcode_on = PassCode.objects.can_create_passcode(self.intl_phonenumber)
 
         self.assertTrue(can_process)
         self.assertIsNone(next_passcode_on)
 
     def test_it_should_allow_create_new_passcode(self):
-        can_process, next_passcode_on = PassCode.objects.can_create_passcode(self.phone_number, self.country_iso_code)
+        can_process, next_passcode_on = PassCode.objects.can_create_passcode(self.intl_phonenumber)
 
         self.assertTrue(can_process)
         self.assertIsNone(next_passcode_on)
@@ -81,12 +77,12 @@ class PassCodeManagerTestCase(TestCase):
         time_now = timezone.now() + datetime.timedelta(minutes=1)
         passcode_payload = {
             **self.passcode_payload,
-            "phone_number": '675564466',
+            "intl_phonenumber": self.intl_phonenumber2,
             "next_passcode_on": time_now,
             "next_verif_attempt_on": timezone.now(),
         }
         PassCode.objects.create(**passcode_payload)
-        can_process, next_passcode_on = PassCode.objects.can_create_passcode('675564466', self.country_iso_code)
+        can_process, next_passcode_on = PassCode.objects.can_create_passcode(self.intl_phonenumber2)
 
         self.assertFalse(can_process)
         self.assertIsNotNone(next_passcode_on)
@@ -97,11 +93,11 @@ class PassCodeManagerTestCase(TestCase):
 
         passcode_payload = {
             **self.passcode_payload,
-            "phone_number": '675564466',
+            "intl_phonenumber": self.intl_phonenumber2,
             "next_verif_attempt_on": time_now,
         }
         PassCode.objects.create(**passcode_payload)
-        can_process, next_attempt_on = PassCode.objects.can_verify('675564466', self.country_iso_code)
+        can_process, next_attempt_on = PassCode.objects.can_verify(self.intl_phonenumber2)
 
         self.assertFalse(can_process)
         self.assertIsNotNone(next_attempt_on)
@@ -111,11 +107,11 @@ class PassCodeManagerTestCase(TestCase):
         time_now = timezone.now()
         passcode_payload = {
             **self.passcode_payload,
-            "phone_number": '675564466',
+            "intl_phonenumber": self.intl_phonenumber2,
             "next_verif_attempt_on": time_now,
         }
         PassCode.objects.create(**passcode_payload)
-        can_process, next_attempt_on = PassCode.objects.can_verify('675564466', self.country_iso_code)
+        can_process, next_attempt_on = PassCode.objects.can_verify(self.intl_phonenumber2)
 
         self.assertTrue(can_process)
         self.assertIsNone(next_attempt_on)

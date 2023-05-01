@@ -2,7 +2,6 @@ import os
 
 from twilio.rest import Client
 
-
 class MessageClient:
     _BODY_VIRIFICATION = "Your vefirification code is {0}"
 
@@ -20,4 +19,4 @@ class MessageClient:
             from_=sender,
         )
 
-        return message.sid
+        return message

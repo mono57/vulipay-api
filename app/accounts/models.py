@@ -51,8 +51,7 @@ class AvailableCountry(AppModel):
 
 
 class PassCode(AppModel):
-    phone_number = AppCharField(max_length=20)
-    country_iso_code = AppCharField(max_length=2)
+    intl_phonenumber = AppCharField(max_length=15)
     code = AppCharField(max_length=8)
     sent_on = models.DateTimeField(null=True)
     verified = models.BooleanField(default=False)
@@ -67,7 +66,7 @@ class PassCode(AppModel):
 
     class Meta:
         indexes = [
-            models.Index(fields=['phone_number', 'country_iso_code'])
+            models.Index(fields=['intl_phonenumber'])
         ]
 
     def __str__(self):
@@ -89,8 +88,8 @@ class PassCode(AppModel):
         return self.verified
 
     @classmethod
-    def create(cls, phone_number, country_iso_code):
-        last_code: cls = cls.objects.get_last_code(phone_number, country_iso_code)
+    def create(cls, intl_phonenumber):
+        last_code: cls = cls.objects.get_last_code(intl_phonenumber)
 
         passcode_count = 1
         next_passcode_on = compute_next_attempt_time(passcode_count)
@@ -103,8 +102,7 @@ class PassCode(AppModel):
         code = generate_code(cls)
 
         code = cls._default_manager.create(
-            phone_number=phone_number,
-            country_iso_code=country_iso_code,
+            intl_phonenumber=intl_phonenumber,
             next_verif_attempt_on=timezone.now(),
             next_passcode_on=next_passcode_on,
             passcode_count=passcode_count,
@@ -147,7 +145,7 @@ class PassCode(AppModel):
     def send_code(self):
         body = MessageClient._BODY_VIRIFICATION.format(self.code)
 
-        MessageClient.send_message(body, self.phone_number)
+        MessageClient.send_message(body, self.intl_phonenumber)
 
         self.sent_on = datetime.datetime.now(timezone.utc)
 

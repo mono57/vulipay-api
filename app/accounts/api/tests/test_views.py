@@ -90,9 +90,8 @@ class VerifyPassCodeAPIViewTestCase(APIViewTestCase):
         }
         time_now = timezone.now()
         self.passcode_payload = {
-            'phone_number': '698049742',
+            'intl_phonenumber': '+237698049742',
             'code': 234353,
-            'country_iso_code': 'CM',
             'sent_on': time_now,
             'next_passcode_on': time_now,
             'next_verif_attempt_on': time_now,
@@ -115,8 +114,8 @@ class VerifyPassCodeAPIViewTestCase(APIViewTestCase):
         response1 = self.view_post(data=self.verify_payload)
         response2 = self.view_post(data=self.verify_payload)
 
-        self.assertTrue(response1.status_code == status.HTTP_201_CREATED)
-        self.assertTrue(response2.status_code == status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response2.status_code, status.HTTP_400_BAD_REQUEST)
 
 class AccountPaymentCodeRetrieveAPIViewTestCase(APIViewTestCase):
     view_name = 'api:accounts_payment_code'
