@@ -15,15 +15,15 @@ class AccountManager(Manager):
         return str(random.randint(0, 65535))
 
 class PassCodeManager(Manager):
-    def get_last_code(self, phone_number, country_iso_code):
-        code = self.filter(Q(phone_number=phone_number) & Q(country_iso_code=country_iso_code)).last()
+    def get_last_code(self, intl_phonenumber):
+        code = self.filter(Q(intl_phonenumber=intl_phonenumber)).last()
         return code
 
-    def not_expired_q(self, phone_number, country_iso_code):
-        return Q(country_iso_code=country_iso_code) & Q(phone_number=phone_number) & Q(expired=False)
+    def not_expired_q(self, intl_phonenumber):
+        return Q(intl_phonenumber=intl_phonenumber) & Q(expired=False)
 
-    def can_create_passcode(self, phone_number, country_iso_code):
-        qs = self.filter(self.not_expired_q(phone_number, country_iso_code)
+    def can_create_passcode(self, intl_phonenumber):
+        qs = self.filter(self.not_expired_q(intl_phonenumber)
                          & Q(next_passcode_on__gte=timezone.now())).values('next_passcode_on')
 
         qs_exits = qs.exists()
@@ -31,8 +31,8 @@ class PassCodeManager(Manager):
 
         return not qs_exits, next_passcode_on
 
-    def can_verify(self, phone_number, country_iso_code):
-        qs = self.filter(self.not_expired_q(phone_number, country_iso_code)
+    def can_verify(self, intl_phonenumber):
+        qs = self.filter(self.not_expired_q(intl_phonenumber)
                          & Q(next_verif_attempt_on__gte=timezone.now())).values('next_verif_attempt_on')
 
         qs_exits = qs.exists()

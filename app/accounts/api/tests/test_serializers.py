@@ -63,6 +63,7 @@ class VerifyPassCodeSerializerTestCase(TestCase):
             "country_iso_code": "CM",
             "code": "234543"
         }
+        # self.intl_phonenumber = f'+237{self.data.get('phone_number')}'
         country_payload = {
             "name": "Cameroun",
             "dial_code": "237",
@@ -70,8 +71,7 @@ class VerifyPassCodeSerializerTestCase(TestCase):
             "phone_number_regex": "",
         }
         self.passcode_payload = {
-            "phone_number": '698493823',
-            "country_iso_code": "CM",
+            "intl_phonenumber": '+237698493823',
             "code": "234543",
             "sent_on": datetime.datetime.now(timezone.utc),
             'next_verif_attempt_on': timezone.now(),
@@ -113,8 +113,7 @@ class VerifyPassCodeSerializerTestCase(TestCase):
             self.assertFalse(s.is_valid())
 
             mocked_get_last_code.assert_called_once_with(
-                self.data.get('phone_number'),
-                self.data.get('country_iso_code'))
+                self.passcode_payload.get('intl_phonenumber'))
 
             self.assertIn('code', s.errors)
             self.assertEqual('code_not_found', s.errors.get('code')[0].code)
@@ -127,7 +126,7 @@ class VerifyPassCodeSerializerTestCase(TestCase):
 
             self.assertTrue(s.is_valid())
 
-            mocked_get_last_code.assert_called_once_with(self.data.get('phone_number'), self.data.get('country_iso_code'))
+            mocked_get_last_code.assert_called_once_with(self.passcode_payload.get('intl_phonenumber'))
 
     def test_it_should_not_verify_passcode_when_expired(self):
         with patch("app.accounts.models.PassCode.objects.get_last_code") as mocked_get_last_code:
@@ -139,4 +138,4 @@ class VerifyPassCodeSerializerTestCase(TestCase):
             self.assertIn('code', s.errors)
             self.assertEqual('code_expired', s.errors.get('code')[0].code)
 
-            mocked_get_last_code.assert_called_once_with(self.data.get('phone_number'), self.data.get('country_iso_code'))
+            mocked_get_last_code.assert_called_once_with(self.passcode_payload.get('intl_phonenumber'))

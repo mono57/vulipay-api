@@ -11,8 +11,7 @@ from app.accounts.models import AvailableCountry, PassCode, PhoneNumber, Account
 class PassCodeTestCase(TransactionTestCase):
     def setUp(self):
         self.payload = {
-            'phone_number': '698049742',
-            'country_iso_code': 'CM',
+            'intl_phonenumber': '+235698049742',
             'code': '987657',
             'sent_on': timezone.now(),
             'next_verif_attempt_on': timezone.now(),
@@ -22,27 +21,27 @@ class PassCodeTestCase(TransactionTestCase):
             'phone_number': '698049742',
             'country_iso_code': 'CM'
         }
+        self.intl_phonenumber = '+235698049742'
 
     @patch('app.accounts.models.PassCode.send_code')
     def test_it_should_create_and_send_new_passcode(self, mocked_send_code: MagicMock):
-        passcode: PassCode = PassCode.create(**self.passcode_payload)
+        passcode: PassCode = PassCode.create(self.intl_phonenumber)
 
         mocked_send_code.assert_called_once()
 
         self.assertTrue(isinstance(passcode, PassCode))
-        self.assertEqual(passcode.phone_number, self.passcode_payload['phone_number'])
-        self.assertEqual(passcode.country_iso_code, self.passcode_payload['country_iso_code'])
+        self.assertEqual(passcode.intl_phonenumber, self.intl_phonenumber)
         self.assertIsInstance(passcode.next_verif_attempt_on, datetime.datetime)
         self.assertIsInstance(passcode.next_passcode_on, datetime.datetime)
 
     @patch('app.accounts.models.PassCode.send_code')
     def test_it_should_expire_previous_code_before_create_one(self, mocked_send_code: MagicMock):
-        PassCode.create(**self.passcode_payload)
-        PassCode.create(**self.passcode_payload)
+        PassCode.create(self.intl_phonenumber)
+        PassCode.create(self.intl_phonenumber)
 
         mocked_send_code.assert_called()
 
-        qs = PassCode.objects.filter(**self.passcode_payload)
+        qs = PassCode.objects.filter(intl_phonenumber=self.intl_phonenumber)
         passcode1: PassCode = qs.first()
         passcode2: PassCode = qs.last()
 

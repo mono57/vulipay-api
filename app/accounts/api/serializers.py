@@ -19,7 +19,7 @@ class AbstractPassCodeSerializer(serializers.Serializer):
     }
 
     def validate_country_iso_code(self, iso_code):
-        qs_country = AvailableCountry.objects.filter(iso_code=iso_code)
+        qs_country = AvailableCountry.objects.filter(iso_code=iso_code).values('dial_code')
 
         if not qs_country.exists():
             raise serializers.ValidationError(
@@ -40,15 +40,16 @@ class AbstractPassCodeSerializer(serializers.Serializer):
         if not wrapper.is_valid():
             raise serializers.ValidationError({**self.default_error_messages}, 'invalid_phone_number')
 
-        return data
+        self.context['intl_phonenumber'] = wrapper.as_e164
+
+        return super().validate(data)
 
 class CreatePasscodeSerializer(AbstractPassCodeSerializer):
     def validate(self, data):
         data = super().validate(data)
-        phone_number = data.get("phone_number")
-        country_iso_code = data.get("country_iso_code")
+        intl_phonenumber = self.context['intl_phonenumber']
 
-        can_process, next_passcode_on = PassCode.objects.can_create_passcode(phone_number, country_iso_code)
+        can_process, next_passcode_on = PassCode.objects.can_create_passcode(intl_phonenumber)
 
         if not can_process:
             raise UnprocessableEntityError(
@@ -58,15 +59,12 @@ class CreatePasscodeSerializer(AbstractPassCodeSerializer):
         return data
 
     def create(self, validated_data):
-        code: PassCode = PassCode.create(
-            validated_data['phone_number'],
-            validated_data['country_iso_code'])
+        code: PassCode = PassCode.create(self.context['intl_phonenumber'])
 
         return code
 
     def to_representation(self, instance: PassCode):
         repr = {
-            **super().to_representation(instance),
             "next_passcode_on": instance.next_passcode_on
         }
         return repr
@@ -85,17 +83,16 @@ class VerifyPassCodeSerializer(AbstractPassCodeSerializer):
     def validate(self, data):
         data = super().validate(data)
 
-        phone_number = data.get("phone_number")
-        country_iso_code = data.get("country_iso_code")
+        intl_phonenumber = self.context['intl_phonenumber']
 
-        can_process, next_verif_attempt_on = PassCode.objects.can_verify(phone_number, country_iso_code)
+        can_process, next_verif_attempt_on = PassCode.objects.can_verify(intl_phonenumber)
 
         if not can_process:
             raise UnprocessableEntityError(
                 f'You can\'t verify our OTP right now because of your multiple attempts. Please try again in {next_verif_attempt_on} seconds.',
                 'unprocessable_passcode')
 
-        passcode: PassCode = PassCode.objects.get_last_code(phone_number, country_iso_code)
+        passcode: PassCode = PassCode.objects.get_last_code(intl_phonenumber)
 
         if passcode is None:
             raise serializers.ValidationError({'code': _("The code has not found")}, 'code_not_found')
