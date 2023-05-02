@@ -9,8 +9,7 @@ from app.core.utils import APIViewTestCase
 
 twilio_send_message_path = "app.core.utils.twilio_client.MessageClient.send_message"
 
-access_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjgzMDY3MDIzLCJpYXQiOjE2ODI2MzUwMjMsImp0aSI6IjU3ZjJmN2QzYjVjODQzZjVhYWNkMTY1MDgwZWYxMTdjIiwidXNlciI6MX0.PPTFDF5CfyJcxw6QFfOMsek_kCpJDZukqkWrarujiBA"
-
+access_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjgzNTAxNDI5LCJpYXQiOjE2ODMwNjk0MjksImp0aSI6IjY2MGZmYjY5OWIxZjQ5NjA5ODZlODRjZDQ2YmUyYzgwIiwidXNlcl9pZCI6Mn0.S7uGJH95QW8djTtuIl7k29avvHtebbHDWTEehp_9Fqc"
 class PassCodeCreateAPIViewTestCase(APIViewTestCase):
     view_name = 'api:accounts_passcodes'
 
@@ -125,12 +124,13 @@ class AccountPaymentCodeRetrieveAPIViewTestCase(APIViewTestCase):
         self.account: Account = Account.objects.create()
         self.account_number = self.account.number
 
-    # def test_it_should_raise_unauthorize_error(self):
-    #     response = self.view_get(reverse_kwargs={"number": self.account_number})
+    def test_it_should_raise_unauthorize_error(self):
+        response = self.view_get(reverse_kwargs={"number": self.account_number})
 
-    #     self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_it_should_return_payment_code(self):
+        self.authenticate_with_jwttoken(access_token)
         response = self.view_get(reverse_kwargs={"number": self.account_number})
 
         data = response.data
@@ -158,14 +158,17 @@ class AccountPaymentDetailsTestCase(APIViewTestCase):
     def test_it_should_raise_access_denied_error(self):
         response = self.view_get(reverse_kwargs={'payment_code': self.payment_code})
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_it_should_retrieve_account_payment_details_information(self):
-        # self.authenticate_with_access_token(access_token)
-        reserve_url = reverse(self.view_name, kwargs={'payment_code': self.payment_code})
-        authorization = 'Bearer ' + access_token
-        response = self.client_class.get(reserve_url, HTTP_AUTHORIZATION=authorization)
-        print('Response data', response.data)
-        # response = self.view_get(reverse_kwargs={'payment_code': self.payment_code})
-        # data = response.data
-        # self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.authenticate_with_jwttoken(access_token)
+        response = self.view_get(reverse_kwargs={'payment_code': self.payment_code})
+
+        data = response.data
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('number', data)
+        self.assertIn('owner_first_name', data)
+        self.assertIn('owner_last_name', data)
+        self.assertEqual(self.account_payload.get('owner_last_name'), data['owner_last_name'])
+        self.assertEqual(self.account_payload.get('owner_first_name'), data['owner_first_name'])

@@ -16,6 +16,7 @@ class VerifyPassCodeCreateAPIView(generics.CreateAPIView):
     serializer_class = serializers.VerifyPassCodeSerializer
 
 class AccountPaymentCodeRetrieveAPIView(generics.RetrieveAPIView):
+    permission_classes = [IsAuthenticated]
     serializer_class = serializers.AccountPaymentCodeSerializer
     permission_classes = [IsAuthenticated]
     lookup_field = 'number'
@@ -26,10 +27,9 @@ class AccountPaymentCodeRetrieveAPIView(generics.RetrieveAPIView):
 
 
 class AccountPaymentDetailsRetrieveAPIView(generics.RetrieveAPIView):
+    permission_classes = [IsAuthenticated]
     serializer_class = serializers.AccountDetailsSerializer
     lookup_field = 'payment_code'
-    authentication_classes = []
-    permission_classes = [IsAuthenticated]
     queryset = Account.objects.values('number', 'owner_first_name', 'owner_last_name')
 
     def get(self, request, *args, **kwargs):

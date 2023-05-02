@@ -144,9 +144,7 @@ class PassCode(AppModel):
 
     def send_code(self):
         body = MessageClient._BODY_VIRIFICATION.format(self.code)
-
         MessageClient.send_message(body, self.intl_phonenumber)
-
         self.sent_on = datetime.datetime.now(timezone.utc)
 
         self.save()
@@ -159,13 +157,13 @@ class Account(AppModel):
     owner_first_name = AppCharField(_("Firstname"), max_length=50, null=True, blank=True)
     owner_last_name = AppCharField(_("Lastname"), max_length=50, null=True, blank=True)
 
-    is_active = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
 
 
     objects: AccountManager = AccountManager()
 
     def __str__(self):
-        return self.email
+        return f'{self.number}'
 
     def save(self, **kwargs):
         if self.number is None:
