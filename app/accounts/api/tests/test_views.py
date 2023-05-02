@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 from django.utils import timezone
-
+from django.urls import reverse
 from rest_framework import status
 
 from app.accounts.models import AvailableCountry, PassCode, Account
@@ -9,6 +9,7 @@ from app.core.utils import APIViewTestCase
 
 twilio_send_message_path = "app.core.utils.twilio_client.MessageClient.send_message"
 
+access_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjgzNTAxNDI5LCJpYXQiOjE2ODMwNjk0MjksImp0aSI6IjY2MGZmYjY5OWIxZjQ5NjA5ODZlODRjZDQ2YmUyYzgwIiwidXNlcl9pZCI6Mn0.S7uGJH95QW8djTtuIl7k29avvHtebbHDWTEehp_9Fqc"
 class PassCodeCreateAPIViewTestCase(APIViewTestCase):
     view_name = 'api:accounts_passcodes'
 
@@ -123,12 +124,13 @@ class AccountPaymentCodeRetrieveAPIViewTestCase(APIViewTestCase):
         self.account: Account = Account.objects.create()
         self.account_number = self.account.number
 
-    # def test_it_should_raise_unauthorize_error(self):
-    #     response = self.view_get(reverse_kwargs={"number": self.account_number})
+    def test_it_should_raise_unauthorize_error(self):
+        response = self.view_get(reverse_kwargs={"number": self.account_number})
 
-    #     self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_it_should_return_payment_code(self):
+        self.authenticate_with_jwttoken(access_token)
         response = self.view_get(reverse_kwargs={"number": self.account_number})
 
         data = response.data
@@ -137,3 +139,36 @@ class AccountPaymentCodeRetrieveAPIViewTestCase(APIViewTestCase):
         self.assertIn('payment_code', data)
         self.assertEqual(data.get('payment_code'), self.account.payment_code)
 
+
+class AccountPaymentDetailsTestCase(APIViewTestCase):
+    view_name = 'api:accounts_payment_details'
+
+    def setUp(self):
+        super().setUp()
+        self.payment_code = '126543TDS23YTHGSFGHY34GHFDSD'
+
+        self.account_payload = {
+            'owner_first_name': 'Aymar',
+            'owner_last_name': 'Amono',
+        }
+        with patch('app.accounts.models.Hasher.hash') as mocked_hash:
+            mocked_hash.return_value = self.payment_code
+            Account.objects.create(**self.account_payload)
+
+    def test_it_should_raise_access_denied_error(self):
+        response = self.view_get(reverse_kwargs={'payment_code': self.payment_code})
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_it_should_retrieve_account_payment_details_information(self):
+        self.authenticate_with_jwttoken(access_token)
+        response = self.view_get(reverse_kwargs={'payment_code': self.payment_code})
+
+        data = response.data
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('number', data)
+        self.assertIn('owner_first_name', data)
+        self.assertIn('owner_last_name', data)
+        self.assertEqual(self.account_payload.get('owner_last_name'), data['owner_last_name'])
+        self.assertEqual(self.account_payload.get('owner_first_name'), data['owner_first_name'])

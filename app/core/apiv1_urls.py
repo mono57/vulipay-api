@@ -17,4 +17,9 @@ urlpatterns = [
         'accounts/<str:number>/payment-code',
         accounts_views.AccountPaymentCodeRetrieveAPIView.as_view(),
         name="accounts_payment_code"),
+    path(
+        'accounts/<str:payment_code>/payment-details',
+        accounts_views.AccountPaymentDetailsRetrieveAPIView.as_view(),
+        name="accounts_payment_details"
+    ),
 ]

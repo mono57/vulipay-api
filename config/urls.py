@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.conf.urls.static import static
+from django.contrib import admin
 from django.urls import include, path
 from django.views.generic.base import View
 from django.http import JsonResponse
@@ -16,4 +17,5 @@ class Index(View):
 urlpatterns = [
     path('', Index.as_view()),
     path('api/', include('app.core.apiv1_urls', namespace='api')),
+    path('admin/', admin.site.urls),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

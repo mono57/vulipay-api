@@ -50,7 +50,8 @@ DJANGO_APPS = [
 ]
 
 THIRD_PARTY_APPS = [
-    "phonenumber_field"
+    "phonenumber_field",
+    "rest_framework_simplejwt"
 ]
 
 LOCAL_APPS = [
@@ -179,14 +180,12 @@ LOGGING = {
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework_simplejwt.authentication.JWTTokenUserAuthentication",
     )
 }
 
 SIMPLE_JWT = {
-    "USER_ID_FIELD": "id",
-    "USER_ID_CLAIM": "user",
-    # "AUTH_HEADER_NAME": "HTTP_X_ACCESS_TOKEN",
+
 }
 
 PASSCODE_LENGTH = 6
