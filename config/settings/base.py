@@ -180,12 +180,13 @@ LOGGING = {
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTTokenUserAuthentication",
+        "app.accounts.authentication.AppJWTAuthentication",
     )
 }
 
 SIMPLE_JWT = {
-
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "account_id",
 }
 
 PASSCODE_LENGTH = 6
