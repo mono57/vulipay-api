@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from app.accounts.api import serializers
 from app.accounts.models import Account
+from app.accounts.permissions import IsAuthenticatedAccount
 
 
 class PassCodeCreateAPIView(generics.CreateAPIView):
@@ -16,9 +17,8 @@ class VerifyPassCodeCreateAPIView(generics.CreateAPIView):
     serializer_class = serializers.VerifyPassCodeSerializer
 
 class AccountPaymentCodeRetrieveAPIView(generics.RetrieveAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticatedAccount]
     serializer_class = serializers.AccountPaymentCodeSerializer
-    permission_classes = [IsAuthenticated]
     lookup_field = 'number'
     queryset = Account.objects.all()
 
@@ -27,7 +27,7 @@ class AccountPaymentCodeRetrieveAPIView(generics.RetrieveAPIView):
 
 
 class AccountPaymentDetailsRetrieveAPIView(generics.RetrieveAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticatedAccount]
     serializer_class = serializers.AccountDetailsSerializer
     lookup_field = 'payment_code'
     queryset = Account.objects.values('number', 'owner_first_name', 'owner_last_name')

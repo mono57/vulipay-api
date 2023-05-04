@@ -3,13 +3,15 @@ from unittest.mock import patch
 from django.utils import timezone
 from django.urls import reverse
 from rest_framework import status
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from app.accounts.models import AvailableCountry, PassCode, Account
 from app.core.utils import APIViewTestCase
 
 twilio_send_message_path = "app.core.utils.twilio_client.MessageClient.send_message"
 
-access_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjgzNTAxNDI5LCJpYXQiOjE2ODMwNjk0MjksImp0aSI6IjY2MGZmYjY5OWIxZjQ5NjA5ODZlODRjZDQ2YmUyYzgwIiwidXNlcl9pZCI6Mn0.S7uGJH95QW8djTtuIl7k29avvHtebbHDWTEehp_9Fqc"
+access_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjgzNTc2ODI1LCJpYXQiOjE2ODMxNDQ4MjUsImp0aSI6IjAzY2MyMjlmYzlhMTQxOWRiZWI1ZGYxNTQwZDQzNzJmIiwiYWNjb3VudF9pZCI6Mn0.5DXBP_SHHfJjl25oVThAgXy1J7Hburjc7FYuAdsiSko"
+
 class PassCodeCreateAPIViewTestCase(APIViewTestCase):
     view_name = 'api:accounts_passcodes'
 
@@ -123,6 +125,7 @@ class AccountPaymentCodeRetrieveAPIViewTestCase(APIViewTestCase):
         super().setUp()
         self.account: Account = Account.objects.create()
         self.account_number = self.account.number
+        self.access_token = str(RefreshToken.for_user(self.account).access_token)
 
     def test_it_should_raise_unauthorize_error(self):
         response = self.view_get(reverse_kwargs={"number": self.account_number})
@@ -130,7 +133,7 @@ class AccountPaymentCodeRetrieveAPIViewTestCase(APIViewTestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_it_should_return_payment_code(self):
-        self.authenticate_with_jwttoken(access_token)
+        self.authenticate_with_jwttoken(self.access_token)
         response = self.view_get(reverse_kwargs={"number": self.account_number})
 
         data = response.data
@@ -153,7 +156,8 @@ class AccountPaymentDetailsTestCase(APIViewTestCase):
         }
         with patch('app.accounts.models.Hasher.hash') as mocked_hash:
             mocked_hash.return_value = self.payment_code
-            Account.objects.create(**self.account_payload)
+            account = Account.objects.create(**self.account_payload)
+            self.access_token = str(RefreshToken.for_user(account).access_token)
 
     def test_it_should_raise_access_denied_error(self):
         response = self.view_get(reverse_kwargs={'payment_code': self.payment_code})
@@ -161,7 +165,7 @@ class AccountPaymentDetailsTestCase(APIViewTestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_it_should_retrieve_account_payment_details_information(self):
-        self.authenticate_with_jwttoken(access_token)
+        self.authenticate_with_jwttoken(self.access_token)
         response = self.view_get(reverse_kwargs={'payment_code': self.payment_code})
 
         data = response.data
