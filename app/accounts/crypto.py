@@ -12,13 +12,3 @@ class PassCodeGenerator(object):
 
     def is_valid(self):
         return self.code.isdigit() and len(self.code) == settings.PASSCODE_LENGTH
-
-class Hasher:
-    @classmethod
-    def hash(cls, str_to_hash):
-        hash_object = hashlib.sha256()
-        hash_object.update(str_to_hash.encode('utf-8'))
-
-        hex_dig = hash_object.hexdigest()
-
-        return hex_dig

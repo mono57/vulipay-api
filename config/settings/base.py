@@ -56,6 +56,7 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     "app.accounts",
+    "app.transactions",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -192,3 +193,4 @@ SIMPLE_JWT = {
 PASSCODE_LENGTH = 6
 DIAL_OUT_CODE = "+"
 OTP_TIMESTAMP = 30
+PAYMENT_CODE_PREFFIX = 'vulipay'

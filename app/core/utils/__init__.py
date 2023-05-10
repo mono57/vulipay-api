@@ -7,6 +7,7 @@ from .fields import AppCharField
 from .network_carrier import get_carrier
 from .api_view_testcase import APIViewTestCase
 from .exceptions import UnprocessableEntityError
+from .hashers import make_payment_code, make_transaction_ref
 
 
 __all__ = [
@@ -17,5 +18,7 @@ __all__ = [
     'AppModel',
     'get_carrier',
     'APIViewTestCase',
-    'UnprocessableEntityError'
+    'UnprocessableEntityError',
+    'make_payment_code',
+    'make_transaction_ref'
 ]
