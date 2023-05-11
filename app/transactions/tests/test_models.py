@@ -12,14 +12,14 @@ class TransactionTestCase(TestCase):
     def test_it_should_return_reference_on_str(self):
         transaction = Transaction.create_P2P_transaction(
             amount=2000,
-            receiver_account=self.receiver_account)
+            payer_account=self.payer_account)
 
         self.assertEqual(transaction.reference, str(transaction))
 
     def test_it_should_create_P2P_transaction(self):
         transaction = Transaction.create_P2P_transaction(
             amount=2000,
-            receiver_account=self.receiver_account)
+            payer_account=self.payer_account)
 
         self.assertIsInstance(transaction, Transaction)
         self.assertEqual(float(2000), transaction.amount)

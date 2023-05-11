@@ -42,7 +42,7 @@ class Transaction(AppModel):
         return self.reference
 
     @classmethod
-    def create_P2P_transaction(cls, amount: float, receiver_account: Account, notes: str = None):
+    def create_P2P_transaction(cls, amount: float, payer_account: Account, notes: str = None):
         klass = __class__
         # P2P.DF2422.1683740925
         transaction_ref = make_transaction_ref(TransactionType.P2P)
@@ -53,7 +53,7 @@ class Transaction(AppModel):
             reference=transaction_ref,
             payment_code=t_payment_code,
             amount=amount,
-            receiver_account=receiver_account,
+            payer_account=payer_account,
             status=TransactionStatus.INITIATED,
             type=TransactionType.P2P,
             notes=notes)
