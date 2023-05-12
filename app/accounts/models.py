@@ -5,8 +5,7 @@ from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from django.utils import timezone
 
-from app.core.utils import MessageClient, generate_code, AppModel, AppCharField, get_carrier
-from accounts.crypto import Hasher
+from app.core.utils import MessageClient, generate_code, AppModel, AppCharField, get_carrier, make_payment_code
 from app.accounts.managers import PhoneNumberManager, AccountManager, PassCodeManager
 
 def increase_waiting_time(waiting_time):
@@ -168,7 +167,7 @@ class Account(AppModel):
     def save(self, **kwargs):
         if self.number is None:
             self.number = AccountManager.generate_account_number()
-            self.payment_code = Hasher.hash(self.number)
+            self.payment_code = make_payment_code(self.number, 'CST')
         super().save(**kwargs)
 
 

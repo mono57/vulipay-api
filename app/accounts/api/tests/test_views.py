@@ -154,8 +154,8 @@ class AccountPaymentDetailsTestCase(APIViewTestCase):
             'owner_first_name': 'Aymar',
             'owner_last_name': 'Amono',
         }
-        with patch('app.accounts.models.Hasher.hash') as mocked_hash:
-            mocked_hash.return_value = self.payment_code
+        with patch('app.accounts.models.make_payment_code') as mocked_make_payment_code:
+            mocked_make_payment_code.return_value = self.payment_code
             account = Account.objects.create(**self.account_payload)
             self.access_token = str(RefreshToken.for_user(account).access_token)
 
