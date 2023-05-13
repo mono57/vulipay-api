@@ -172,7 +172,7 @@ class AccountPaymentDetailsTestCase(APIViewTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('number', data)
-        self.assertIn('owner_first_name', data)
-        self.assertIn('owner_last_name', data)
-        self.assertEqual(self.account_payload.get('owner_last_name'), data['owner_last_name'])
-        self.assertEqual(self.account_payload.get('owner_first_name'), data['owner_first_name'])
+        self.assertIn('first_name', data)
+        self.assertIn('last_name', data)
+        self.assertEqual(self.account_payload.get('owner_last_name'), data['last_name'])
+        self.assertEqual(self.account_payload.get('owner_first_name'), data['first_name'])

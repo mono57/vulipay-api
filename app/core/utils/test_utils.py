@@ -5,7 +5,7 @@ from django.conf import settings
 
 from app.core.utils.models import TimestampModel
 from app.core.utils.network_carrier import get_carrier, NO_CARRIER
-from app.core.utils.hashers import SHA256PaymentCodeHasher, make_transaction_ref
+from app.core.utils.hashers import SHA256PaymentCodeHasher, make_transaction_ref, is_valid_payment_code
 
 class TestGetCarrier(SimpleTestCase):
     def setUp(self):
@@ -67,3 +67,17 @@ class MakeTransactionRefTestCase(SimpleTestCase):
         self.assertTrue(salt[:2].isalpha())
         self.assertTrue(salt[2:].isdigit())
 
+class IsValidPaymentCodeTestCase(SimpleTestCase):
+    def setUp(self) -> None:
+        self.fake_transaction_types = ('PPE', 'FRE')
+
+    def test_it_should_validate_payment_code(self):
+        self.assertTrue(is_valid_payment_code('vulipay$PPE$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', self.fake_transaction_types))
+        self.assertTrue(is_valid_payment_code('vulipay$FRE$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', self.fake_transaction_types))
+
+    def test_it_should_not_validate_payment_code(self):
+        self.assertFalse(is_valid_payment_code('vulipay$PEF$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', self.fake_transaction_types))
+        self.assertFalse(is_valid_payment_code('vulipay$PPE$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', ()))
+        self.assertFalse(is_valid_payment_code('$PE$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', self.fake_transaction_types))
+        self.assertFalse(is_valid_payment_code('vulipay$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', self.fake_transaction_types))
+        self.assertFalse(is_valid_payment_code('vulipay$$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', self.fake_transaction_types))

@@ -1,10 +1,12 @@
 from django.test import TestCase
 
-from app.transactions.api.serializers import P2PTransactionSerializer
+from app.transactions.api import serializers as t_serializers
+from app.transactions.models import Transaction
+from app.accounts.models import Account
 
 class P2PTransactionSerializerTestCase(TestCase):
     def setUp(self) -> None:
-        self.serializer = P2PTransactionSerializer
+        self.serializer = t_serializers.P2PTransactionSerializer
 
     def test_it_should_not_validate_for_wrong_amount(self):
         data = {'amount': 0}
@@ -28,3 +30,21 @@ class P2PTransactionSerializerTestCase(TestCase):
         data = {'amount': 30}
         serializer = self.serializer(data=data)
         self.assertTrue(serializer.is_valid())
+
+class TransactionDetailsSerializerTestCase(TestCase):
+    def setUp(self):
+        self.serializer = t_serializers.TransactionDetailsSerializer
+        self.receiver_account = Account.objects.create()
+        self.transaction = Transaction.create_P2P_transaction(2000, receiver_account=self.receiver_account)
+
+    def test_it_should_serialize_P2P_transaction(self):
+        serializer = self.serializer(self.transaction)
+
+        data = serializer.data
+
+        self.assertIn('payer_account', data)
+        self.assertIsNotNone(data.get('reference'))
+        self.assertIsNotNone(data.get('status'))
+        self.assertIsNotNone(data.get('type'))
+        self.assertIsNotNone(data.get('amount'))
+        self.assertIsNotNone(data.get('receiver_account'))

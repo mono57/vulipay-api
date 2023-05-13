@@ -2,6 +2,7 @@ from django.utils.translation import gettext_lazy as _
 
 from rest_framework import serializers
 
+from app.accounts.api import serializers as accounts_serializers
 from app.transactions.models import Transaction
 
 class P2PTransactionSerializer(serializers.Serializer):
@@ -23,3 +24,10 @@ class P2PTransactionSerializer(serializers.Serializer):
 
         return repr
 
+class TransactionDetailsSerializer(serializers.ModelSerializer):
+    receiver_account = accounts_serializers.AccountDetailsSerializer()
+    payer_account = accounts_serializers.AccountDetailsSerializer()
+
+    class Meta:
+        model = Transaction
+        fields = ('reference', 'amount', 'status', 'type', 'payer_account', 'receiver_account')
