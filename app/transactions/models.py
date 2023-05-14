@@ -2,7 +2,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from app.accounts.models import Account
-from app.core.utils import AppCharField, AppModel, make_payment_code, make_transaction_ref
+from app.core.utils import AppCharField, AppModel, make_payment_code, make_transaction_ref, is_valid_payment_code
 
 class TransactionStatus(models.TextChoices):
     INITIATED = 'INITIATED', _('Initiated')
@@ -42,7 +42,11 @@ class Transaction(AppModel):
         return self.reference
 
     @classmethod
-    def create_P2P_transaction(cls, amount: float, payer_account: Account, notes: str = None):
+    def is_valid_payment_code(cls, payment_code):
+        return is_valid_payment_code(payment_code, TransactionType.values)
+
+    @classmethod
+    def create_P2P_transaction(cls, amount: float, receiver_account: Account, notes: str = None):
         klass = __class__
         # P2P.DF2422.1683740925
         transaction_ref = make_transaction_ref(TransactionType.P2P)
@@ -53,7 +57,7 @@ class Transaction(AppModel):
             reference=transaction_ref,
             payment_code=t_payment_code,
             amount=amount,
-            payer_account=payer_account,
+            receiver_account=receiver_account,
             status=TransactionStatus.INITIATED,
             type=TransactionType.P2P,
             notes=notes)

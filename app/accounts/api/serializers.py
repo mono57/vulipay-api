@@ -137,8 +137,13 @@ class VerifyPassCodeSerializer(AbstractPassCodeSerializer):
 class AccountPaymentCodeSerializer(serializers.Serializer):
     payment_code = serializers.CharField()
 
+class AccountOwnerSpecificInfos(serializers.Serializer):
+    number = serializers.CharField()
+    first_name = serializers.CharField(source='owner_first_name')
+    last_name = serializers.CharField(source='owner_last_name')
 
-class AccountDetailsSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Account
-        fields = ('number', 'owner_first_name', 'owner_last_name')
+class ReceiverAccountSerializer(AccountOwnerSpecificInfos):
+    pass
+
+class AccountDetailsSerializer(AccountOwnerSpecificInfos):
+    pass

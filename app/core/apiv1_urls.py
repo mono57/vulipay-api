@@ -25,5 +25,9 @@ urlpatterns = [
     path(
         'transactions/p2p',
         transactions_views.P2PTransactionCreateAPIView.as_view(),
-        name="p2p_transactions")
+        name="transactions_p2p_transactions"),
+    path(
+        'transactions/<str:payment_code>/details',
+        transactions_views.TransactionDetailsRetrieveAPIView.as_view(),
+        name="transactions_transaction_details")
 ]
