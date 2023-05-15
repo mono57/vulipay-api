@@ -5,8 +5,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from phonenumbers import NumberParseException
 from phonenumber_field.phonenumber import PhoneNumber as PhoneNumberWrapper
 
-from app.core.utils import UnprocessableEntityError
-from app.accounts.crypto import PassCodeGenerator
+from app.core.utils import UnprocessableEntityError, is_valid_otp
 from app.accounts.models import AvailableCountry, PhoneNumber, PassCode, Account
 
 class AbstractPassCodeSerializer(serializers.Serializer):
@@ -73,9 +72,7 @@ class VerifyPassCodeSerializer(AbstractPassCodeSerializer):
     code = serializers.CharField()
 
     def validate_code(self, code: str):
-        passcode_wrapper = PassCodeGenerator.from_code(code)
-
-        if not passcode_wrapper.is_valid():
+        if not is_valid_otp(code):
             raise serializers.ValidationError(_('Invalid Code'), 'invalid_code')
 
         return code

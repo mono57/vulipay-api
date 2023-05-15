@@ -5,12 +5,8 @@ from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from django.utils import timezone
 
-from app.core.utils import MessageClient, generate_code, AppModel, AppCharField, get_carrier, make_payment_code
+from app.core.utils import MessageClient, AppModel, AppCharField, get_carrier, make_payment_code, make_otp
 from app.accounts.managers import PhoneNumberManager, AccountManager, PassCodeManager
-
-def increase_waiting_time(waiting_time):
-    # compute waiting time base on mathematic formula
-    return waiting_time + 30
 
 def compute_next_attempt_time(count) -> datetime.datetime:
     dt_now = timezone.now()
@@ -25,7 +21,7 @@ def compute_next_verif_attempt_time(count) -> datetime.datetime:
     return time_diff
 
 class AvailableCountry(AppModel):
-    name = AppCharField(max_length=30)  # i.e Chad
+    name = AppCharField(max_length=50)  # i.e Chad
     dial_code = AppCharField(max_length=5, unique=True)  # i.e 235
     iso_code = AppCharField(max_length=10, unique=True)  # i.e TD
     phone_number_regex = AppCharField(max_length=50)
@@ -98,7 +94,7 @@ class PassCode(AppModel):
             passcode_count = last_code.passcode_count + 1
             next_passcode_on = compute_next_attempt_time(passcode_count)
 
-        code = generate_code(cls)
+        code = make_otp()
 
         code = cls._default_manager.create(
             intl_phonenumber=intl_phonenumber,

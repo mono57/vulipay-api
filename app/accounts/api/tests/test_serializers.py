@@ -63,7 +63,6 @@ class VerifyPassCodeSerializerTestCase(TestCase):
             "country_iso_code": "CM",
             "code": "234543"
         }
-        # self.intl_phonenumber = f'+237{self.data.get('phone_number')}'
         country_payload = {
             "name": "Cameroun",
             "dial_code": "237",

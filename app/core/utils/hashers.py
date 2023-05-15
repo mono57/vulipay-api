@@ -5,6 +5,18 @@ from django.utils.crypto import get_random_string
 from django.utils import timezone
 from django.conf import settings
 
+
+def make_otp(sequences='0123456789'):
+    otp = get_random_string(settings.OTP_LENGTH, sequences)
+    return otp
+
+def is_valid_otp(otp):
+    if otp is None:
+        return False
+
+    is_valid = bool(otp.isdigit() and len(otp) == settings.OTP_LENGTH)
+    return is_valid
+
 def make_transaction_ref(type):
     import math
     allowed_consonants, allowed_vowels, allowed_digits = 'BCDFGHJKLMNPQRSTVWXZ', 'AEIOUY', '0123456789'
