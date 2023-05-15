@@ -3,9 +3,8 @@ from unittest.mock import patch, MagicMock
 from django.test import TestCase, SimpleTestCase
 from django.conf import settings
 
-from app.core.utils.models import TimestampModel
 from app.core.utils.network_carrier import get_carrier, NO_CARRIER
-from app.core.utils.hashers import SHA256PaymentCodeHasher, make_transaction_ref, is_valid_payment_code
+from app.core.utils import hashers
 
 class TestGetCarrier(SimpleTestCase):
     def setUp(self):
@@ -35,7 +34,7 @@ class TestGetCarrier(SimpleTestCase):
 
 class SHA256PaymentCodeHasherTestCase(SimpleTestCase):
     def setUp(self) -> None:
-        self.hasher = SHA256PaymentCodeHasher()
+        self.hasher = hashers.SHA256PaymentCodeHasher()
 
     def test_it_encode(self):
         code = 'YTREZFGHJH456765'
@@ -59,7 +58,7 @@ class SHA256PaymentCodeHasherTestCase(SimpleTestCase):
 
 class MakeTransactionRefTestCase(SimpleTestCase):
     def test_it_make_transaction_ref(self):
-        ref = make_transaction_ref('P2P')
+        ref = hashers.make_transaction_ref('P2P')
         type, salt, _ = ref.split('.')
 
         self.assertEqual(type, 'P2P')
@@ -72,12 +71,28 @@ class IsValidPaymentCodeTestCase(SimpleTestCase):
         self.fake_transaction_types = ('PPE', 'FRE')
 
     def test_it_should_validate_payment_code(self):
-        self.assertTrue(is_valid_payment_code('vulipay$PPE$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', self.fake_transaction_types))
-        self.assertTrue(is_valid_payment_code('vulipay$FRE$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', self.fake_transaction_types))
+        self.assertTrue(hashers.is_valid_payment_code('vulipay$PPE$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', self.fake_transaction_types))
+        self.assertTrue(hashers.is_valid_payment_code('vulipay$FRE$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', self.fake_transaction_types))
 
     def test_it_should_not_validate_payment_code(self):
-        self.assertFalse(is_valid_payment_code('vulipay$PEF$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', self.fake_transaction_types))
-        self.assertFalse(is_valid_payment_code('vulipay$PPE$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', ()))
-        self.assertFalse(is_valid_payment_code('$PE$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', self.fake_transaction_types))
-        self.assertFalse(is_valid_payment_code('vulipay$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', self.fake_transaction_types))
-        self.assertFalse(is_valid_payment_code('vulipay$$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', self.fake_transaction_types))
+        self.assertFalse(hashers.is_valid_payment_code('vulipay$PEF$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', self.fake_transaction_types))
+        self.assertFalse(hashers.is_valid_payment_code('vulipay$PPE$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', ()))
+        self.assertFalse(hashers.is_valid_payment_code('$PE$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', self.fake_transaction_types))
+        self.assertFalse(hashers.is_valid_payment_code('vulipay$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', self.fake_transaction_types))
+        self.assertFalse(hashers.is_valid_payment_code('vulipay$$64DF7B1D1445B49799B280E395E3E065D369808F2D924E411EEE9C23293D05B0', self.fake_transaction_types))
+
+class OTPTestCase(SimpleTestCase):
+    def test_it_make_otp(self):
+        otp = hashers.make_otp()
+
+        self.assertEqual(len(otp), settings.OTP_LENGTH)
+        self.assertTrue(otp.isdigit())
+
+    def test_it_is_valid_otp(self):
+        self.assertTrue(hashers.is_valid_otp('765434'))
+        self.assertFalse(hashers.is_valid_otp('75434'))
+        self.assertFalse(hashers.is_valid_otp('7E5434'))
+        self.assertFalse(hashers.is_valid_otp('7653434'))
+        self.assertFalse(hashers.is_valid_otp(None))
+
+
