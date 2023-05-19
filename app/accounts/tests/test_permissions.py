@@ -5,6 +5,7 @@ from rest_framework.test import APIRequestFactory
 
 from app.accounts.permissions import IsAuthenticatedAccount
 from app.accounts.models import Account
+from app.accounts.tests import factories as f
 
 class IsAuthenticatedAccountTestCase(TestCase):
     def setUp(self):
@@ -17,6 +18,6 @@ class IsAuthenticatedAccountTestCase(TestCase):
         self.assertFalse(self.permission().has_permission(self.request, None))
 
     def test_should_return_true_on_has_perm(self):
-        account = Account.objects.create()
+        account = f.AccountFactory.create()
         self.request.user = account
         self.assertTrue(self.permission().has_permission(self.request, None))

@@ -7,6 +7,7 @@ from app.accounts.models import Account
 from app.transactions.models import Transaction
 from app.transactions.api.views import P2PTransactionCreateAPIView
 from app.core.utils import APIViewTestCase
+from app.accounts.tests import factories as f
 
 class P2PTransactionCreateAPIViewTestCase(APIViewTestCase):
     view_name = 'api:transactions_p2p_transactions'
@@ -14,7 +15,7 @@ class P2PTransactionCreateAPIViewTestCase(APIViewTestCase):
     def setUp(self):
         super().setUp()
 
-        self.account: Account = Account.objects.create()
+        self.account: Account = f.AccountFactory.create()
         self.access_token = str(RefreshToken.for_user(self.account).access_token)
 
     def test_it_should_not_create_transation_for_unauthorized_user(self):
@@ -55,7 +56,7 @@ class TransactionDetailsRetrieveAPIView(APIViewTestCase):
 
     def setUp(self):
         super().setUp()
-        self.receiver_account = Account.objects.create()
+        self.receiver_account = f.AccountFactory.create()
         self.transaction = Transaction.create_P2P_transaction(2000, self.receiver_account)
         self.payment_code = self.transaction.payment_code
         self.access_token = str(RefreshToken.for_user(self.receiver_account).access_token)

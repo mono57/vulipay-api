@@ -3,6 +3,7 @@ from django.test import TestCase
 from app.transactions.api import serializers as t_serializers
 from app.transactions.models import Transaction
 from app.accounts.models import Account
+from app.accounts.tests import factories as f
 
 class P2PTransactionSerializerTestCase(TestCase):
     def setUp(self) -> None:
@@ -34,7 +35,7 @@ class P2PTransactionSerializerTestCase(TestCase):
 class TransactionDetailsSerializerTestCase(TestCase):
     def setUp(self):
         self.serializer = t_serializers.TransactionDetailsSerializer
-        self.receiver_account = Account.objects.create()
+        self.receiver_account = f.AccountFactory.create()
         self.transaction = Transaction.create_P2P_transaction(2000, receiver_account=self.receiver_account)
 
     def test_it_should_serialize_P2P_transaction(self):

@@ -6,7 +6,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from app.core.utils import MessageClient, AppModel, AppCharField, get_carrier, make_payment_code, make_otp
-from app.accounts.managers import PhoneNumberManager, AccountManager, PassCodeManager
+from app.accounts.managers import AccountManager, PassCodeManager
 
 def compute_next_attempt_time(count) -> datetime.datetime:
     dt_now = timezone.now()
@@ -35,19 +35,22 @@ class AvailableCountry(AppModel):
         return f"({self.dial_code}) - {self.name} - {self.iso_code}"
 
 
-# class Currency(AppModel):
-#     iso_code = models.CharField(max_length=8)
-#     name = models.CharField(max_length=100)
-#     symbol = models.CharField(max_length=5)
-#     country = models.ForeignKey(AvailableCountry, null=True, on_delete=models.SET_NULL)
+class Currency(AppModel):
+    iso_code = models.CharField(max_length=8)
+    name = models.CharField(max_length=100)
+    symbol = models.CharField(max_length=5)
+    country = models.ForeignKey(
+        AvailableCountry,
+        null=True,
+        on_delete=models.SET_NULL)
 
-#     def __str__(self):
-#         return f"{self.name} - {self.iso_code} - {self.symbol}"
+    def __str__(self):
+        return f"{self.name} - {self.iso_code} - {self.symbol}"
 
 
 class PassCode(AppModel):
-    intl_phonenumber = AppCharField(max_length=15)
-    code = AppCharField(max_length=8)
+    intl_phone_number = AppCharField(max_length=15, null=False)
+    code = AppCharField(max_length=8, null=False)
     sent_on = models.DateTimeField(null=True)
     verified = models.BooleanField(default=False)
     expired = models.BooleanField(default=False)
@@ -61,7 +64,7 @@ class PassCode(AppModel):
 
     class Meta:
         indexes = [
-            models.Index(fields=['intl_phonenumber'])
+            models.Index(fields=['intl_phone_number'])
         ]
 
     def __str__(self):
@@ -83,8 +86,8 @@ class PassCode(AppModel):
         return self.verified
 
     @classmethod
-    def create(cls, intl_phonenumber):
-        last_code: cls = cls.objects.get_last_code(intl_phonenumber)
+    def create(cls, intl_phone_number):
+        last_code: cls = cls.objects.get_last_code(intl_phone_number)
 
         passcode_count = 1
         next_passcode_on = compute_next_attempt_time(passcode_count)
@@ -97,7 +100,7 @@ class PassCode(AppModel):
         code = make_otp()
 
         code = cls._default_manager.create(
-            intl_phonenumber=intl_phonenumber,
+            intl_phone_number=intl_phone_number,
             next_verif_attempt_on=timezone.now(),
             next_passcode_on=next_passcode_on,
             passcode_count=passcode_count,
@@ -139,23 +142,30 @@ class PassCode(AppModel):
 
     def send_code(self):
         body = MessageClient._BODY_VIRIFICATION.format(self.code)
-        MessageClient.send_message(body, self.intl_phonenumber)
+        MessageClient.send_message(body, self.intl_phone_number)
         self.sent_on = datetime.datetime.now(timezone.utc)
 
         self.save()
 
 
 class Account(AppModel):
+    phone_number = AppCharField(_('Phone Number'), max_length=20, null=False)
+    intl_phone_number = AppCharField(_('Phone Number'), max_length=20, null=False)
     number = AppCharField(_('Account number'), max_length=16, unique=True, null=False)
     payment_code = AppCharField(_('Payment Qr Code'), max_length=255, null=False, blank=True)
     owner_email = models.EmailField(_("Email address"), unique=True, null=True, blank=True)
     owner_first_name = AppCharField(_("Firstname"), max_length=50, null=True, blank=True)
     owner_last_name = AppCharField(_("Lastname"), max_length=50, null=True, blank=True)
-
     is_active = models.BooleanField(default=True)
 
+    country = models.ForeignKey(AvailableCountry, null=True, on_delete=models.SET_NULL, related_name='accounts')
 
     objects: AccountManager = AccountManager()
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['intl_phone_number'])
+        ]
 
     def __str__(self):
         return f'{self.number}'
@@ -170,7 +180,7 @@ class Account(AppModel):
 class PhoneNumber(AppModel):
     number = AppCharField(max_length=20)
     primary = models.BooleanField(default=False)
-    verified = models.BooleanField(default=False)
+    verified = models.BooleanField(default=True)
     carrier = AppCharField(_("Carrier"), max_length=50)
     account = models.ForeignKey(
         Account,
@@ -178,12 +188,6 @@ class PhoneNumber(AppModel):
         related_name="phone_numbers",
         verbose_name=_("Account"),
     )
-    country = models.ForeignKey(
-        AvailableCountry,
-        on_delete=models.CASCADE,
-        related_name="phone_numbers")
-
-    objects = PhoneNumberManager()
 
     def __str__(self):
         return f"({self.country.dial_code}) {self.number}"
@@ -197,21 +201,13 @@ class PhoneNumber(AppModel):
         return self.verified
 
     @classmethod
-    def create(cls, phone_number: str, country_iso_code: str, verified=True):
-        country_id = AvailableCountry.objects.values('id') \
-            .get(iso_code=country_iso_code) \
-            .get('id')
-
-        account = Account.objects.create()
-
+    def create(cls, phone_number: str, country_iso_code: str, account_id: int):
         carrier = get_carrier(phone_number, country_iso_code)
 
         obj = cls.objects.create(
             number=phone_number,
-            account_id=account.id,
-            country_id=country_id,
-            carrier=carrier,
-            verified=verified)
+            account_id=account_id,
+            carrier=carrier)
 
         return obj
 

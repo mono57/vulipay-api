@@ -5,6 +5,7 @@ from rest_framework_simplejwt.exceptions import AuthenticationFailed
 
 from app.accounts.authentication import AppJWTAuthentication
 from app.accounts.models import Account
+from app.accounts.tests import factories as f
 
 class AppJWTAuthenticationTestCase(TestCase):
     def setUp(self):
@@ -21,7 +22,7 @@ class AppJWTAuthenticationTestCase(TestCase):
 
         # self.assertEqual(ex.exception.default_code, "account_not_found")
 
-        account = Account.objects.create()
+        account = f.AccountFactory.create()
         payload[settings.SIMPLE_JWT['USER_ID_CLAIM']] = getattr(account, settings.SIMPLE_JWT['USER_ID_FIELD'])
 
         self.assertEqual(self.backend.get_user(payload).id, account.id)

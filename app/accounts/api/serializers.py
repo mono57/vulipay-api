@@ -1,5 +1,5 @@
 from django.utils.translation import gettext_lazy as _
-
+from django.db.models import Q
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 from phonenumbers import NumberParseException
@@ -18,13 +18,13 @@ class AbstractPassCodeSerializer(serializers.Serializer):
     }
 
     def validate_country_iso_code(self, iso_code):
-        qs_country = AvailableCountry.objects.filter(iso_code=iso_code).values('dial_code')
+        qs_country = AvailableCountry.objects.filter(iso_code=iso_code)
 
         if not qs_country.exists():
             raise serializers.ValidationError(
                 _("Vulipay's services are not available in your country.")
             )
-
+        self.context['country'] = qs_country.first()
         return iso_code
 
     def validate(self, data):
@@ -39,16 +39,16 @@ class AbstractPassCodeSerializer(serializers.Serializer):
         if not wrapper.is_valid():
             raise serializers.ValidationError({**self.default_error_messages}, 'invalid_phone_number')
 
-        self.context['intl_phonenumber'] = wrapper.as_e164
+        self.context['intl_phone_number'] = wrapper.as_e164
 
         return super().validate(data)
 
 class CreatePasscodeSerializer(AbstractPassCodeSerializer):
     def validate(self, data):
         data = super().validate(data)
-        intl_phonenumber = self.context['intl_phonenumber']
+        intl_phone_number = self.context['intl_phone_number']
 
-        can_process, next_passcode_on = PassCode.objects.can_create_passcode(intl_phonenumber)
+        can_process, next_passcode_on = PassCode.objects.can_create_passcode(intl_phone_number)
 
         if not can_process:
             raise UnprocessableEntityError(
@@ -58,7 +58,7 @@ class CreatePasscodeSerializer(AbstractPassCodeSerializer):
         return data
 
     def create(self, validated_data):
-        code: PassCode = PassCode.create(self.context['intl_phonenumber'])
+        code: PassCode = PassCode.create(self.context['intl_phone_number'])
 
         return code
 
@@ -80,16 +80,16 @@ class VerifyPassCodeSerializer(AbstractPassCodeSerializer):
     def validate(self, data):
         data = super().validate(data)
 
-        intl_phonenumber = self.context['intl_phonenumber']
+        intl_phone_number = self.context['intl_phone_number']
 
-        can_process, next_verif_attempt_on = PassCode.objects.can_verify(intl_phonenumber)
+        can_process, next_verif_attempt_on = PassCode.objects.can_verify(intl_phone_number)
 
         if not can_process:
             raise UnprocessableEntityError(
                 f'You can\'t verify our OTP right now because of your multiple attempts. Please try again in {next_verif_attempt_on} seconds.',
                 'unprocessable_passcode')
 
-        passcode: PassCode = PassCode.objects.get_last_code(intl_phonenumber)
+        passcode: PassCode = PassCode.objects.get_last_code(intl_phone_number)
 
         if passcode is None:
             raise serializers.ValidationError({'code': _("The code has not found")}, 'code_not_found')
@@ -107,27 +107,27 @@ class VerifyPassCodeSerializer(AbstractPassCodeSerializer):
         return data
 
     def create(self, validated_data):
-        account = PhoneNumber.objects.get_account(
-            validated_data.get('phone_number'),
-            validated_data.get('country_iso_code')
-        )
+        account, created = Account.objects.get_or_create(
+            intl_phone_number=self.context['intl_phone_number'],
+            defaults={ "phone_number": validated_data.get('phone_number'),
+                      "country_id": self.context.get('country').id })
 
-        if account is not None:
-            return account
-
-        phone_number: PhoneNumber = PhoneNumber.create(
-            phone_number=validated_data.get('phone_number'),
-            country_iso_code=validated_data.get('country_iso_code'),
-            verified=True)
-
-        account = phone_number.account
+        self.context['created'] = created
 
         return account
 
     def to_representation(self, instance: Account):
+        account_infos = AccountDetailsSerializer(instance).data
         refresh = RefreshToken.for_user(instance)
 
-        repr = {"refresh": str(refresh), "access": str(refresh.access_token)}
+        repr = {
+            "account": {
+                "created": self.context['created'],
+                **account_infos
+            },
+            "refresh": str(refresh),
+            "access": str(refresh.access_token)
+        }
 
         return repr
 

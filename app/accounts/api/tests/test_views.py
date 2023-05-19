@@ -6,6 +6,7 @@ from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from app.accounts.models import AvailableCountry, PassCode, Account
+from app.accounts.tests import factories as f
 from app.core.utils import APIViewTestCase
 
 twilio_send_message_path = "app.core.utils.twilio_client.MessageClient.send_message"
@@ -22,14 +23,7 @@ class PassCodeCreateAPIViewTestCase(APIViewTestCase):
             "country_iso_code": "CM",
         }
 
-        self.country_payload = {
-            "name": "Cameroun",
-            "dial_code": "237",
-            "iso_code": "CM",
-            "phone_number_regex": "REGEX"
-        }
-
-        AvailableCountry.objects.create(**self.country_payload)
+        f.AvailableCountryFactory.create()
 
     def test_it_should_not_generate_passcode_for_empty_payload(self):
         response = self.view_post({})
@@ -91,7 +85,7 @@ class VerifyPassCodeAPIViewTestCase(APIViewTestCase):
         }
         time_now = timezone.now()
         self.passcode_payload = {
-            'intl_phonenumber': '+237698049742',
+            'intl_phone_number': '+237698049742',
             'code': 234353,
             'sent_on': time_now,
             'next_passcode_on': time_now,
@@ -123,7 +117,7 @@ class AccountPaymentCodeRetrieveAPIViewTestCase(APIViewTestCase):
 
     def setUp(self):
         super().setUp()
-        self.account: Account = Account.objects.create()
+        self.account: Account = f.AccountFactory.create()
         self.account_number = self.account.number
         self.access_token = str(RefreshToken.for_user(self.account).access_token)
 
@@ -156,7 +150,7 @@ class AccountPaymentDetailsTestCase(APIViewTestCase):
         }
         with patch('app.accounts.models.make_payment_code') as mocked_make_payment_code:
             mocked_make_payment_code.return_value = self.payment_code
-            account = Account.objects.create(**self.account_payload)
+            account = f.AccountFactory.create(**self.account_payload)
             self.access_token = str(RefreshToken.for_user(account).access_token)
 
     def test_it_should_raise_access_denied_error(self):

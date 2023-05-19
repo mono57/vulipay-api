@@ -1,12 +1,14 @@
 from django.test import TestCase
 
 from app.accounts.models import Account
+from app.accounts.tests import factories as f
 from app.transactions.models import Transaction, TransactionStatus, TransactionType
 
 class TransactionTestCase(TestCase):
     def setUp(self):
-        self.payer_account = Account.objects.create()
-        self.receiver_account = Account.objects.create()
+        country = f.AvailableCountryFactory.create()
+        self.payer_account = f.AccountFactory.create(country=country)
+        self.receiver_account = f.AccountFactory.create(country=country, intl_phone_number="237698049743")
 
 
     def test_it_should_return_reference_on_str(self):

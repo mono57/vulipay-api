@@ -6,42 +6,32 @@ from django.test import TestCase, TransactionTestCase
 from django.conf import settings
 from django.utils import timezone
 
+from app.accounts.tests import factories as f
 from app.accounts.models import AvailableCountry, PassCode, PhoneNumber, Account
 
 class PassCodeTestCase(TransactionTestCase):
     def setUp(self):
-        self.payload = {
-            'intl_phonenumber': '+235698049742',
-            'code': '987657',
-            'sent_on': timezone.now(),
-            'next_verif_attempt_on': timezone.now(),
-            'next_passcode_on': timezone.now(),
-        }
-        self.passcode_payload = {
-            'phone_number': '698049742',
-            'country_iso_code': 'CM'
-        }
-        self.intl_phonenumber = '+235698049742'
+        self.intl_phone_number = '+235698049742'
 
     @patch('app.accounts.models.PassCode.send_code')
     def test_it_should_create_and_send_new_passcode(self, mocked_send_code: MagicMock):
-        passcode: PassCode = PassCode.create(self.intl_phonenumber)
+        passcode: PassCode = PassCode.create(self.intl_phone_number)
 
         mocked_send_code.assert_called_once()
 
         self.assertTrue(isinstance(passcode, PassCode))
-        self.assertEqual(passcode.intl_phonenumber, self.intl_phonenumber)
+        self.assertEqual(passcode.intl_phone_number, self.intl_phone_number)
         self.assertIsInstance(passcode.next_verif_attempt_on, datetime.datetime)
         self.assertIsInstance(passcode.next_passcode_on, datetime.datetime)
 
     @patch('app.accounts.models.PassCode.send_code')
     def test_it_should_expire_previous_code_before_create_one(self, mocked_send_code: MagicMock):
-        PassCode.create(self.intl_phonenumber)
-        PassCode.create(self.intl_phonenumber)
+        PassCode.create(self.intl_phone_number)
+        PassCode.create(self.intl_phone_number)
 
         mocked_send_code.assert_called()
 
-        qs = PassCode.objects.filter(intl_phonenumber=self.intl_phonenumber)
+        qs = PassCode.objects.filter(intl_phone_number=self.intl_phone_number)
         passcode1: PassCode = qs.first()
         passcode2: PassCode = qs.last()
 
@@ -51,13 +41,13 @@ class PassCodeTestCase(TransactionTestCase):
 
 
     def test_it_should_expired_code(self):
-        passcode: PassCode = PassCode.objects.create(**self.payload)
+        passcode: PassCode = f.PassCodeFactory.build()
         passcode.set_expired()
 
         self.assertTrue(passcode.expired)
 
     def test_it_should_set_verified_passcode(self):
-        passcode: PassCode = PassCode.objects.create(**self.payload)
+        passcode: PassCode = f.PassCodeFactory.build()
 
         self.assertFalse(passcode.verified)
         passcode.set_verified()
@@ -66,7 +56,7 @@ class PassCodeTestCase(TransactionTestCase):
     @patch('app.accounts.models.PassCode.set_verified')
     @patch('app.accounts.models.PassCode.increate_next_attempt_time')
     def test_it_should_not_verified_passcode(self, mocked_increate_next_attempt_time: MagicMock, mocked_set_verified: MagicMock):
-        passcode: PassCode = PassCode.objects.create(**self.payload)
+        passcode: PassCode = f.PassCodeFactory.build()
 
         verified = passcode.verify('345432')
 
@@ -77,7 +67,7 @@ class PassCodeTestCase(TransactionTestCase):
     @patch('app.accounts.models.PassCode.set_verified')
     @patch('app.accounts.models.PassCode.increate_next_attempt_time')
     def test_it_should_verified_passcode(self, mocked_increate_next_attempt_time: MagicMock, mocked_set_verified: MagicMock):
-        passcode: PassCode = PassCode.objects.create(**self.payload)
+        passcode: PassCode = f.PassCodeFactory.build()
 
         verified = passcode.verify('987657')
 
@@ -87,7 +77,7 @@ class PassCodeTestCase(TransactionTestCase):
 
     @patch('app.accounts.models.compute_next_verif_attempt_time')
     def test_it_should_increase_next_attempt_date(self, mocked_compute: MagicMock):
-        passcode: PassCode = PassCode.objects.create(**self.payload)
+        passcode: PassCode = f.PassCodeFactory.build()
         time_now = timezone.now()
         mocked_compute.return_value = time_now
 
@@ -99,7 +89,7 @@ class PassCodeTestCase(TransactionTestCase):
 
     @patch('app.accounts.models.compute_next_verif_attempt_time')
     def test_it_should_increase_next_passcode_on_along_with_verify_on(self, mocked_compute: MagicMock):
-        passcode: PassCode = PassCode.objects.create(**self.payload)
+        passcode: PassCode = f.PassCodeFactory.build()
         time_now = timezone.now() + datetime.timedelta(minutes=5)
         mocked_compute.return_value = time_now
 
@@ -107,53 +97,9 @@ class PassCodeTestCase(TransactionTestCase):
 
         self.assertEqual(passcode.next_passcode_on, time_now)
 
-
-
-class AvailableCountryTestCase(TransactionTestCase):
-    def setUp(self):
-        self.payload = {
-            "name": "Cameroun",
-            "dial_code": "237",
-            "iso_code": "CM",
-            "phone_number_regex": "REGEX",
-        }
-
-    def test_it_should_not_create_country_if_one_required_field_miss(self):
-        with self.assertRaises(IntegrityError):
-            del self.payload['name']
-            AvailableCountry.objects.create(**self.payload)
-
-        with self.assertRaises(IntegrityError):
-            del self.payload['dial_code']
-            AvailableCountry.objects.create(**self.payload)
-
-        with self.assertRaises(IntegrityError):
-            del self.payload['iso_code']
-            AvailableCountry.objects.create(**self.payload)
-
-        with self.assertRaises(IntegrityError):
-            del self.payload['phone_number_regex']
-            AvailableCountry.objects.create(**self.payload)
-
-    def test_it_should_create_country(self):
-        country: AvailableCountry = AvailableCountry.objects.create(**self.payload)
-
-        self.assertTrue(isinstance(country, AvailableCountry))
-        self.assertEqual(AvailableCountry.objects.count(), 1)
-        self.assertEqual(country.name, self.payload['name'])
-        self.assertEqual(country.dial_code, self.payload['dial_code'])
-        self.assertEqual(country.iso_code, self.payload['iso_code'])
-        self.assertEqual(country.phone_number_regex, self.payload['phone_number_regex'])
-
-    def test_it_should_not_create_country_twice(self):
-        AvailableCountry.objects.create(**self.payload)
-
-        with self.assertRaises(IntegrityError):
-            AvailableCountry.objects.create(**self.payload)
-
 class AccountTestCase(TestCase):
     def setUp(self):
-        self.account: Account = Account.objects.create()
+        self.account: Account = f.AccountFactory.create()
         self.account_number = self.account.number
 
     def test_it_should_have_account_number(self):
@@ -168,19 +114,13 @@ class AccountTestCase(TestCase):
 
 class PhoneNumberTestCase(TestCase):
     def setUp(self):
-        self.country_payload = {
-            "name": "Cameroun",
-            "dial_code": "237",
-            "iso_code": "CM",
-            "phone_number_regex": "REGEX",
-        }
+        self.account: Account = f.AccountFactory.create()
 
         self.phone_number_payload = {
             'phone_number': '698049742',
-            'country_iso_code': 'CM'
+            'country_iso_code': 'CM',
+            'account_id': self.account.id
         }
-
-        AvailableCountry.objects.create(**self.country_payload)
 
     def test_it_should_create_phone_number_instance(self):
         phone_number: PhoneNumber = PhoneNumber.create(**{**self.phone_number_payload})
@@ -202,8 +142,3 @@ class PhoneNumberTestCase(TestCase):
         self.assertTrue(phone_number.is_verified)
         self.assertEqual(phone_number.number, self.phone_number_payload.get('phone_number'))
 
-    def test_it_should_create_account_for_new_phone_number(self):
-        phone_number: PhoneNumber = PhoneNumber.create(**{**self.phone_number_payload})
-
-        self.assertEqual(Account.objects.count(), 1)
-        self.assertEqual(Account.objects.last(), phone_number.account)

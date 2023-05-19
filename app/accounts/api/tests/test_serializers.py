@@ -70,7 +70,7 @@ class VerifyPassCodeSerializerTestCase(TestCase):
             "phone_number_regex": "",
         }
         self.passcode_payload = {
-            "intl_phonenumber": '+237698493823',
+            "intl_phone_number": '+237698493823',
             "code": "234543",
             "sent_on": datetime.datetime.now(timezone.utc),
             'next_verif_attempt_on': timezone.now(),
@@ -112,7 +112,7 @@ class VerifyPassCodeSerializerTestCase(TestCase):
             self.assertFalse(s.is_valid())
 
             mocked_get_last_code.assert_called_once_with(
-                self.passcode_payload.get('intl_phonenumber'))
+                self.passcode_payload.get('intl_phone_number'))
 
             self.assertIn('code', s.errors)
             self.assertEqual('code_not_found', s.errors.get('code')[0].code)
@@ -125,7 +125,7 @@ class VerifyPassCodeSerializerTestCase(TestCase):
 
             self.assertTrue(s.is_valid())
 
-            mocked_get_last_code.assert_called_once_with(self.passcode_payload.get('intl_phonenumber'))
+            mocked_get_last_code.assert_called_once_with(self.passcode_payload.get('intl_phone_number'))
 
     def test_it_should_not_verify_passcode_when_expired(self):
         with patch("app.accounts.models.PassCode.objects.get_last_code") as mocked_get_last_code:
@@ -137,4 +137,4 @@ class VerifyPassCodeSerializerTestCase(TestCase):
             self.assertIn('code', s.errors)
             self.assertEqual('code_expired', s.errors.get('code')[0].code)
 
-            mocked_get_last_code.assert_called_once_with(self.passcode_payload.get('intl_phonenumber'))
+            mocked_get_last_code.assert_called_once_with(self.passcode_payload.get('intl_phone_number'))
