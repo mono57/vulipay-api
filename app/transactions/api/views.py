@@ -15,16 +15,29 @@ class P2PTransactionCreateAPIView(generics.CreateAPIView):
     def perform_create(self, serializer):
         serializer.save(receiver_account=self.request.user)
 
+
+class MPTransactionCreateAPIView(generics.CreateAPIView):
+    permission_classes = [IsAuthenticatedAccount]
+    serializer_class = t_serializers.MPTransactionSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(payer_account=self.request.user)
+
+
 class TransactionDetailsRetrieveAPIView(generics.RetrieveAPIView):
     permission_classes = [IsAuthenticatedAccount]
     serializer_class = t_serializers.TransactionDetailsSerializer
-    queryset = Transaction.objects.select_related('receiver_account', 'payer_account')
-    lookup_field = 'payment_code'
+    queryset = Transaction.objects.select_related("receiver_account", "payer_account")
+    lookup_field = "payment_code"
 
     def get(self, request, *args, **kwargs):
-        payment_code = kwargs.get('payment_code', None)
+        payment_code = kwargs.get("payment_code", None)
 
-        if bool(not payment_code or not Transaction.is_valid_payment_code(payment_code)):
-            raise exceptions.ValidationError(_("Unknown vulipay payment code"), code='unknown_payment_code')
+        if bool(
+            not payment_code or not Transaction.is_valid_payment_code(payment_code)
+        ):
+            raise exceptions.ValidationError(
+                _("Unknown vulipay payment code"), code="unknown_payment_code"
+            )
 
         return super().get(request, *args, **kwargs)
