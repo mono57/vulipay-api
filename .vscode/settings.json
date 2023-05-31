@@ -1,5 +1,9 @@
 {
     "python.analysis.typeCheckingMode": "off",
-    "editor.formatOnSaveMode": "modifications",
-    "editor.formatOnSave": true
+    "editor.formatOnSaveMode": "file",
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": true
+    },
 }
