@@ -2,9 +2,9 @@ import logging
 
 from django.test import TransactionTestCase
 from django.urls import reverse
-
 from rest_framework.response import Response
 from rest_framework.test import APIClient
+
 
 def client_action_wrapper(action):
     def wrapper_method(self, *args, **kwargs) -> Response:
@@ -20,6 +20,7 @@ def client_action_wrapper(action):
 
     return wrapper_method
 
+
 class APIViewTestCase(TransactionTestCase):
     client_class: APIClient = APIClient
     logger = logging.getLogger("django.request")
@@ -31,6 +32,7 @@ class APIViewTestCase(TransactionTestCase):
 
     view_post = client_action_wrapper("post")
     view_get = client_action_wrapper("get")
+    view_put = client_action_wrapper("put")
 
     def setUp(self):
         super().setUp()

@@ -27,6 +27,11 @@ urlpatterns = [
         name="accounts_payment_details",
     ),
     path(
+        "accounts/<str:number>/pin",
+        accounts_views.PinCreationUpdateAPIView.as_view(),
+        name="accounts_set_pin",
+    ),
+    path(
         "transactions/P2P",
         transactions_views.P2PTransactionCreateAPIView.as_view(),
         name="transactions_p2p_transactions",

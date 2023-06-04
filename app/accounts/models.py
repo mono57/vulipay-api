@@ -1,24 +1,35 @@
 import datetime
 
-from django.db import models
-from django.utils.translation import gettext_lazy as _
 from django.conf import settings
+from django.db import models
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
-from app.core.utils import MessageClient, AppModel, AppCharField, get_carrier, make_payment_code, make_otp
 from app.accounts.managers import AccountManager, PassCodeManager
+from app.core.utils import (
+    AppCharField,
+    AppModel,
+    MessageClient,
+    get_carrier,
+    make_otp,
+    make_payment_code,
+    make_pin,
+)
+
 
 def compute_next_attempt_time(count) -> datetime.datetime:
     dt_now = timezone.now()
-    time_diff = dt_now + datetime.timedelta(seconds=30*count)
+    time_diff = dt_now + datetime.timedelta(seconds=30 * count)
 
     return time_diff
+
 
 def compute_next_verif_attempt_time(count) -> datetime.datetime:
     dt_now = timezone.now()
     time_diff = dt_now + datetime.timedelta(minutes=10)
 
     return time_diff
+
 
 class AvailableCountry(AppModel):
     name = AppCharField(max_length=50)  # i.e Chad
@@ -27,9 +38,7 @@ class AvailableCountry(AppModel):
     phone_number_regex = AppCharField(max_length=50)
 
     class Meta:
-        indexes = [
-            models.Index(fields=['iso_code'])
-        ]
+        indexes = [models.Index(fields=["iso_code"])]
 
     def __str__(self):
         return f"({self.dial_code}) - {self.name} - {self.iso_code}"
@@ -39,10 +48,7 @@ class Currency(AppModel):
     iso_code = models.CharField(max_length=8)
     name = models.CharField(max_length=100)
     symbol = models.CharField(max_length=5)
-    country = models.ForeignKey(
-        AvailableCountry,
-        null=True,
-        on_delete=models.SET_NULL)
+    country = models.ForeignKey(AvailableCountry, null=True, on_delete=models.SET_NULL)
 
     def __str__(self):
         return f"{self.name} - {self.iso_code} - {self.symbol}"
@@ -63,9 +69,7 @@ class PassCode(AppModel):
     objects = PassCodeManager()
 
     class Meta:
-        indexes = [
-            models.Index(fields=['intl_phone_number'])
-        ]
+        indexes = [models.Index(fields=["intl_phone_number"])]
 
     def __str__(self):
         return self.code
@@ -104,7 +108,8 @@ class PassCode(AppModel):
             next_verif_attempt_on=timezone.now(),
             next_passcode_on=next_passcode_on,
             passcode_count=passcode_count,
-            code=code)
+            code=code,
+        )
 
         code.send_code()
 
@@ -149,32 +154,43 @@ class PassCode(AppModel):
 
 
 class Account(AppModel):
-    phone_number = AppCharField(_('Phone Number'), max_length=20, null=False)
-    intl_phone_number = AppCharField(_('Phone Number'), max_length=20, null=False)
-    number = AppCharField(_('Account number'), max_length=16, unique=True, null=False)
-    payment_code = AppCharField(_('Payment Qr Code'), max_length=255, null=False, blank=True)
-    owner_email = models.EmailField(_("Email address"), unique=True, null=True, blank=True)
-    owner_first_name = AppCharField(_("Firstname"), max_length=50, null=True, blank=True)
+    phone_number = AppCharField(_("Phone Number"), max_length=20, null=False)
+    intl_phone_number = AppCharField(_("Phone Number"), max_length=20, null=False)
+    number = AppCharField(_("Account number"), max_length=16, unique=True, null=False)
+    payment_code = AppCharField(
+        _("Payment Qr Code"), max_length=255, null=False, blank=True
+    )
+    owner_email = models.EmailField(
+        _("Email address"), unique=True, null=True, blank=True
+    )
+    owner_first_name = AppCharField(
+        _("Firstname"), max_length=50, null=True, blank=True
+    )
     owner_last_name = AppCharField(_("Lastname"), max_length=50, null=True, blank=True)
+    pin = AppCharField(_("Pin code"), max_length=255, null=True)
     is_active = models.BooleanField(default=True)
 
-    country = models.ForeignKey(AvailableCountry, null=True, on_delete=models.SET_NULL, related_name='accounts')
+    country = models.ForeignKey(
+        AvailableCountry, null=True, on_delete=models.SET_NULL, related_name="accounts"
+    )
 
     objects: AccountManager = AccountManager()
 
     class Meta:
-        indexes = [
-            models.Index(fields=['intl_phone_number'])
-        ]
+        indexes = [models.Index(fields=["intl_phone_number"])]
 
     def __str__(self):
-        return f'{self.number}'
+        return f"{self.number}"
 
     def save(self, **kwargs):
         if self.number is None:
             self.number = AccountManager.generate_account_number()
-            self.payment_code = make_payment_code(self.number, 'CST')
+            self.payment_code = make_payment_code(self.number, "CST")
         super().save(**kwargs)
+
+    def set_pin(self, pin):
+        self.pin = make_pin(pin)
+        self.save()
 
 
 class PhoneNumber(AppModel):
@@ -205,9 +221,8 @@ class PhoneNumber(AppModel):
         carrier = get_carrier(phone_number, country_iso_code)
 
         obj = cls.objects.create(
-            number=phone_number,
-            account_id=account_id,
-            carrier=carrier)
+            number=phone_number, account_id=account_id, carrier=carrier
+        )
 
         return obj
 

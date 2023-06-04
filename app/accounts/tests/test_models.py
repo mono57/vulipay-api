@@ -1,19 +1,20 @@
-from unittest.mock import MagicMock, patch
 import datetime
+from unittest.mock import MagicMock, patch
 
+from django.conf import settings
 from django.db import IntegrityError
 from django.test import TestCase, TransactionTestCase
-from django.conf import settings
 from django.utils import timezone
 
+from app.accounts.models import Account, AvailableCountry, PassCode, PhoneNumber
 from app.accounts.tests import factories as f
-from app.accounts.models import AvailableCountry, PassCode, PhoneNumber, Account
+
 
 class PassCodeTestCase(TransactionTestCase):
     def setUp(self):
-        self.intl_phone_number = '+235698049742'
+        self.intl_phone_number = "+235698049742"
 
-    @patch('app.accounts.models.PassCode.send_code')
+    @patch("app.accounts.models.PassCode.send_code")
     def test_it_should_create_and_send_new_passcode(self, mocked_send_code: MagicMock):
         passcode: PassCode = PassCode.create(self.intl_phone_number)
 
@@ -24,8 +25,10 @@ class PassCodeTestCase(TransactionTestCase):
         self.assertIsInstance(passcode.next_verif_attempt_on, datetime.datetime)
         self.assertIsInstance(passcode.next_passcode_on, datetime.datetime)
 
-    @patch('app.accounts.models.PassCode.send_code')
-    def test_it_should_expire_previous_code_before_create_one(self, mocked_send_code: MagicMock):
+    @patch("app.accounts.models.PassCode.send_code")
+    def test_it_should_expire_previous_code_before_create_one(
+        self, mocked_send_code: MagicMock
+    ):
         PassCode.create(self.intl_phone_number)
         PassCode.create(self.intl_phone_number)
 
@@ -38,7 +41,6 @@ class PassCodeTestCase(TransactionTestCase):
         self.assertEqual(qs.count(), 2)
         self.assertTrue(passcode1.expired)
         self.assertFalse(passcode2.expired)
-
 
     def test_it_should_expired_code(self):
         passcode: PassCode = f.PassCodeFactory.build()
@@ -53,29 +55,37 @@ class PassCodeTestCase(TransactionTestCase):
         passcode.set_verified()
         self.assertTrue(passcode.verified)
 
-    @patch('app.accounts.models.PassCode.set_verified')
-    @patch('app.accounts.models.PassCode.increate_next_attempt_time')
-    def test_it_should_not_verified_passcode(self, mocked_increate_next_attempt_time: MagicMock, mocked_set_verified: MagicMock):
+    @patch("app.accounts.models.PassCode.set_verified")
+    @patch("app.accounts.models.PassCode.increate_next_attempt_time")
+    def test_it_should_not_verified_passcode(
+        self,
+        mocked_increate_next_attempt_time: MagicMock,
+        mocked_set_verified: MagicMock,
+    ):
         passcode: PassCode = f.PassCodeFactory.build()
 
-        verified = passcode.verify('345432')
+        verified = passcode.verify("345432")
 
         self.assertFalse(verified)
         mocked_increate_next_attempt_time.assert_called_once()
         mocked_set_verified.assert_not_called()
 
-    @patch('app.accounts.models.PassCode.set_verified')
-    @patch('app.accounts.models.PassCode.increate_next_attempt_time')
-    def test_it_should_verified_passcode(self, mocked_increate_next_attempt_time: MagicMock, mocked_set_verified: MagicMock):
+    @patch("app.accounts.models.PassCode.set_verified")
+    @patch("app.accounts.models.PassCode.increate_next_attempt_time")
+    def test_it_should_verified_passcode(
+        self,
+        mocked_increate_next_attempt_time: MagicMock,
+        mocked_set_verified: MagicMock,
+    ):
         passcode: PassCode = f.PassCodeFactory.build()
 
-        verified = passcode.verify('987657')
+        verified = passcode.verify("987657")
 
         self.assertTrue(verified)
         mocked_increate_next_attempt_time.assert_not_called()
         mocked_set_verified.assert_called_once()
 
-    @patch('app.accounts.models.compute_next_verif_attempt_time')
+    @patch("app.accounts.models.compute_next_verif_attempt_time")
     def test_it_should_increase_next_attempt_date(self, mocked_compute: MagicMock):
         passcode: PassCode = f.PassCodeFactory.build()
         time_now = timezone.now()
@@ -87,8 +97,10 @@ class PassCodeTestCase(TransactionTestCase):
         self.assertEqual(passcode.next_verif_attempt_on, time_now)
         self.assertEqual(passcode.attempt_count, 1)
 
-    @patch('app.accounts.models.compute_next_verif_attempt_time')
-    def test_it_should_increase_next_passcode_on_along_with_verify_on(self, mocked_compute: MagicMock):
+    @patch("app.accounts.models.compute_next_verif_attempt_time")
+    def test_it_should_increase_next_passcode_on_along_with_verify_on(
+        self, mocked_compute: MagicMock
+    ):
         passcode: PassCode = f.PassCodeFactory.build()
         time_now = timezone.now() + datetime.timedelta(minutes=5)
         mocked_compute.return_value = time_now
@@ -96,6 +108,7 @@ class PassCodeTestCase(TransactionTestCase):
         passcode.increate_next_attempt_time()
 
         self.assertEqual(passcode.next_passcode_on, time_now)
+
 
 class AccountTestCase(TestCase):
     def setUp(self):
@@ -112,14 +125,22 @@ class AccountTestCase(TestCase):
     def test_it_should_have_payment_code(self):
         self.assertIsNotNone(self.account.payment_code)
 
+    @patch("app.accounts.models.make_pin")
+    def test_it_should_set_pin(self, mocked_make_pin: MagicMock):
+        pin = "4352"
+        mocked_make_pin.return_value = "ZERFZF43234"
+        self.account.set_pin(pin)
+        mocked_make_pin.assert_called_once_with(pin)
+
+
 class PhoneNumberTestCase(TestCase):
     def setUp(self):
         self.account: Account = f.AccountFactory.create()
 
         self.phone_number_payload = {
-            'phone_number': '698049742',
-            'country_iso_code': 'CM',
-            'account_id': self.account.id
+            "phone_number": "698049742",
+            "country_iso_code": "CM",
+            "account_id": self.account.id,
         }
 
     def test_it_should_create_phone_number_instance(self):
@@ -140,5 +161,6 @@ class PhoneNumberTestCase(TestCase):
         phone_number: PhoneNumber = PhoneNumber.create(**self.phone_number_payload)
 
         self.assertTrue(phone_number.is_verified)
-        self.assertEqual(phone_number.number, self.phone_number_payload.get('phone_number'))
-
+        self.assertEqual(
+            phone_number.number, self.phone_number_payload.get("phone_number")
+        )

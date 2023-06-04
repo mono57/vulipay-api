@@ -49,10 +49,7 @@ DJANGO_APPS = [
     "django.forms",
 ]
 
-THIRD_PARTY_APPS = [
-    "phonenumber_field",
-    "rest_framework_simplejwt"
-]
+THIRD_PARTY_APPS = ["phonenumber_field", "rest_framework_simplejwt"]
 
 LOCAL_APPS = [
     "app.accounts",
@@ -193,4 +190,5 @@ SIMPLE_JWT = {
 OTP_LENGTH = 6
 DIAL_OUT_CODE = "+"
 OTP_TIMESTAMP = 30
-PAYMENT_CODE_PREFFIX = 'vulipay'
+PAYMENT_CODE_PREFFIX = "vulipay"
+PIN_MAX_LENGTH = 4
