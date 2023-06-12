@@ -132,6 +132,12 @@ class AccountTestCase(TestCase):
         self.account.set_pin(pin)
         mocked_make_pin.assert_called_once_with(pin)
 
+    @patch("app.accounts.models.check_pin")
+    def test_it_should_verify_pin(self, mocked_checked_pin: MagicMock):
+        pin = "4352"
+        self.account.verify_pin(pin)
+        mocked_checked_pin.assert_called_once_with(self.account.pin, pin)
+
 
 class PhoneNumberTestCase(TestCase):
     def setUp(self):

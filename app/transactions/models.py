@@ -2,14 +2,14 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from app.accounts.models import Account
-from app.transactions import managers
 from app.core.utils import (
     AppCharField,
     AppModel,
+    is_valid_payment_code,
     make_payment_code,
     make_transaction_ref,
-    is_valid_payment_code,
 )
+from app.transactions import managers
 
 
 class TransactionStatus(models.TextChoices):

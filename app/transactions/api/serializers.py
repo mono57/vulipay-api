@@ -72,3 +72,20 @@ class TransactionDetailsSerializer(serializers.ModelSerializer):
             "payer_account",
             "receiver_account",
         )
+
+
+class ValidateTransactionSerializer(serializers.Serializer):
+    pin = serializers.CharField()
+
+    # def validate(self, attrs):
+    #     data = super().validate(attrs)
+
+    #     transaction_qs = Transaction.objects.filter(reference=data["reference"])
+    #     if not transaction_qs.exists():
+    #         raise exceptions.NotFound(
+    #             _("Transaction not found"), code="not_found_transaction"
+    #         )
+
+    #     transaction: Transaction = transaction_qs.first()
+
+    #     # transaction.perform_payment()

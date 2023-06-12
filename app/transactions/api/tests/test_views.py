@@ -8,6 +8,7 @@ from app.accounts.tests import factories as f
 from app.core.utils import APIViewTestCase
 from app.transactions.api.views import P2PTransactionCreateAPIView
 from app.transactions.models import Transaction
+from app.transactions.tests.factories import TransactionFactory
 
 
 class P2PTransactionCreateAPIViewTestCase(APIViewTestCase):
@@ -131,3 +132,29 @@ class MPTransactionCreateAPIViewTestCase(APIViewTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn("receiver_account", data)
+
+
+class ValidateTransactionUpdateAPIViewTestCase(APIViewTestCase):
+    view_name = "api:transactions_transaction_validate"
+
+    def setUp(self):
+        super().setUp()
+        self.payer_account = f.AccountFactory.create(pin="2314")
+        self.receiver_account = f.AccountFactory.create(
+            country=self.payer_account.country
+        )
+
+        self.transaction = TransactionFactory.create_p2p_transaction(
+            receiver_account=self.receiver_account, payer_account=self.payer_account
+        )
+
+        self.payload = {"pin": "2324"}
+
+    def test_it_should_raise_permissions_denied(self):
+        self.authenticate_with_account(self.payer_account)
+
+        response = self.view_put(
+            data=self.payload, reverse_kwargs={"reference": self.transaction.reference}
+        )
+
+        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)

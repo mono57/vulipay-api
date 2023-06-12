@@ -3,6 +3,7 @@ from .api_view_testcase import APIViewTestCase
 from .exceptions import UnprocessableEntityError
 from .fields import AppCharField
 from .hashers import (
+    check_pin,
     is_valid_otp,
     is_valid_payment_code,
     make_otp,
@@ -29,4 +30,5 @@ __all__ = [
     "make_otp",
     "is_valid_otp",
     "make_pin",
+    "check_pin",
 ]

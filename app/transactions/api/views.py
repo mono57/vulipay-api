@@ -1,10 +1,10 @@
 from django.utils.translation import gettext_lazy as _
+from rest_framework import exceptions, generics
 
-from rest_framework import generics
-from rest_framework import exceptions
+from app.accounts.api import serializers as accounts_serializers
+from app.accounts.mixins import ValidPINRequiredMixin
 from app.accounts.permissions import IsAuthenticatedAccount
 from app.transactions.api import serializers as t_serializers
-from app.accounts.api import serializers as accounts_serializers
 from app.transactions.models import Transaction
 
 
@@ -41,3 +41,13 @@ class TransactionDetailsRetrieveAPIView(generics.RetrieveAPIView):
             )
 
         return super().get(request, *args, **kwargs)
+
+
+class ValidateTransactionUpdateAPIView(ValidPINRequiredMixin, generics.UpdateAPIView):
+    permission_classes = [IsAuthenticatedAccount]
+    serializer_class = t_serializers.ValidateTransactionSerializer
+    queryset = Transaction.objects.all()
+    lookup_field = "reference"
+
+    def update(self, request, *args, **kwargs):
+        return super().update(request, *args, **kwargs)
