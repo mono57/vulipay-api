@@ -153,3 +153,13 @@ class MakePinCode(TestCase):
     #     with self.assertRaises(ValueError):
     #         settings
     #         hashers.make_pin_code(self.pin_to_hash)
+
+
+@patch("app.core.utils.hashers.check_password")
+class CheckPin(TestCase):
+    def test_check_pin(self, mocked_check_password: MagicMock):
+        pin, encoded = "2324", "GHGDDFGHGFDERTYTRE"
+        hashers.check_pin(pin=pin, raw_pin=encoded)
+        mocked_check_password.assert_called_once_with(
+            encoded, pin, preferred="bcrypt_sha256"
+        )

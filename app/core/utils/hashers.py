@@ -1,8 +1,9 @@
 import datetime
+import functools
 import hashlib
 
 from django.conf import settings
-from django.contrib.auth.hashers import make_password
+from django.contrib.auth.hashers import check_password, make_password
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 
@@ -46,9 +47,15 @@ def make_payment_code(payment_code, type):
     return hasher.encode(payment_code, type)
 
 
+@functools.lru_cache
 def make_pin(str_pin):
     hasher = "bcrypt_sha256"
     return make_password(str_pin, hasher)
+
+
+def check_pin(pin, raw_pin):
+    hasher = "bcrypt_sha256"
+    return check_password(raw_pin, pin, preferred=hasher)
 
 
 def is_valid_payment_code(payment_code, allowed_types):

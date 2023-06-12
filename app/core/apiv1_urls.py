@@ -46,4 +46,9 @@ urlpatterns = [
         transactions_views.TransactionDetailsRetrieveAPIView.as_view(),
         name="transactions_transaction_details",
     ),
+    path(
+        "transactions/<str:reference>/validate",
+        transactions_views.ValidateTransactionUpdateAPIView.as_view(),
+        name="transactions_transaction_validate",
+    ),
 ]
