@@ -138,6 +138,12 @@ class AccountTestCase(TestCase):
         self.account.verify_pin(pin)
         mocked_checked_pin.assert_called_once_with(self.account.pin, pin)
 
+    def test_it_set_balance(self):
+        pass
+
+    def test_it_check_balance(self):
+        self.assertEqual(-1, self.account.check_balance(2000))
+
 
 class PhoneNumberTestCase(TestCase):
     def setUp(self):

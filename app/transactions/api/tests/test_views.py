@@ -5,10 +5,11 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from app.accounts.models import Account
 from app.accounts.tests import factories as f
+from app.accounts.tests.factories import AccountFactory
 from app.core.utils import APIViewTestCase
 from app.transactions.api.views import P2PTransactionCreateAPIView
 from app.transactions.models import Transaction
-from app.transactions.tests.factories import TransactionFactory
+from app.transactions.tests.factories import TransactionFactory, TransactionFeeFactory
 
 
 class P2PTransactionCreateAPIViewTestCase(APIViewTestCase):
@@ -158,3 +159,38 @@ class ValidateTransactionUpdateAPIViewTestCase(APIViewTestCase):
         )
 
         self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
+
+
+class TransactionPairingUpdateAPIViewTestCase(APIViewTestCase):
+    view_name = "api:transactions_transaction_pairing"
+
+    def setUp(self):
+        super().setUp()
+        self.receiver_account = AccountFactory.create()
+        self.country = self.receiver_account.country
+        TransactionFeeFactory.create_p2p_transaction_fee(country=self.country)
+        self.transaction: Transaction = TransactionFactory.create_p2p_transaction(
+            receiver_account=self.receiver_account, amount=5000
+        )
+        self.payment_code = self.transaction.payment_code
+
+    def test_it_should_pair_account(self):
+        payer_account = AccountFactory.create(country=self.country, balance=10000)
+
+        self.authenticate_with_account(payer_account)
+        response = self.view_put(reverse_kwargs={"payment_code": self.payment_code})
+
+        data = response.data
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNotNone(data.get("payer_account"))
+        self.assertIsNotNone(data.get("charged_amount"))
+        self.assertIsNotNone(data.get("calculated_fee"))
+
+    def test_it_should_raise_insufficient_balance(self):
+        payer_account = AccountFactory.create(country=self.country, balance=5000)
+
+        self.authenticate_with_account(payer_account)
+        response = self.view_put(reverse_kwargs={"payment_code": self.payment_code})
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

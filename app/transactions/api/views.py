@@ -1,5 +1,6 @@
 from django.utils.translation import gettext_lazy as _
-from rest_framework import exceptions, generics
+from rest_framework import exceptions, views
+from rest_framework.generics import CreateAPIView, RetrieveAPIView, UpdateAPIView
 
 from app.accounts.api import serializers as accounts_serializers
 from app.accounts.mixins import ValidPINRequiredMixin
@@ -8,7 +9,7 @@ from app.transactions.api import serializers as t_serializers
 from app.transactions.models import Transaction
 
 
-class P2PTransactionCreateAPIView(generics.CreateAPIView):
+class P2PTransactionCreateAPIView(CreateAPIView):
     permission_classes = [IsAuthenticatedAccount]
     serializer_class = t_serializers.P2PTransactionSerializer
 
@@ -16,7 +17,7 @@ class P2PTransactionCreateAPIView(generics.CreateAPIView):
         serializer.save(receiver_account=self.request.user)
 
 
-class MPTransactionCreateAPIView(generics.CreateAPIView):
+class MPTransactionCreateAPIView(CreateAPIView):
     permission_classes = [IsAuthenticatedAccount]
     serializer_class = t_serializers.MPTransactionSerializer
 
@@ -24,12 +25,7 @@ class MPTransactionCreateAPIView(generics.CreateAPIView):
         serializer.save(payer_account=self.request.user)
 
 
-class TransactionDetailsRetrieveAPIView(generics.RetrieveAPIView):
-    permission_classes = [IsAuthenticatedAccount]
-    serializer_class = t_serializers.TransactionDetailsSerializer
-    queryset = Transaction.objects.select_related("receiver_account", "payer_account")
-    lookup_field = "payment_code"
-
+class BaseTransactionRetrieveAPIView(views.APIView):
     def get(self, request, *args, **kwargs):
         payment_code = kwargs.get("payment_code", None)
 
@@ -43,7 +39,16 @@ class TransactionDetailsRetrieveAPIView(generics.RetrieveAPIView):
         return super().get(request, *args, **kwargs)
 
 
-class ValidateTransactionUpdateAPIView(ValidPINRequiredMixin, generics.UpdateAPIView):
+class TransactionDetailsRetrieveAPIView(
+    BaseTransactionRetrieveAPIView, RetrieveAPIView
+):
+    permission_classes = [IsAuthenticatedAccount]
+    serializer_class = t_serializers.TransactionDetailsSerializer
+    queryset = Transaction.objects.select_related("receiver_account", "payer_account")
+    lookup_field = "payment_code"
+
+
+class ValidateTransactionUpdateAPIView(ValidPINRequiredMixin, UpdateAPIView):
     permission_classes = [IsAuthenticatedAccount]
     serializer_class = t_serializers.ValidateTransactionSerializer
     queryset = Transaction.objects.all()
@@ -51,3 +56,13 @@ class ValidateTransactionUpdateAPIView(ValidPINRequiredMixin, generics.UpdateAPI
 
     def update(self, request, *args, **kwargs):
         return super().update(request, *args, **kwargs)
+
+
+class TransactionPairingUpdateAPIView(BaseTransactionRetrieveAPIView, UpdateAPIView):
+    permission_classes = [IsAuthenticatedAccount]
+    serializer_class = t_serializers.TransactionPairingSerializer
+    queryset = Transaction.objects.all()
+    lookup_field = "payment_code"
+
+    def perform_update(self, serializer):
+        serializer.save(payer_account=self.request.user)

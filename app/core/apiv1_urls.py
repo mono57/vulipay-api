@@ -51,4 +51,9 @@ urlpatterns = [
         transactions_views.ValidateTransactionUpdateAPIView.as_view(),
         name="transactions_transaction_validate",
     ),
+    path(
+        "transactions/<str:payment_code>/pairing",
+        transactions_views.TransactionPairingUpdateAPIView.as_view(),
+        name="transactions_transaction_pairing",
+    ),
 ]
