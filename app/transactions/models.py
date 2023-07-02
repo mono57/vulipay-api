@@ -73,19 +73,11 @@ class Transaction(AppModel):
     def create_P2P_transaction(
         cls, amount: float, receiver_account: Account, notes: str = None
     ):
-        klass = __class__
-        # P2P.DF2422.1683740925
-        transaction_ref = make_transaction_ref(TransactionType.P2P)
-        # vulipay$P2P$SDFG34GE3G4234G42345G4F3ERF34G543FD3F4G54F
-        t_payment_code = make_payment_code(transaction_ref, TransactionType.P2P)
-
-        transaction = klass.objects.create(
-            reference=transaction_ref,
-            payment_code=t_payment_code,
+        transaction = cls.objects._create(
+            type=TransactionType.P2P,
             amount=amount,
             receiver_account=receiver_account,
             status=TransactionStatus.INITIATED,
-            type=TransactionType.P2P,
             notes=notes,
         )
 
