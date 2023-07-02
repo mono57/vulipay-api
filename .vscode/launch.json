@@ -5,28 +5,19 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Django",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/manage.py",
-            "args": [
-                "runserver"
-            ],
-            "django": true,
-            "justMyCode": true
-        },
-        {
             "name": "Docker: Python - Django",
             "type": "python",
             "request": "attach",
+            "port": 3000,
+            "host": "127.0.0.1",
+            "suppressMultipleSessionWarning": true,
             "pathMappings": [
                 {
                     "localRoot": "${workspaceFolder}",
                     "remoteRoot": "/app"
                 }
             ],
-            "port": 3000,
-            "host": "0.0.0.0",
+
         }
     ]
 }
