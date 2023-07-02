@@ -6,8 +6,16 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from app.accounts.managers import AccountManager, PassCodeManager
-from app.core.utils import (AppCharField, AppModel, MessageClient, check_pin,
-                            get_carrier, make_otp, make_payment_code, make_pin)
+from app.core.utils import (
+    AppCharField,
+    AppModel,
+    MessageClient,
+    check_pin,
+    get_carrier,
+    make_otp,
+    make_payment_code,
+    make_pin,
+)
 
 
 def compute_next_attempt_time(count) -> datetime.datetime:
@@ -150,6 +158,7 @@ class Account(AppModel):
     phone_number = AppCharField(_("Phone Number"), max_length=20, null=False)
     intl_phone_number = AppCharField(_("Phone Number"), max_length=20, null=False)
     number = AppCharField(_("Account number"), max_length=16, unique=True, null=False)
+    balance = models.FloatField(_("Account balance"), default=0)
     payment_code = AppCharField(
         _("Payment Qr Code"), max_length=255, null=False, blank=True
     )
@@ -188,6 +197,14 @@ class Account(AppModel):
     def verify_pin(self, raw_pin):
         is_correct = check_pin(self.pin, raw_pin)
         return is_correct
+
+    def set_balance(self, balance):
+        pass
+
+    def check_balance(self, charged_amount):
+        if charged_amount > self.balance:
+            return -1
+        return 0
 
 
 class PhoneNumber(AppModel):

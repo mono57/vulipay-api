@@ -69,14 +69,19 @@ class TransactionDetailsSerializer(serializers.ModelSerializer):
             "amount",
             "status",
             "type",
+            "charged_amount",
+            "calculated_fee",
             "payer_account",
             "receiver_account",
         )
 
 
-class ValidateTransactionSerializer(serializers.Serializer):
+class BasePINSerializer(serializers.Serializer):
     pin = serializers.CharField()
 
+
+class ValidateTransactionSerializer(BasePINSerializer):
+    pass
     # def validate(self, attrs):
     #     data = super().validate(attrs)
 
@@ -89,3 +94,23 @@ class ValidateTransactionSerializer(serializers.Serializer):
     #     transaction: Transaction = transaction_qs.first()
 
     #     # transaction.perform_payment()
+
+
+class TransactionPairingSerializer(serializers.Serializer):
+    def update(self, instance: Transaction, validated_data):
+        payer_account: Account = validated_data.get("payer_account")
+        charge_amount = instance.get_inclusive_amount(payer_account.country)
+        code = payer_account.check_balance(charge_amount)
+
+        if code == -1:
+            raise exceptions.PermissionDenied(
+                _("Insufficient balance"), code="insufficient_balance"
+            )
+
+        instance.pair(payer_account)
+
+        return instance
+
+    def to_representation(self, instance):
+        repr = TransactionDetailsSerializer(instance=instance).data
+        return repr

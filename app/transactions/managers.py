@@ -14,3 +14,13 @@ class TransactionManager(models.Manager):
         transaction = self.create(type=type, **kwargs)
 
         return transaction
+
+
+class TransactionFeeManager(models.Manager):
+    def get_applicable_fee(self, country, transaction_type):
+        t_fee = (
+            self.filter(country=country, transaction_type=transaction_type)
+            .values("fee")
+            .first()
+        )
+        return t_fee["fee"]

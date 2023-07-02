@@ -1,7 +1,7 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-from app.accounts.models import Account
+from app.accounts.models import Account, AvailableCountry
 from app.core.utils import (
     AppCharField,
     AppModel,
@@ -10,6 +10,8 @@ from app.core.utils import (
     make_transaction_ref,
 )
 from app.transactions import managers
+from app.transactions.managers import TransactionFeeManager
+from app.transactions.utils import compute_inclusive_amount
 
 
 class TransactionStatus(models.TextChoices):
@@ -26,10 +28,25 @@ class TransactionType(models.TextChoices):
     CO = "CO", _("Cash Out")
 
 
+class TransactionFee(AppModel):
+    fee = models.FloatField()
+    country = models.ForeignKey(AvailableCountry, null=True, on_delete=models.SET_NULL)
+    transaction_type = AppCharField(
+        _("Transaction Type"), max_length=10, choices=TransactionType.choices
+    )
+
+    objects = TransactionFeeManager()
+
+    def __str__(self):
+        return self.fee
+
+
 class Transaction(AppModel):
     reference = AppCharField(_("Reference"), max_length=30)
     payment_code = AppCharField(_("Payment code"), max_length=255)
     amount = models.FloatField(_("Amount"))
+    charged_amount = models.FloatField(_("Charged Amount"), null=True)
+    calculated_fee = models.FloatField(_("Calculated Fee"), null=True)
     status = AppCharField(_("Status"), max_length=10, choices=TransactionStatus.choices)
     type = AppCharField(_("Type"), max_length=4, choices=TransactionType.choices)
     payer_account = models.ForeignKey(
@@ -92,3 +109,29 @@ class Transaction(AppModel):
         )
 
         return mp_transaction
+
+    def get_inclusive_amount(self, country):
+        if self.charged_amount is not None and self.calculated_fee is not None:
+            return self.charged_amount
+
+        fee = TransactionFee.objects.get_applicable_fee(
+            country=country, transaction_type=self.type
+        )
+        self.calculated_fee, self.charged_amount = compute_inclusive_amount(
+            self.amount, fee
+        )
+
+        self.save()
+
+        return self.charged_amount
+
+    def _set_status(self, status_code):
+        self.status = status_code
+
+    def set_as_PENDING(self):
+        self._set_status(TransactionStatus.PENDING)
+
+    def pair(self, payer_account):
+        self.payer_account = payer_account
+        self.set_as_PENDING()
+        self.save()

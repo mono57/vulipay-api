@@ -2,8 +2,14 @@ import factory
 from factory import Faker as faker
 from factory import django
 
+from app.accounts.tests.factories import AvailableCountryFactory
 from app.core.utils import make_payment_code, make_transaction_ref
-from app.transactions.models import Transaction, TransactionStatus, TransactionType
+from app.transactions.models import (
+    Transaction,
+    TransactionFee,
+    TransactionStatus,
+    TransactionType,
+)
 
 
 class TransactionFactory(django.DjangoModelFactory):
@@ -22,7 +28,22 @@ class TransactionFactory(django.DjangoModelFactory):
         )
 
     @classmethod
-    def create_p2p_transaction(cls, **kwargs):
+    def create_p2p_transaction(cls, receiver_account, **kwargs):
         return cls.create(
-            status=TransactionStatus.PENDING, **kwargs, type=TransactionType.P2P
+            status=TransactionStatus.INITIATED,
+            receiver_account=receiver_account,
+            **kwargs,
+            type=TransactionType.P2P
         )
+
+
+class TransactionFeeFactory(django.DjangoModelFactory):
+    class Meta:
+        model = TransactionFee
+
+    fee = 2
+    country = factory.SubFactory(AvailableCountryFactory)
+
+    @classmethod
+    def create_p2p_transaction_fee(cls, **kwargs):
+        return cls.create(**kwargs, transaction_type=TransactionType.P2P)

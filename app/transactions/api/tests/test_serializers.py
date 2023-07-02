@@ -6,6 +6,7 @@ from app.accounts.models import Account
 from app.accounts.tests import factories as f
 from app.transactions.api import serializers as t_serializers
 from app.transactions.models import Transaction
+from app.transactions.tests.factories import TransactionFactory
 
 
 class BaseTransactionSerializerTestCase(TestCase):
@@ -60,6 +61,8 @@ class TransactionDetailsSerializerTestCase(TestCase):
         self.assertIsNotNone(data.get("type"))
         self.assertIsNotNone(data.get("amount"))
         self.assertIsNotNone(data.get("receiver_account"))
+        self.assertIn("charged_amount", data)
+        self.assertIn("calculated_fee", data)
 
 
 class MPTransactionSerializerTestCase(TestCase):

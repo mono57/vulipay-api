@@ -1,9 +1,11 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from django.test import TestCase
 
 from app.accounts.models import Account
 from app.accounts.tests import factories as f
 from app.transactions.models import Transaction, TransactionStatus, TransactionType
+from app.transactions.tests.factories import TransactionFactory
 
 
 class TransactionTestCase(TestCase):
@@ -11,6 +13,9 @@ class TransactionTestCase(TestCase):
         self.payer_account = f.AccountFactory.create()
         self.receiver_account = f.AccountFactory.create(
             country=self.payer_account.country, intl_phone_number="237698049743"
+        )
+        self.transaction: Transaction = TransactionFactory.create_p2p_transaction(
+            receiver_account=self.receiver_account
         )
 
     def test_it_should_return_reference_on_str(self):
@@ -52,3 +57,15 @@ class TransactionTestCase(TestCase):
         self.assertEqual(call_kwargs["amount"], amount)
         self.assertEqual(call_kwargs["receiver_account"], self.receiver_account)
         self.assertEqual(call_kwargs["payer_account"], self.payer_account)
+
+    @patch("app.transactions.models.Transaction.save")
+    @patch("app.transactions.models.Transaction.set_as_PENDING")
+    def test_it_should_pair_account(
+        self, mocked_set_as_pending: MagicMock, mocked_save: MagicMock
+    ):
+        self.transaction.pair(self.payer_account)
+        mocked_set_as_pending.assert_called_once()
+        mocked_save.assert_called_once()
+
+    def test_it_should_get_inclusive_amount(self):
+        pass

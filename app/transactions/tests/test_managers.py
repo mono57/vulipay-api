@@ -2,8 +2,14 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
-from app.accounts.tests.factories import AccountFactory
-from app.transactions.models import Transaction, TransactionStatus, TransactionType
+from app.accounts.tests.factories import AccountFactory, AvailableCountryFactory
+from app.transactions.models import (
+    Transaction,
+    TransactionFee,
+    TransactionStatus,
+    TransactionType,
+)
+from app.transactions.tests.factories import TransactionFeeFactory
 
 
 class TransactionManagerTestCase(TestCase):
@@ -43,3 +49,20 @@ class TransactionManagerTestCase(TestCase):
         self.assertEqual(t.payer_account, self.payer_account)
         self.assertEqual(t.receiver_account, self.receiver_account)
         self.assertEqual(t.status, TransactionStatus.PENDING)
+
+
+class TransactionFeeManagerTestCase(TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.country = AvailableCountryFactory.create()
+        self.transaction_fee = TransactionFeeFactory.create_p2p_transaction_fee(
+            country=self.country
+        )
+
+    def test_it_get_applicable_fee(self):
+        applicable_fee = TransactionFee.objects.get_applicable_fee(
+            country=self.country, transaction_type=TransactionType.P2P
+        )
+
+        self.assertIsNotNone(applicable_fee)
+        self.assertIsInstance(applicable_fee, float)

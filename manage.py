@@ -3,9 +3,18 @@ import os
 import sys
 from pathlib import Path
 
+from debugger import init_debugger
+
 
 def main():
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.local")
+
+    if (
+        os.environ.get("RUN_MAIN") or os.environ.get("WERKZEUG_RUN_MAIN")
+    ) and os.environ.get("DEBUG"):
+        init_debugger()
+        print("Debugger Initialized...")
+
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:
