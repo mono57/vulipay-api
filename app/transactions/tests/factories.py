@@ -36,6 +36,19 @@ class TransactionFactory(django.DjangoModelFactory):
             type=TransactionType.P2P
         )
 
+    @classmethod
+    def create_pending_transaction(cls, receiver_account, payer_account, **kwargs):
+        return cls.create(
+            status=TransactionStatus.PENDING,
+            type=TransactionType.P2P,
+            receiver_account=receiver_account,
+            payer_account=payer_account,
+            amount=2000,
+            calculated_fee=40,
+            charged_amount=2040,
+            **kwargs
+        )
+
 
 class TransactionFeeFactory(django.DjangoModelFactory):
     class Meta:

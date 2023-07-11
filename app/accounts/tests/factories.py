@@ -1,8 +1,8 @@
-from django.utils import timezone
-
 import factory
-
-from factory import django, Faker as faker
+from django.conf import settings
+from django.utils import timezone
+from factory import Faker as faker
+from factory import django
 
 from app.accounts.models import *
 
@@ -11,9 +11,10 @@ class UserFactory(django.DjangoModelFactory):
     class Meta:
         model = Account
 
-    first_name = faker('first_name')
-    last_name = faker('last_name')
-    email = faker('email')
+    first_name = faker("first_name")
+    last_name = faker("last_name")
+    email = faker("email")
+
 
 class AvailableCountryFactory(django.DjangoModelFactory):
     class Meta:
@@ -24,6 +25,7 @@ class AvailableCountryFactory(django.DjangoModelFactory):
     iso_code = "CM"
     phone_number_regex = "ZRESDF"
 
+
 class AccountFactory(django.DjangoModelFactory):
     class Meta:
         model = Account
@@ -31,6 +33,16 @@ class AccountFactory(django.DjangoModelFactory):
     phone_number = "698049742"
     intl_phone_number = "237698049742"
     country = factory.SubFactory(AvailableCountryFactory)
+
+    @classmethod
+    def create_master_account(self, **kwargs):
+        kwargs.setdefault("is_master", True)
+        kwargs.setdefault("phone_number", settings.MASTER_PHONE_NUMBER)
+        kwargs.setdefault("intl_phone_number", settings.MASTER_INTL_PHONE_NUMBER)
+        kwargs.setdefault("balance", 0)
+
+        return self.create(**kwargs)
+
 
 class PassCodeFactory(django.DjangoModelFactory):
     class Meta:

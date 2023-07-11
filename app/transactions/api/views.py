@@ -48,16 +48,6 @@ class TransactionDetailsRetrieveAPIView(
     lookup_field = "payment_code"
 
 
-class ValidateTransactionUpdateAPIView(ValidPINRequiredMixin, UpdateAPIView):
-    permission_classes = [IsAuthenticatedAccount]
-    serializer_class = t_serializers.ValidateTransactionSerializer
-    queryset = Transaction.objects.all()
-    lookup_field = "reference"
-
-    def update(self, request, *args, **kwargs):
-        return super().update(request, *args, **kwargs)
-
-
 class TransactionPairingUpdateAPIView(BaseTransactionRetrieveAPIView, UpdateAPIView):
     permission_classes = [IsAuthenticatedAccount]
     serializer_class = t_serializers.TransactionPairingSerializer
@@ -66,3 +56,12 @@ class TransactionPairingUpdateAPIView(BaseTransactionRetrieveAPIView, UpdateAPIV
 
     def perform_update(self, serializer):
         serializer.save(payer_account=self.request.user)
+
+
+class ValidateTransactionUpdateAPIView(ValidPINRequiredMixin, UpdateAPIView):
+    permission_classes = [IsAuthenticatedAccount]
+    serializer_class = t_serializers.ValidateTransactionSerializer
+    queryset = Transaction.objects.select_related(
+        "receiver_account", "payer_account"
+    ).all()
+    lookup_field = "reference"
