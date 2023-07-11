@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 
-from django.test import TestCase
+from django.test import TransactionTestCase
 
 from app.accounts.models import Account
 from app.accounts.tests import factories as f
@@ -8,7 +8,7 @@ from app.transactions.models import Transaction, TransactionStatus, TransactionT
 from app.transactions.tests.factories import TransactionFactory
 
 
-class TransactionTestCase(TestCase):
+class TransactionTestCase(TransactionTestCase):
     def setUp(self):
         self.payer_account = f.AccountFactory.create()
         self.receiver_account = f.AccountFactory.create(
@@ -69,3 +69,22 @@ class TransactionTestCase(TestCase):
 
     def test_it_should_get_inclusive_amount(self):
         pass
+
+    @patch("app.accounts.models.Account.debit")
+    @patch("app.accounts.models.Account.credit")
+    @patch("app.accounts.models.Account.credit_master_account")
+    def test_it_should_perform_payment(
+        self,
+        mocked_credit_master: MagicMock,
+        mocked_credit_receiver: MagicMock,
+        mocked_debit_payer: MagicMock,
+    ):
+        transaction: Transaction = TransactionFactory.create_pending_transaction(
+            receiver_account=self.receiver_account, payer_account=self.payer_account
+        )
+
+        transaction.perform_payment()
+
+        mocked_credit_master.assert_called_once_with(transaction.calculated_fee)
+        mocked_credit_receiver.assert_called_once_with(transaction.amount)
+        mocked_debit_payer.assert_called_once_with(transaction.charged_amount)

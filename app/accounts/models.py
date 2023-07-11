@@ -32,6 +32,10 @@ def compute_next_verif_attempt_time(count) -> datetime.datetime:
     return time_diff
 
 
+def create_master_account_after_migration():
+    Account.objects.create_master_account()
+
+
 class AvailableCountry(AppModel):
     name = AppCharField(max_length=50)  # i.e Chad
     dial_code = AppCharField(max_length=5, unique=True)  # i.e 235
@@ -171,6 +175,7 @@ class Account(AppModel):
     owner_last_name = AppCharField(_("Lastname"), max_length=50, null=True, blank=True)
     pin = AppCharField(_("Pin code"), max_length=255, null=True)
     is_active = models.BooleanField(default=True)
+    is_master = models.BooleanField(default=False)
 
     country = models.ForeignKey(
         AvailableCountry, null=True, on_delete=models.SET_NULL, related_name="accounts"
@@ -199,12 +204,25 @@ class Account(AppModel):
         return is_correct
 
     def set_balance(self, balance):
-        pass
+        self.balance = balance
+        self.save()
 
     def check_balance(self, charged_amount):
         if charged_amount > self.balance:
             return -1
         return 0
+
+    def debit(self, charged_amount):
+        balance = self.balance - charged_amount
+        self.set_balance(balance)
+
+    def credit(self, amount):
+        balance = self.balance + amount
+        self.set_balance(balance)
+
+    @classmethod
+    def credit_master_account(cls, balance):
+        cls.objects.credit_master_account(balance)
 
 
 class PhoneNumber(AppModel):

@@ -138,8 +138,27 @@ class AccountTestCase(TestCase):
         self.account.verify_pin(pin)
         mocked_checked_pin.assert_called_once_with(self.account.pin, pin)
 
-    def test_it_set_balance(self):
-        pass
+    @patch("app.accounts.models.Account.save")
+    def test_it_set_balance(self, mocked_save: MagicMock):
+        self.account.set_balance(3000)
+
+        mocked_save.assert_called_once()
+
+    @patch("app.accounts.models.Account.set_balance")
+    def test_it_shoud_debit_account(self, mocked_set_balance: MagicMock):
+        charged_amount = 1000
+        self.account.debit(charged_amount)
+        expected_balance = float(self.account.balance - charged_amount)
+
+        mocked_set_balance.assert_called_once_with(expected_balance)
+
+    @patch("app.accounts.models.Account.set_balance")
+    def test_it_should_credit_account(self, mocked_set_balance: MagicMock):
+        amount = 1000
+        expected_balance = float(amount + self.account.balance)
+        self.account.credit(amount)
+
+        mocked_set_balance.assert_called_once_with(expected_balance)
 
     def test_it_check_balance(self):
         self.assertEqual(-1, self.account.check_balance(2000))

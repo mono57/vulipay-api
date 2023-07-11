@@ -140,25 +140,55 @@ class ValidateTransactionUpdateAPIViewTestCase(APIViewTestCase):
 
     def setUp(self):
         super().setUp()
-        self.payer_account = f.AccountFactory.create(pin="2314")
-        self.receiver_account = f.AccountFactory.create(
-            country=self.payer_account.country
-        )
+        self.payer_account: Account = f.AccountFactory.create(balance=2000)
+        self.payer_account.set_pin("2314")
+        self.country = self.payer_account.country
+        self.receiver_account = f.AccountFactory.create(country=self.country)
 
-        self.transaction = TransactionFactory.create_p2p_transaction(
-            receiver_account=self.receiver_account, payer_account=self.payer_account
-        )
-
-        self.payload = {"pin": "2324"}
-
-    def test_it_should_raise_permissions_denied(self):
+    def test_it_should_raise_permissions_denied_on_wrong_password(self):
         self.authenticate_with_account(self.payer_account)
+        transaction: Transaction = TransactionFactory.create_p2p_transaction(
+            receiver_account=self.receiver_account,
+            payer_account=self.payer_account,
+        )
+        payload = {"pin": "2324"}
 
         response = self.view_put(
-            data=self.payload, reverse_kwargs={"reference": self.transaction.reference}
+            data=payload, reverse_kwargs={"reference": transaction.reference}
         )
 
         self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
+
+    def test_it_should_raise_permission_denied_on_insufficient_balance(self):
+        self.authenticate_with_account(self.payer_account)
+        TransactionFeeFactory.create_p2p_transaction_fee(country=self.country)
+        transaction: Transaction = TransactionFactory.create_p2p_transaction(
+            receiver_account=self.receiver_account,
+            payer_account=self.payer_account,
+            amount=5000,
+        )
+        payload = {"pin": "2314"}
+
+        response = self.view_put(
+            data=payload, reverse_kwargs={"reference": transaction.reference}
+        )
+
+        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
+
+    def test_it_should_validate_transaction(self):
+        self.authenticate_with_account(self.payer_account)
+        TransactionFeeFactory.create_p2p_transaction_fee(country=self.country)
+        transaction: Transaction = TransactionFactory.create_p2p_transaction(
+            receiver_account=self.receiver_account,
+            payer_account=self.payer_account,
+            amount=1000,
+        )
+        payload = {"pin": "2314"}
+
+        response = self.view_put(
+            data=payload, reverse_kwargs={"reference": transaction.reference}
+        )
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
 
 
 class TransactionPairingUpdateAPIViewTestCase(APIViewTestCase):

@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 
 from app.accounts.models import Account, AvailableCountry
@@ -18,6 +18,7 @@ class TransactionStatus(models.TextChoices):
     INITIATED = "INITIATED", _("Initiated")
     PENDING = "PENDING", _("Pending")
     SUCCEED = "SUCCEED", _("Succeed")
+    COMPLETED = "COMPLETED", ("Completed")
     FAILED = "FAILED", _("Failed")
 
 
@@ -73,19 +74,11 @@ class Transaction(AppModel):
     def create_P2P_transaction(
         cls, amount: float, receiver_account: Account, notes: str = None
     ):
-        klass = __class__
-        # P2P.DF2422.1683740925
-        transaction_ref = make_transaction_ref(TransactionType.P2P)
-        # vulipay$P2P$SDFG34GE3G4234G42345G4F3ERF34G543FD3F4G54F
-        t_payment_code = make_payment_code(transaction_ref, TransactionType.P2P)
-
-        transaction = klass.objects.create(
-            reference=transaction_ref,
-            payment_code=t_payment_code,
+        transaction = cls.objects._create(
+            type=TransactionType.P2P,
             amount=amount,
             receiver_account=receiver_account,
             status=TransactionStatus.INITIATED,
-            type=TransactionType.P2P,
             notes=notes,
         )
 
@@ -131,7 +124,18 @@ class Transaction(AppModel):
     def set_as_PENDING(self):
         self._set_status(TransactionStatus.PENDING)
 
+    def set_as_COMPLETED(self):
+        self._set_status(TransactionStatus.COMPLETED)
+        self.save()
+
     def pair(self, payer_account):
         self.payer_account = payer_account
         self.set_as_PENDING()
         self.save()
+
+    @transaction.atomic()
+    def perform_payment(self):
+        self.payer_account.debit(self.charged_amount)
+        self.receiver_account.credit(self.amount)
+        Account.credit_master_account(self.calculated_fee)
+        self.set_as_COMPLETED()
