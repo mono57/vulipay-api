@@ -8,7 +8,7 @@ from app.accounts.tests import factories as f
 from app.accounts.tests.factories import AccountFactory
 from app.core.utils import APIViewTestCase
 from app.transactions.api.views import P2PTransactionCreateAPIView
-from app.transactions.models import Transaction
+from app.transactions.models import Transaction, TransactionStatus
 from app.transactions.tests.factories import TransactionFactory, TransactionFeeFactory
 
 
@@ -182,6 +182,7 @@ class ValidateTransactionUpdateAPIViewTestCase(APIViewTestCase):
             receiver_account=self.receiver_account,
             payer_account=self.payer_account,
             amount=1000,
+            status=TransactionStatus.PENDING,
         )
         payload = {"pin": "2314"}
 

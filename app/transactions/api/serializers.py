@@ -81,7 +81,7 @@ class BasePINSerializer(serializers.Serializer):
 
 
 class BaseBalanceValidationSerializerMixin:
-    def update(self, instance, validated_data):
+    def update(self, instance: Transaction, validated_data):
         payer_account: Account = validated_data.get("payer_account")
         charge_amount = instance.get_inclusive_amount(payer_account.country)
         code = payer_account.check_balance(charge_amount)

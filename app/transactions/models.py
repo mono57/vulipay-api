@@ -133,6 +133,9 @@ class Transaction(AppModel):
         self.set_as_PENDING()
         self.save()
 
+    def is_status_allowed(self, status):
+        return self.status == status
+
     @transaction.atomic()
     def perform_payment(self):
         self.payer_account.debit(self.charged_amount)
