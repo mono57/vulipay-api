@@ -6,7 +6,7 @@ from app.accounts.api import serializers as accounts_serializers
 from app.accounts.mixins import ValidPINRequiredMixin
 from app.accounts.permissions import IsAuthenticatedAccount
 from app.transactions.api import serializers as t_serializers
-from app.transactions.models import Transaction
+from app.transactions.models import Transaction, TransactionStatus
 
 
 class P2PTransactionCreateAPIView(CreateAPIView):
@@ -48,20 +48,48 @@ class TransactionDetailsRetrieveAPIView(
     lookup_field = "payment_code"
 
 
-class TransactionPairingUpdateAPIView(BaseTransactionRetrieveAPIView, UpdateAPIView):
+# Need to be tested
+class BaseTransactionUpdateAPIView(UpdateAPIView):
+    allowed_status = tuple()
+
+    def check_object_permissions(self, request, obj):
+        super().check_object_permissions(request, obj)
+
+        assert (
+            isinstance(self.allowed_status, tuple) == True
+            or isinstance(self.allowed_status, list) == True
+        )
+
+        assert len(self.allowed_status) > 0
+
+        for status in self.allowed_status:
+            if not obj.is_status_allowed(status):
+                raise exceptions.PermissionDenied(
+                    _("Status not allowed. Invalid Transaction Status"),
+                    code="invalid_status",
+                )
+
+
+class TransactionPairingUpdateAPIView(
+    BaseTransactionRetrieveAPIView, BaseTransactionUpdateAPIView
+):
     permission_classes = [IsAuthenticatedAccount]
     serializer_class = t_serializers.TransactionPairingSerializer
     queryset = Transaction.objects.all()
     lookup_field = "payment_code"
+    allowed_status = (TransactionStatus.INITIATED,)
 
     def perform_update(self, serializer):
         serializer.save(payer_account=self.request.user)
 
 
-class ValidateTransactionUpdateAPIView(ValidPINRequiredMixin, UpdateAPIView):
+class ValidateTransactionUpdateAPIView(
+    ValidPINRequiredMixin, BaseTransactionUpdateAPIView
+):
     permission_classes = [IsAuthenticatedAccount]
     serializer_class = t_serializers.ValidateTransactionSerializer
     queryset = Transaction.objects.select_related(
         "receiver_account", "payer_account"
     ).all()
     lookup_field = "reference"
+    allowed_status = (TransactionStatus.PENDING,)

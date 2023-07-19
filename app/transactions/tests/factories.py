@@ -29,8 +29,10 @@ class TransactionFactory(django.DjangoModelFactory):
 
     @classmethod
     def create_p2p_transaction(cls, receiver_account, **kwargs):
+        status = kwargs.pop("status", TransactionStatus.INITIATED)
+
         return cls.create(
-            status=TransactionStatus.INITIATED,
+            status=status,
             receiver_account=receiver_account,
             **kwargs,
             type=TransactionType.P2P
