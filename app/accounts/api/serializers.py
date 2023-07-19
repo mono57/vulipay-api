@@ -192,3 +192,9 @@ class PinCreationSerializer(serializers.Serializer):
 
     def to_representation(self, instance):
         return {}
+
+
+class AccountBalanceSerializer(serializers.ModelSerializer):
+    class Meta:
+        fields = ("balance",)
+        model = Account

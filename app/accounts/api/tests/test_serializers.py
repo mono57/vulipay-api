@@ -5,6 +5,7 @@ from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
 from app.accounts.api.serializers import (
+    AccountBalanceSerializer,
     CreatePasscodeSerializer,
     PinCreationSerializer,
     VerifyPassCodeSerializer,
@@ -170,3 +171,15 @@ class PinCreationSerializerTestCase(TestCase):
         data = {"pin1": "2343", "pin2": "2343"}
         s = self.serializer(data=data)
         self.assertTrue(s.is_valid())
+
+
+class AccountBalanceSerializerTestCase(TestCase):
+    def setUp(self) -> None:
+        self.account_balance = float(5000)
+        self.account = AccountFactory.create(balance=self.account_balance)
+
+    def test_it_should_serializer_specified_fields(self):
+        data = AccountBalanceSerializer(instance=self.account).data
+
+        self.assertIn("balance", data)
+        self.assertDictEqual(data, {"balance": self.account_balance})
