@@ -28,3 +28,9 @@ class ValidPINRequiredMixin(AppAccessMixin):
         account = request.user
         if not account.verify_pin(pin):
             self.handle_no_permission()
+
+
+class AccountOwnerActionMixin:
+    def get_object(self):
+        self.kwargs.setdefault(self.lookup_field, self.request.user.number)
+        return super().get_object()

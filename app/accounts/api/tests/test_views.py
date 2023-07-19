@@ -6,7 +6,7 @@ from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from app.accounts.models import Account, AvailableCountry, PassCode
-from app.accounts.tests import factories as f
+from app.accounts.tests.factories import AccountFactory, AvailableCountryFactory
 from app.core.utils import APIViewTestCase
 
 twilio_send_message_path = "app.core.utils.twilio_client.MessageClient.send_message"
@@ -15,7 +15,7 @@ access_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXN
 
 
 class PassCodeCreateAPIViewTestCase(APIViewTestCase):
-    view_name = "api:accounts_passcodes"
+    view_name = "api:accounts:accounts_passcodes"
 
     def setUp(self):
         super().setUp()
@@ -24,7 +24,7 @@ class PassCodeCreateAPIViewTestCase(APIViewTestCase):
             "country_iso_code": "CM",
         }
 
-        f.AvailableCountryFactory.create()
+        AvailableCountryFactory.create()
 
     def test_it_should_not_generate_passcode_for_empty_payload(self):
         response = self.view_post({})
@@ -72,7 +72,7 @@ class PassCodeCreateAPIViewTestCase(APIViewTestCase):
 
 
 class VerifyPassCodeAPIViewTestCase(APIViewTestCase):
-    view_name = "api:accounts_passcodes_verify"
+    view_name = "api:accounts:accounts_passcodes_verify"
 
     def setUp(self):
         super().setUp()
@@ -119,11 +119,11 @@ class VerifyPassCodeAPIViewTestCase(APIViewTestCase):
 
 
 class AccountPaymentCodeRetrieveAPIViewTestCase(APIViewTestCase):
-    view_name = "api:accounts_payment_code"
+    view_name = "api:accounts:accounts_payment_code"
 
     def setUp(self):
         super().setUp()
-        self.account: Account = f.AccountFactory.create()
+        self.account: Account = AccountFactory.create()
         self.account_number = self.account.number
         self.access_token = str(RefreshToken.for_user(self.account).access_token)
 
@@ -144,7 +144,7 @@ class AccountPaymentCodeRetrieveAPIViewTestCase(APIViewTestCase):
 
 
 class AccountPaymentDetailsTestCase(APIViewTestCase):
-    view_name = "api:accounts_payment_details"
+    view_name = "api:accounts:accounts_payment_details"
 
     def setUp(self):
         super().setUp()
@@ -156,7 +156,7 @@ class AccountPaymentDetailsTestCase(APIViewTestCase):
         }
         with patch("app.accounts.models.make_payment_code") as mocked_make_payment_code:
             mocked_make_payment_code.return_value = self.payment_code
-            account = f.AccountFactory.create(**self.account_payload)
+            account = AccountFactory.create(**self.account_payload)
             self.access_token = str(RefreshToken.for_user(account).access_token)
 
     def test_it_should_raise_access_denied_error(self):
@@ -181,12 +181,12 @@ class AccountPaymentDetailsTestCase(APIViewTestCase):
 
 
 class PinCreationUpdateAPIViewTestCase(APIViewTestCase):
-    view_name = "api:accounts_set_pin"
+    view_name = "api:accounts:accounts_set_pin"
 
     def setUp(self):
         super().setUp()
 
-        self.account = f.AccountFactory.create()
+        self.account = AccountFactory.create()
         self.access_token = str(RefreshToken.for_user(self.account).access_token)
 
         self.payload = {
@@ -197,13 +197,28 @@ class PinCreationUpdateAPIViewTestCase(APIViewTestCase):
     def test_it_should_set_account_pin(self):
         self.authenticate_with_jwttoken(self.access_token)
 
-        response = self.view_put(
-            reverse_kwargs={"number": self.account.number}, data=self.payload
-        )
+        response = self.view_put(data=self.payload)
+
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_it_should_raise_access_denied_error(self):
-        response = self.view_put(
-            reverse_kwargs={"number": self.account.number}, data=self.payload
-        )
+        response = self.view_put(data=self.payload)
+
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class AccountBalanceRetrieveAPIView(APIViewTestCase):
+    view_name = "api:accounts:accounts_balance"
+
+    def setUp(self):
+        super().setUp()
+        self.account_balance = float(5000)
+        self.account: Account = AccountFactory.create(balance=self.account_balance)
+
+    def test_it_should_retrieve_correct_balance(self):
+        self.authenticate_with_account(self.account)
+
+        response = self.view_get()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNotNone(response.data)

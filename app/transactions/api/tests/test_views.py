@@ -13,7 +13,7 @@ from app.transactions.tests.factories import TransactionFactory, TransactionFeeF
 
 
 class P2PTransactionCreateAPIViewTestCase(APIViewTestCase):
-    view_name = "api:transactions_p2p_transactions"
+    view_name = "api:transactions:transactions_p2p_transactions"
 
     def setUp(self):
         super().setUp()
@@ -57,7 +57,7 @@ class P2PTransactionCreateAPIViewTestCase(APIViewTestCase):
 
 
 class TransactionDetailsRetrieveAPIView(APIViewTestCase):
-    view_name = "api:transactions_transaction_details"
+    view_name = "api:transactions:transactions_transaction_details"
 
     def setUp(self):
         super().setUp()
@@ -91,7 +91,7 @@ class TransactionDetailsRetrieveAPIView(APIViewTestCase):
 
 
 class MPTransactionCreateAPIViewTestCase(APIViewTestCase):
-    view_name = "api:transactions_mp_transactions"
+    view_name = "api:transactions:transactions_mp_transactions"
 
     def setUp(self):
         super().setUp()
@@ -136,7 +136,7 @@ class MPTransactionCreateAPIViewTestCase(APIViewTestCase):
 
 
 class ValidateTransactionUpdateAPIViewTestCase(APIViewTestCase):
-    view_name = "api:transactions_transaction_validate"
+    view_name = "api:transactions:transactions_transaction_validate"
 
     def setUp(self):
         super().setUp()
@@ -193,7 +193,7 @@ class ValidateTransactionUpdateAPIViewTestCase(APIViewTestCase):
 
 
 class TransactionPairingUpdateAPIViewTestCase(APIViewTestCase):
-    view_name = "api:transactions_transaction_pairing"
+    view_name = "api:transactions:transactions_transaction_pairing"
 
     def setUp(self):
         super().setUp()

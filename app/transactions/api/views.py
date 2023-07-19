@@ -2,8 +2,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions, views
 from rest_framework.generics import CreateAPIView, RetrieveAPIView, UpdateAPIView
 
-from app.accounts.api import serializers as accounts_serializers
-from app.accounts.mixins import ValidPINRequiredMixin
+from app.accounts.api.mixins import ValidPINRequiredMixin
 from app.accounts.permissions import IsAuthenticatedAccount
 from app.transactions.api import serializers as t_serializers
 from app.transactions.models import Transaction, TransactionStatus

@@ -2,7 +2,7 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from app.accounts.mixins import ValidPINRequiredMixin
+from app.accounts.api.mixins import ValidPINRequiredMixin
 from app.accounts.permissions import IsAuthenticatedAccount
 from app.accounts.tests.factories import AccountFactory
 from app.core.tests import AppAPIRequestFactory, EmptyResponseView
