@@ -3,6 +3,7 @@ import datetime
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+from django.utils.itercompat import is_iterable
 from django.utils.translation import gettext_lazy as _
 
 from app.accounts.managers import AccountManager, PassCodeManager
@@ -158,7 +159,29 @@ class PassCode(AppModel):
         self.save()
 
 
-class Account(AppModel):
+class AccountPermission(AppModel):
+    name = AppCharField(max_length=255)
+    codename = AppCharField(max_length=100)
+
+    objects = AccountPermissionManager()
+
+    def __str__(self) -> str:
+        return "{} - {}".format(self.codename, self.name)
+
+
+class AccountPermissionMixin(AppModel):
+    account_permissions = models.ManyToManyField(
+        AccountPermission, blank=True, related_name="accounts"
+    )
+
+    class Meta:
+        abstract = True
+
+    def has_perm(self, perm, obj=None):
+        return AccountPermission.objects.user_has_permission(perm)
+
+
+class Account(AccountPermissionMixin):
     phone_number = AppCharField(_("Phone Number"), max_length=20, null=False)
     intl_phone_number = AppCharField(_("Phone Number"), max_length=20, null=False)
     number = AppCharField(_("Account number"), max_length=16, unique=True, null=False)

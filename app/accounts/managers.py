@@ -59,3 +59,8 @@ class PassCodeManager(Manager):
         )
 
         return not qs_exits, next_verif_attempt_on
+
+
+class AccountPermissionManager(models.Manager):
+    def user_has_perm(self, perm, obj=None):
+        pass
