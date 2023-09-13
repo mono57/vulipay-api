@@ -4,9 +4,11 @@ from app.accounts.api.views import (
     AccountBalanceRetrieveAPIView,
     AccountPaymentCodeRetrieveAPIView,
     AccountPaymentDetailsRetrieveAPIView,
+    AddPhoneNumberCreateAPIView,
     PassCodeCreateAPIView,
     PinCreationUpdateAPIView,
     VerifyPassCodeCreateAPIView,
+    VerifyPhoneNumberCreateAPIView,
 )
 
 app_name = "accounts"
@@ -41,5 +43,15 @@ urlpatterns = [
         "balance",
         AccountBalanceRetrieveAPIView.as_view(),
         name="accounts_balance",
+    ),
+    path(
+        "phonenumbers",
+        AddPhoneNumberCreateAPIView.as_view(),
+        name="accounts_add_phonenumbers",
+    ),
+    path(
+        "phonenumbers/verify",
+        VerifyPhoneNumberCreateAPIView.as_view(),
+        name="accounts_verify_phonenumbers",
     ),
 ]

@@ -6,12 +6,15 @@ from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from app.accounts.models import Account, AvailableCountry, PassCode
-from app.accounts.tests.factories import AccountFactory, AvailableCountryFactory
+from app.accounts.tests.factories import (
+    AccountFactory,
+    AvailableCountryFactory,
+    CarrierFactory,
+    PassCodeFactory,
+)
 from app.core.utils import APIViewTestCase
 
 twilio_send_message_path = "app.core.utils.twilio_client.MessageClient.send_message"
-
-access_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjgzNTc2ODI1LCJpYXQiOjE2ODMxNDQ4MjUsImp0aSI6IjAzY2MyMjlmYzlhMTQxOWRiZWI1ZGYxNTQwZDQzNzJmIiwiYWNjb3VudF9pZCI6Mn0.5DXBP_SHHfJjl25oVThAgXy1J7Hburjc7FYuAdsiSko"
 
 
 class PassCodeCreateAPIViewTestCase(APIViewTestCase):
@@ -222,3 +225,60 @@ class AccountBalanceRetrieveAPIView(APIViewTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIsNotNone(response.data)
+
+
+class AddPhoneNumberCreateAPIView(APIViewTestCase):
+    view_name = "api:accounts:accounts_add_phonenumbers"
+
+    def setUp(self):
+        super().setUp()
+        self.add_phone_number_payload = {
+            "phone_number": "698049742",
+            "country_iso_code": "CM",
+            "carrier_code": "orange_cm",
+        }
+
+        self.country = AvailableCountryFactory.create()
+        self.account = AccountFactory.create(country=self.country)
+
+    def test_it_should_raise_bad_request(self):
+        self.authenticate_with_account(self.account)
+
+        response = self.view_post(data=self.add_phone_number_payload)
+
+        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+
+    def test_it_should_send_passcode(self):
+        CarrierFactory.create(country=self.country)
+        self.authenticate_with_account(self.account)
+
+        with patch(twilio_send_message_path) as mocked_send_message:
+            response = self.view_post(data=self.add_phone_number_payload)
+
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+            mocked_send_message.assert_called_once()
+
+
+class VerifyPhoneNumberCreateAPIViewTestCase(APIViewTestCase):
+    view_name = "api:accounts:accounts_verify_phonenumbers"
+
+    def setUp(self):
+        super().setUp()
+        self.verify_phone_number_payload = {
+            "phone_number": "698049742",
+            "country_iso_code": "CM",
+            "carrier_code": "orange_cm",
+            "code": 234353,
+        }
+
+        self.country = AvailableCountryFactory.create()
+        self.account = AccountFactory.create(country=self.country)
+        CarrierFactory.create(country=self.country)
+        PassCodeFactory.create(code="234353")
+
+    def test_it_should_raise_bad_request(self):
+        self.authenticate_with_account(self.account)
+
+        response = self.view_post(data=self.verify_phone_number_payload)
+
+        self.assertEqual(status.HTTP_201_CREATED, response.status_code)

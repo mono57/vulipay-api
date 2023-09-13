@@ -225,11 +225,30 @@ class Account(AppModel):
         cls.objects.credit_master_account(balance)
 
 
+class SupportedMobileMoneyCarrier(AppModel):
+    name = AppCharField(_("Name"), max_length=254, null=False)
+    code = AppCharField(_("Code"), max_length=254, null=False, unique=True)
+    country = models.ForeignKey(
+        AvailableCountry, on_delete=models.DO_NOTHING, related_name="carriers"
+    )
+    flag = models.ImageField(_("Flag"))
+
+    def __str__(self):
+        return self.name
+
+    def save(self, **kwargs):
+        self.code = f"{self.name}_{self.country.iso_code}".lower()
+        super().save(**kwargs)
+
+
 class PhoneNumber(AppModel):
     number = AppCharField(max_length=20)
     primary = models.BooleanField(default=False)
-    verified = models.BooleanField(default=True)
-    carrier = AppCharField(_("Carrier"), max_length=50)
+    carrier = models.ForeignKey(
+        SupportedMobileMoneyCarrier,
+        on_delete=models.DO_NOTHING,
+        related_name="phonenumbers",
+    )
     account = models.ForeignKey(
         Account,
         on_delete=models.CASCADE,
@@ -240,24 +259,10 @@ class PhoneNumber(AppModel):
     def __str__(self):
         return f"({self.country.dial_code}) {self.number}"
 
-    @property
-    def is_primary(self):
-        return self.is_verified and self.primary
-
-    @property
-    def is_verified(self):
-        return self.verified
-
     @classmethod
-    def create(cls, phone_number: str, country_iso_code: str, account_id: int):
-        carrier = get_carrier(phone_number, country_iso_code)
-
+    def create(cls, phone_number: str, carrier_id: int, account_id: int):
         obj = cls.objects.create(
-            number=phone_number, account_id=account_id, carrier=carrier
+            number=phone_number, account_id=account_id, carrier_id=carrier_id
         )
 
         return obj
-
-    def set_primary(self):
-        self.primary = True
-        self.save()
