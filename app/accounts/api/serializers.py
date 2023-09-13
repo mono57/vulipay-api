@@ -2,10 +2,16 @@ from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 from phonenumber_field.phonenumber import PhoneNumber as PhoneNumberWrapper
 from phonenumbers import NumberParseException
-from rest_framework import serializers
+from rest_framework import exceptions, serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from app.accounts.models import Account, AvailableCountry, PassCode, PhoneNumber
+from app.accounts.models import (
+    Account,
+    AvailableCountry,
+    PassCode,
+    PhoneNumber,
+    SupportedMobileMoneyCarrier,
+)
 from app.accounts.validators import pin_validator
 from app.core.utils import UnprocessableEntityError, is_valid_otp
 
@@ -198,3 +204,35 @@ class AccountBalanceSerializer(serializers.ModelSerializer):
     class Meta:
         fields = ("balance",)
         model = Account
+
+
+class CarrierBaseSerializer(serializers.Serializer):
+    carrier_code = serializers.CharField()
+
+    def validate_carrier_code(self, value):
+        qs = SupportedMobileMoneyCarrier.objects.filter(code=value)
+        if not qs.exists():
+            raise exceptions.ValidationError(
+                _("This carrier is not supported"), code="unsupported_carrier"
+            )
+        self.context["carrier"] = qs.first()
+
+        return value
+
+
+class AddPhoneNumberSerializer(CarrierBaseSerializer, CreatePasscodeSerializer):
+    pass
+
+
+class VerifyPhoneNumberSerializer(CarrierBaseSerializer, VerifyPassCodeSerializer):
+    def create(self, validated_data):
+        phonenumber = PhoneNumber.create(
+            validated_data["phone_number"],
+            self.context["carrier"].id,
+            validated_data["account"].id,
+        )
+
+        return phonenumber
+
+    def to_representation(self, instance: Account):
+        return {}

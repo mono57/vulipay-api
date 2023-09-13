@@ -1,5 +1,6 @@
 import factory
 from django.conf import settings
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from factory import Faker as faker
 from factory import django
@@ -31,7 +32,7 @@ class AccountFactory(django.DjangoModelFactory):
         model = Account
 
     phone_number = "698049742"
-    intl_phone_number = "237698049742"
+    intl_phone_number = "+237698049742"
     country = factory.SubFactory(AvailableCountryFactory)
 
     @classmethod
@@ -48,8 +49,17 @@ class PassCodeFactory(django.DjangoModelFactory):
     class Meta:
         model = PassCode
 
-    intl_phone_number = "235698049742"
+    intl_phone_number = "+237698049742"
     code = "987657"
     sent_on = timezone.now()
     next_verif_attempt_on = timezone.now()
     next_passcode_on = timezone.now()
+
+
+class CarrierFactory(django.DjangoModelFactory):
+    class Meta:
+        model = SupportedMobileMoneyCarrier
+
+    name = "Orange"
+    country = factory.SubFactory(AvailableCountryFactory)
+    # flag = SimpleUploadedFile("face.jpg", b"file data")

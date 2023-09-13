@@ -6,12 +6,17 @@ from django.utils import timezone
 
 from app.accounts.api.serializers import (
     AccountBalanceSerializer,
+    AddPhoneNumberSerializer,
     CreatePasscodeSerializer,
     PinCreationSerializer,
     VerifyPassCodeSerializer,
 )
 from app.accounts.models import AvailableCountry, PassCode
-from app.accounts.tests.factories import AccountFactory
+from app.accounts.tests.factories import (
+    AccountFactory,
+    AvailableCountryFactory,
+    CarrierFactory,
+)
 
 
 class CreatePasscodeSerializerTestCase(TestCase):
@@ -183,3 +188,24 @@ class AccountBalanceSerializerTestCase(TestCase):
 
         self.assertIn("balance", data)
         self.assertDictEqual(data, {"balance": self.account_balance})
+
+
+class AddPhoneNumberSerializerTestCase(TestCase):
+    def setUp(self):
+        self.country = AvailableCountryFactory.create()
+        self.data = {
+            "phone_number": "698049321",
+            "carrier_code": "orange_cm",
+            "country_iso_code": "CM",
+        }
+
+    def test_it_should_raise_unsupported_carrier(self):
+        serializer = AddPhoneNumberSerializer(data=self.data)
+
+        self.assertFalse(serializer.is_valid())
+
+    def test_it_should_validate_serializer(self):
+        CarrierFactory.create(country=self.country)
+        serializer = AddPhoneNumberSerializer(data=self.data)
+
+        self.assertTrue(serializer.is_valid())

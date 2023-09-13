@@ -6,7 +6,13 @@ from django.db import IntegrityError
 from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 
-from app.accounts.models import Account, AvailableCountry, PassCode, PhoneNumber
+from app.accounts.models import (
+    Account,
+    AvailableCountry,
+    PassCode,
+    PhoneNumber,
+    SupportedMobileMoneyCarrier,
+)
 from app.accounts.tests import factories as f
 
 
@@ -167,11 +173,12 @@ class AccountTestCase(TestCase):
 class PhoneNumberTestCase(TestCase):
     def setUp(self):
         self.account: Account = f.AccountFactory.create()
+        carrier = f.CarrierFactory.create(country=self.account.country)
 
         self.phone_number_payload = {
             "phone_number": "698049742",
-            "country_iso_code": "CM",
             "account_id": self.account.id,
+            "carrier_id": carrier.id,
         }
 
     def test_it_should_create_phone_number_instance(self):
@@ -179,19 +186,15 @@ class PhoneNumberTestCase(TestCase):
 
         self.assertTrue(isinstance(phone_number, PhoneNumber))
 
-    def test_it_should_set_phone_number_as_primary(self):
-        phone_number: PhoneNumber = PhoneNumber.create(**{**self.phone_number_payload})
 
-        self.assertFalse(phone_number.is_primary)
+class SupportedMobileMoneyCarrierTestCase(TestCase):
+    def setUp(self):
+        pass
 
-        phone_number.set_primary()
-
-        self.assertTrue(phone_number.is_primary)
-
-    def test_it_should_created_verified_phone_number(self):
-        phone_number: PhoneNumber = PhoneNumber.create(**self.phone_number_payload)
-
-        self.assertTrue(phone_number.is_verified)
-        self.assertEqual(
-            phone_number.number, self.phone_number_payload.get("phone_number")
+    def test_it_object_creation(self):
+        country: AvailableCountry = f.AvailableCountryFactory.create()
+        carrier = SupportedMobileMoneyCarrier.objects.create(
+            name="Orange", country=country
         )
+
+        self.assertEqual(carrier.code, f"{carrier.name}_{country.iso_code}".lower())

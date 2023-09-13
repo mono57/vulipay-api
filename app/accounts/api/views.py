@@ -6,9 +6,11 @@ from app.accounts.api.serializers import (
     AccountBalanceSerializer,
     AccountDetailsSerializer,
     AccountPaymentCodeSerializer,
+    AddPhoneNumberSerializer,
     CreatePasscodeSerializer,
     PinCreationSerializer,
     VerifyPassCodeSerializer,
+    VerifyPhoneNumberSerializer,
 )
 from app.accounts.models import Account
 from app.accounts.permissions import IsAuthenticatedAccount
@@ -52,3 +54,18 @@ class AccountBalanceRetrieveAPIView(
     AccountOwnerActionMixin, BaseAccountRetrieveAPIView
 ):
     serializer_class = AccountBalanceSerializer
+
+
+class AddPhoneNumberCreateAPIView(generics.CreateAPIView):
+    permission_classes = [IsAuthenticatedAccount]
+    serializer_class = AddPhoneNumberSerializer
+    http_method_names = ["post"]
+
+
+class VerifyPhoneNumberCreateAPIView(generics.CreateAPIView):
+    permission_classes = [IsAuthenticatedAccount]
+    serializer_class = VerifyPhoneNumberSerializer
+    http_method_names = ["post"]
+
+    def perform_create(self, serializer):
+        return serializer.save(account=self.request.user)
