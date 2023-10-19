@@ -79,7 +79,7 @@ class TransactionPairingUpdateAPIView(
     allowed_status = (TransactionStatus.INITIATED,)
 
     def perform_update(self, serializer):
-        serializer.save(payer_account=self.request.user)
+        serializer.save(account=self.request.user)
 
 
 class ValidateTransactionUpdateAPIView(

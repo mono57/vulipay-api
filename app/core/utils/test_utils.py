@@ -166,10 +166,6 @@ class CheckPin(TestCase):
         )
 
 
-class AppAmountFieldTest(serializers.Serializer):
-    amount = AppAmountField()
-
-
 class TestAppAmountField(TestCase):
     def test_it_should_raise_min_value_error(self):
         class AppAmountFieldTest(serializers.Serializer):
@@ -187,3 +183,11 @@ class TestAppAmountField(TestCase):
         s = AppAmountFieldTest(data={"amount": -1})
 
         self.assertTrue(s.is_valid())
+
+    def test_it_should_raise_invalid_amount(self):
+        class AppAmountFieldTest(serializers.Serializer):
+            amount = AppAmountField()
+
+        s = AppAmountFieldTest(data={"amount": -2000})
+
+        self.assertFalse(s.is_valid(), s.errors)

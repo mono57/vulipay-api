@@ -18,13 +18,13 @@ class BaseTransactionSerializerTestCase(TestCase):
         data = {"amount": 0}
         serializer = self.serializer(data=data)
 
-        self.assertFalse(serializer.is_valid())
+        self.assertFalse(serializer.is_valid(), serializer.errors)
         self.assertIn("amount", serializer.errors)
 
         data["amount"] = -200
 
         serializer = self.serializer(data=data)
-        self.assertFalse(serializer.is_valid())
+        self.assertFalse(serializer.is_valid(), serializer.errors)
         self.assertIn("amount", serializer.errors)
 
 

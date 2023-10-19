@@ -13,5 +13,5 @@ class AppCharField(models.CharField):
 class AppAmountField(serializers.FloatField):
     def __init__(self, **kwargs):
         self.default_error_messages["min_value"] = _("Invalid transaction amount")
-        kwargs.setdefault("min_value", 0)
+        kwargs.setdefault("min_value", 1)
         super().__init__(**kwargs)

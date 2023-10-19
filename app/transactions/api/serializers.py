@@ -112,7 +112,7 @@ class TransactionPairingSerializer(
     def update(self, instance: Transaction, validated_data):
         instance = super().update(instance, validated_data)
 
-        instance.pair(validated_data.get("payer_account"))
+        instance.pair(validated_data.get("account"))
 
         return instance
 
