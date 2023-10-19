@@ -1,6 +1,7 @@
 from django.urls import path
 
 from app.transactions.api.views import (
+    CashOutTransactionCreateAPIView,
     MPTransactionCreateAPIView,
     P2PTransactionCreateAPIView,
     TransactionDetailsRetrieveAPIView,
@@ -20,6 +21,11 @@ urlpatterns = [
         "MP",
         MPTransactionCreateAPIView.as_view(),
         name="transactions_mp_transactions",
+    ),
+    path(
+        "CO",
+        CashOutTransactionCreateAPIView.as_view(),
+        name="transactions_co_transactions",
     ),
     path(
         "<str:payment_code>/details",

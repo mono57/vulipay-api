@@ -1,7 +1,7 @@
 from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 
-from app.accounts.models import Account, AvailableCountry
+from app.accounts.models import Account, AvailableCountry, PhoneNumber
 from app.core.utils import (
     AppCharField,
     AppModel,
@@ -59,6 +59,20 @@ class Transaction(AppModel):
         null=True,
         related_name="credit_transactions",
     )
+    from_account = models.ForeignKey(
+        Account,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="cashout_transactions",
+    )
+    to_phone_number = models.ForeignKey(
+        PhoneNumber,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="cashout_transations",
+    )
+    # from_phone_number = AppCharField(max_length=30, null=True)
+    # to_account = models.ForeignKey(Account, on_delete=models.SET_NULL, related_name="cashin_transactions")
     notes = models.TextField(_("Notes"), null=True)
 
     objects = managers.TransactionManager()
@@ -102,6 +116,18 @@ class Transaction(AppModel):
         )
 
         return mp_transaction
+
+    @classmethod
+    def create_CO_transaction(cls, amount, from_account, to_phone_number):
+        co_transaction = cls.objects._create(
+            type=TransactionType.CO,
+            amount=amount,
+            from_account=from_account,
+            to_phone_number=to_phone_number,
+            status=TransactionStatus.PENDING,
+        )
+
+        return co_transaction
 
     def get_inclusive_amount(self, country):
         if self.charged_amount is not None and self.calculated_fee is not None:

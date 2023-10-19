@@ -5,7 +5,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from app.accounts.managers import AccountManager, PassCodeManager
+from app.accounts.managers import AccountManager, PassCodeManager, PhoneNumberManager
 from app.core.utils import (
     AppCharField,
     AppModel,
@@ -242,8 +242,11 @@ class SupportedMobileMoneyCarrier(AppModel):
 
 
 class PhoneNumber(AppModel):
+    # National phone number
+    # TODO: Variable to be rename to nat_phone_number vs intl_phone_number
     number = AppCharField(max_length=20)
     primary = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
     carrier = models.ForeignKey(
         SupportedMobileMoneyCarrier,
         on_delete=models.DO_NOTHING,
@@ -255,6 +258,8 @@ class PhoneNumber(AppModel):
         related_name="phone_numbers",
         verbose_name=_("Account"),
     )
+
+    objects = PhoneNumberManager()
 
     def __str__(self):
         return f"({self.country.dial_code}) {self.number}"
