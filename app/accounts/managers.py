@@ -59,3 +59,11 @@ class PassCodeManager(Manager):
         )
 
         return not qs_exits, next_verif_attempt_on
+
+
+class PhoneNumberManager(models.Manager):
+    def phone_number_exists(self, account, phone_number):
+        qs = self.filter(Q(account=account) & Q(number=phone_number))
+        if qs.exists:
+            return qs.first()
+        return None

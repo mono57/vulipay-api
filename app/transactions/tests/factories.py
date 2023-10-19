@@ -62,3 +62,7 @@ class TransactionFeeFactory(django.DjangoModelFactory):
     @classmethod
     def create_p2p_transaction_fee(cls, **kwargs):
         return cls.create(**kwargs, transaction_type=TransactionType.P2P)
+
+    @classmethod
+    def create_co_transaction_fee(cls, **kwargs):
+        return cls.create(**kwargs, transaction_type=TransactionType.CO)

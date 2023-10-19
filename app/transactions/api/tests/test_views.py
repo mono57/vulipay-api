@@ -5,7 +5,11 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from app.accounts.models import Account
 from app.accounts.tests import factories as f
-from app.accounts.tests.factories import AccountFactory
+from app.accounts.tests.factories import (
+    AccountFactory,
+    CarrierFactory,
+    PhoneNumberFactory,
+)
 from app.core.utils import APIViewTestCase
 from app.transactions.api.views import P2PTransactionCreateAPIView
 from app.transactions.models import Transaction, TransactionStatus
@@ -225,3 +229,24 @@ class TransactionPairingUpdateAPIViewTestCase(APIViewTestCase):
         response = self.view_put(reverse_kwargs={"payment_code": self.payment_code})
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class CashOutTransactionCreateAPIViewTest(APIViewTestCase):
+    view_name = "api:transactions:transactions_co_transactions"
+
+    def setUp(self):
+        super().setUp()
+        self.account: Account = AccountFactory.create(balance=10000)
+        self.account.set_pin("2314")
+        self.country = self.account.country
+        carrier = CarrierFactory.create(country=self.country)
+        PhoneNumberFactory.create(account=self.account, carrier=carrier)
+        TransactionFeeFactory.create_co_transaction_fee(country=self.country)
+
+    def test_it_should_create_transaction(self):
+        self.authenticate_with_account(self.account)
+        payload = {"to_phone_number": "698049741", "amount": 5000, "pin": "2314"}
+
+        response = self.view_post(data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)

@@ -1,17 +1,18 @@
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
+from rest_framework import exceptions
 
 from app.accounts.models import Account
-from app.accounts.tests import factories as f
-from app.transactions.api import serializers as t_serializers
+from app.accounts.tests.factories import *
+from app.transactions.api import serializers
 from app.transactions.models import Transaction
-from app.transactions.tests.factories import TransactionFactory
+from app.transactions.tests.factories import TransactionFactory, TransactionFeeFactory
 
 
 class BaseTransactionSerializerTestCase(TestCase):
     def setUp(self) -> None:
-        self.serializer = t_serializers.BaseTransactionSerializer
+        self.serializer = serializers.BasePaymentTransactionSerializer
 
     def test_it_should_not_validate_for_wrong_amount(self):
         data = {"amount": 0}
@@ -29,7 +30,7 @@ class BaseTransactionSerializerTestCase(TestCase):
 
 class P2PTransactionSerializerTestCase(TestCase):
     def setUp(self) -> None:
-        self.serializer = t_serializers.P2PTransactionSerializer
+        self.serializer = serializers.P2PTransactionSerializer
 
     def test_it_should_not_validate_if_body_empty(self):
         serializer = self.serializer(data={})
@@ -44,8 +45,8 @@ class P2PTransactionSerializerTestCase(TestCase):
 
 class TransactionDetailsSerializerTestCase(TestCase):
     def setUp(self):
-        self.serializer = t_serializers.TransactionDetailsSerializer
-        self.receiver_account = f.AccountFactory.create()
+        self.serializer = serializers.TransactionDetailsSerializer
+        self.receiver_account = AccountFactory.create()
         self.transaction = Transaction.create_P2P_transaction(
             2000, receiver_account=self.receiver_account
         )
@@ -67,8 +68,8 @@ class TransactionDetailsSerializerTestCase(TestCase):
 
 class MPTransactionSerializerTestCase(TestCase):
     def setUp(self) -> None:
-        self.serializer = t_serializers.MPTransactionSerializer
-        self.receiver_account: Account = f.AccountFactory.create()
+        self.serializer = serializers.MPTransactionSerializer
+        self.receiver_account: Account = AccountFactory.create()
         self.fake_amount = float(2000)
 
     def test_it_should_not_validate_transaction_for_not_existing_account(self):
@@ -87,7 +88,7 @@ class MPTransactionSerializerTestCase(TestCase):
         self.assertTrue(s.is_valid())
 
     def test_it_should_create_MP_transaction(self):
-        payer_account = f.AccountFactory.create(
+        payer_account = AccountFactory.create(
             phone_number="698238382", country=self.receiver_account.country
         )
         data = {
@@ -112,3 +113,56 @@ class MPTransactionSerializerTestCase(TestCase):
                 receiver_account=self.receiver_account,
                 payer_account=payer_account,
             )
+
+
+class CashOutTransactionSerializerTestCase(TransactionTestCase):
+    def setUp(self) -> None:
+        self.account: Account = AccountFactory.create(balance=10000)
+        self.country = self.account.country
+        carrier = CarrierFactory.create(country=self.country)
+        PhoneNumberFactory.create(account=self.account, carrier=carrier)
+
+    def test_it_should_validate(self):
+        payload = {"to_phone_number": "698049741", "amount": 5000, "pin": "2324"}
+        s = serializers.CashOutTransactionSerializer(
+            data=payload, context={"account": self.account}
+        )
+        self.assertTrue(s.is_valid())
+
+    def test_it_should_raise_un_verified_phone_number(self):
+        payload = {"to_phone_number": "698049742", "amount": 5000, "pin": "2324"}
+        s = serializers.CashOutTransactionSerializer(
+            data=payload, context={"account": self.account}
+        )
+        self.assertFalse(s.is_valid())
+
+    def test_it_should_raise_insufficient_balance(self):
+        TransactionFeeFactory.create_co_transaction_fee(country=self.country)
+        payload = {"to_phone_number": "698049741", "amount": 10000, "pin": "2324"}
+
+        s = serializers.CashOutTransactionSerializer(
+            data=payload, context={"account": self.account}
+        )
+
+        assert s.is_valid() == True
+
+        validated_data = {**payload}
+
+        with self.assertRaises(exceptions.PermissionDenied):
+            s.create(validated_data)
+
+    def test_it_should_initiate_co_transaction(self):
+        TransactionFeeFactory.create_co_transaction_fee(country=self.country)
+        payload = {"to_phone_number": "698049741", "amount": 5000, "pin": "2324"}
+
+        s = serializers.CashOutTransactionSerializer(
+            data=payload, context={"account": self.account}
+        )
+
+        assert s.is_valid() == True
+
+        validated_data = {**payload}
+
+        tx = s.create(validated_data)
+
+        self.assertIsInstance(tx, Transaction)

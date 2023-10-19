@@ -4,13 +4,13 @@ from rest_framework.generics import CreateAPIView, RetrieveAPIView, UpdateAPIVie
 
 from app.accounts.api.mixins import ValidPINRequiredMixin
 from app.accounts.permissions import IsAuthenticatedAccount
-from app.transactions.api import serializers as t_serializers
+from app.transactions.api import serializers
 from app.transactions.models import Transaction, TransactionStatus
 
 
 class P2PTransactionCreateAPIView(CreateAPIView):
     permission_classes = [IsAuthenticatedAccount]
-    serializer_class = t_serializers.P2PTransactionSerializer
+    serializer_class = serializers.P2PTransactionSerializer
 
     def perform_create(self, serializer):
         serializer.save(receiver_account=self.request.user)
@@ -18,7 +18,7 @@ class P2PTransactionCreateAPIView(CreateAPIView):
 
 class MPTransactionCreateAPIView(CreateAPIView):
     permission_classes = [IsAuthenticatedAccount]
-    serializer_class = t_serializers.MPTransactionSerializer
+    serializer_class = serializers.MPTransactionSerializer
 
     def perform_create(self, serializer):
         serializer.save(payer_account=self.request.user)
@@ -42,7 +42,7 @@ class TransactionDetailsRetrieveAPIView(
     BaseTransactionRetrieveAPIView, RetrieveAPIView
 ):
     permission_classes = [IsAuthenticatedAccount]
-    serializer_class = t_serializers.TransactionDetailsSerializer
+    serializer_class = serializers.TransactionDetailsSerializer
     queryset = Transaction.objects.select_related("receiver_account", "payer_account")
     lookup_field = "payment_code"
 
@@ -73,7 +73,7 @@ class TransactionPairingUpdateAPIView(
     BaseTransactionRetrieveAPIView, BaseTransactionUpdateAPIView
 ):
     permission_classes = [IsAuthenticatedAccount]
-    serializer_class = t_serializers.TransactionPairingSerializer
+    serializer_class = serializers.TransactionPairingSerializer
     queryset = Transaction.objects.all()
     lookup_field = "payment_code"
     allowed_status = (TransactionStatus.INITIATED,)
@@ -86,9 +86,20 @@ class ValidateTransactionUpdateAPIView(
     ValidPINRequiredMixin, BaseTransactionUpdateAPIView
 ):
     permission_classes = [IsAuthenticatedAccount]
-    serializer_class = t_serializers.ValidateTransactionSerializer
+    serializer_class = serializers.ValidateTransactionSerializer
     queryset = Transaction.objects.select_related(
         "receiver_account", "payer_account"
     ).all()
     lookup_field = "reference"
     allowed_status = (TransactionStatus.PENDING,)
+
+
+class CashOutTransactionCreateAPIView(ValidPINRequiredMixin, CreateAPIView):
+    permission_classes = [IsAuthenticatedAccount]
+    serializer_class = serializers.CashOutTransactionSerializer
+    queryset = Transaction.objects.all()
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        ctx["account"] = self.request.user
+        return ctx

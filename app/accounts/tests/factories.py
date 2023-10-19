@@ -63,3 +63,12 @@ class CarrierFactory(django.DjangoModelFactory):
     name = "Orange"
     country = factory.SubFactory(AvailableCountryFactory)
     # flag = SimpleUploadedFile("face.jpg", b"file data")
+
+
+class PhoneNumberFactory(django.DjangoModelFactory):
+    class Meta:
+        model = PhoneNumber
+
+    number = "698049741"
+    carrier = factory.SubFactory(CarrierFactory)
+    account = factory.SubFactory(AccountFactory)

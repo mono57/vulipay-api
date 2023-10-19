@@ -1,7 +1,7 @@
 from .admin import AppModelAdmin
 from .api_view_testcase import APIViewTestCase
 from .exceptions import UnprocessableEntityError
-from .fields import AppCharField
+from .fields import AppAmountField, AppCharField
 from .hashers import (
     check_pin,
     is_valid_otp,
@@ -31,4 +31,5 @@ __all__ = [
     "is_valid_otp",
     "make_pin",
     "check_pin",
+    "AppAmountField",
 ]

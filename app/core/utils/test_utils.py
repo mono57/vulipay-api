@@ -2,8 +2,9 @@ from unittest.mock import MagicMock, patch
 
 from django.conf import settings
 from django.test import SimpleTestCase, TestCase, override_settings
+from rest_framework import serializers
 
-from app.core.utils import hashers
+from app.core.utils import AppAmountField, hashers
 from app.core.utils.network_carrier import NO_CARRIER, get_carrier
 
 
@@ -163,3 +164,26 @@ class CheckPin(TestCase):
         mocked_check_password.assert_called_once_with(
             encoded, pin, preferred="bcrypt_sha256"
         )
+
+
+class AppAmountFieldTest(serializers.Serializer):
+    amount = AppAmountField()
+
+
+class TestAppAmountField(TestCase):
+    def test_it_should_raise_min_value_error(self):
+        class AppAmountFieldTest(serializers.Serializer):
+            amount = AppAmountField()
+
+        s = AppAmountFieldTest(data={"amount": -1})
+
+        self.assertFalse(s.is_valid())
+        self.assertIn("amount", s.errors)
+
+    def test_it_should_validate_with_value_less_than_0(self):
+        class AppAmountFieldTest(serializers.Serializer):
+            amount = AppAmountField(min_value=-10)
+
+        s = AppAmountFieldTest(data={"amount": -1})
+
+        self.assertTrue(s.is_valid())
