@@ -103,3 +103,14 @@ class CashOutTransactionCreateAPIView(ValidPINRequiredMixin, CreateAPIView):
         ctx = super().get_serializer_context()
         ctx["account"] = self.request.user
         return ctx
+
+
+class CashInTransactionCreateAPIView(CreateAPIView):
+    permission_classes = [IsAuthenticatedAccount]
+    serializer_class = serializers.CashInTransactionSerializer
+    queryset = Transaction.objects.all()
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        ctx["account"] = self.request.user
+        return ctx

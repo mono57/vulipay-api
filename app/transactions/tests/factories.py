@@ -65,4 +65,8 @@ class TransactionFeeFactory(django.DjangoModelFactory):
 
     @classmethod
     def create_co_transaction_fee(cls, **kwargs):
-        return cls.create(**kwargs, transaction_type=TransactionType.CO)
+        return cls.create(**kwargs, transaction_type=TransactionType.CashOut)
+
+    @classmethod
+    def create_ci_transaction_fee(cls, **kwargs):
+        return cls.create(**kwargs, transaction_type=TransactionType.CashIn)

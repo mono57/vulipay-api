@@ -25,8 +25,8 @@ class TransactionStatus(models.TextChoices):
 class TransactionType(models.TextChoices):
     P2P = "P2P", _("Peer to Peer")
     MP = "MP", _("Merchant payment")
-    CI = "CI", _("Cash In")
-    CO = "CO", _("Cash Out")
+    CashIn = "CI", _("Cash In")
+    CashOut = "CO", _("Cash Out")
 
 
 class TransactionFee(AppModel):
@@ -71,8 +71,18 @@ class Transaction(AppModel):
         null=True,
         related_name="cashout_transations",
     )
-    # from_phone_number = AppCharField(max_length=30, null=True)
-    # to_account = models.ForeignKey(Account, on_delete=models.SET_NULL, related_name="cashin_transactions")
+    from_phone_number = models.ForeignKey(
+        PhoneNumber,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="cashin_transations",
+    )
+    to_account = models.ForeignKey(
+        Account,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="cashin_transactions",
+    )
     notes = models.TextField(_("Notes"), null=True)
 
     objects = managers.TransactionManager()
@@ -119,15 +129,27 @@ class Transaction(AppModel):
 
     @classmethod
     def create_CO_transaction(cls, amount, from_account, to_phone_number):
-        co_transaction = cls.objects._create(
-            type=TransactionType.CO,
+        transaction = cls.objects._create(
+            type=TransactionType.CashOut,
             amount=amount,
             from_account=from_account,
             to_phone_number=to_phone_number,
             status=TransactionStatus.PENDING,
         )
 
-        return co_transaction
+        return transaction
+
+    @classmethod
+    def create_CI_transaction(cls, amount, to_account, from_phone_number):
+        transaction = cls.objects._create(
+            type=TransactionType.CashIn,
+            amount=amount,
+            to_account=to_account,
+            from_phone_number=from_phone_number,
+            status=TransactionStatus.PENDING,
+        )
+
+        return transaction
 
     def get_inclusive_amount(self, country):
         if self.charged_amount is not None and self.calculated_fee is not None:

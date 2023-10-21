@@ -123,14 +123,14 @@ class CashOutTransactionSerializerTestCase(TransactionTestCase):
         PhoneNumberFactory.create(account=self.account, carrier=carrier)
 
     def test_it_should_validate(self):
-        payload = {"to_phone_number": "698049741", "amount": 5000, "pin": "2324"}
+        payload = {"intl_phone_number": "237698049741", "amount": 5000, "pin": "2324"}
         s = serializers.CashOutTransactionSerializer(
             data=payload, context={"account": self.account}
         )
         self.assertTrue(s.is_valid())
 
     def test_it_should_raise_un_verified_phone_number(self):
-        payload = {"to_phone_number": "698049742", "amount": 5000, "pin": "2324"}
+        payload = {"intl_phone_number": "237698049742", "amount": 5000, "pin": "2324"}
         s = serializers.CashOutTransactionSerializer(
             data=payload, context={"account": self.account}
         )
@@ -138,7 +138,7 @@ class CashOutTransactionSerializerTestCase(TransactionTestCase):
 
     def test_it_should_raise_insufficient_balance(self):
         TransactionFeeFactory.create_co_transaction_fee(country=self.country)
-        payload = {"to_phone_number": "698049741", "amount": 10000, "pin": "2324"}
+        payload = {"intl_phone_number": "237698049741", "amount": 10000, "pin": "2324"}
 
         s = serializers.CashOutTransactionSerializer(
             data=payload, context={"account": self.account}
@@ -153,7 +153,7 @@ class CashOutTransactionSerializerTestCase(TransactionTestCase):
 
     def test_it_should_initiate_co_transaction(self):
         TransactionFeeFactory.create_co_transaction_fee(country=self.country)
-        payload = {"to_phone_number": "698049741", "amount": 5000, "pin": "2324"}
+        payload = {"intl_phone_number": "237698049741", "amount": 5000, "pin": "2324"}
 
         s = serializers.CashOutTransactionSerializer(
             data=payload, context={"account": self.account}
