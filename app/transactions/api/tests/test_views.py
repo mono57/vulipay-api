@@ -245,8 +245,28 @@ class CashOutTransactionCreateAPIViewTest(APIViewTestCase):
 
     def test_it_should_create_transaction(self):
         self.authenticate_with_account(self.account)
-        payload = {"to_phone_number": "698049741", "amount": 5000, "pin": "2314"}
+        payload = {"intl_phone_number": "237698049741", "amount": 5000, "pin": "2314"}
 
         response = self.view_post(data=payload)
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+
+class CashInTransactionCreateAPIViewTest(APIViewTestCase):
+    view_name = "api:transactions:transactions_ci_transactions"
+
+    def setUp(self):
+        super().setUp()
+        self.account: Account = AccountFactory.create(balance=10000)
+        self.country = self.account.country
+        carrier = CarrierFactory.create(country=self.country)
+        PhoneNumberFactory.create(account=self.account, carrier=carrier)
+        TransactionFeeFactory.create_ci_transaction_fee(country=self.country)
+
+    def test_it_should_create_transaction(self):
+        self.authenticate_with_account(self.account)
+        payload = {"intl_phone_number": "237698049741", "amount": 5000}
+
+        response = self.view_post(data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)

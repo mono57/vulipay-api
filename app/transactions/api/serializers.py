@@ -117,30 +117,35 @@ class TransactionPairingSerializer(
         return instance
 
 
-class CashOutTransactionSerializer(BasePINSerializer):
-    to_phone_number = serializers.CharField()
+class CashInCashOutBaseSerializerMixin(serializers.Serializer):
+    intl_phone_number = serializers.CharField()
     amount = AppAmountField()
 
-    def validate_to_phone_number(self, to_phone_number):
+    def validate_intl_phone_number(self, intl_phone_number):
         from_account = self.context.get("account")
 
-        to_verified_phone_number = PhoneNumber.objects.phone_number_exists(
-            from_account, to_phone_number
+        verified_phone_number = PhoneNumber.objects.phone_number_exists(
+            from_account, intl_phone_number
         )
-        if not to_verified_phone_number:
+        if not verified_phone_number:
             raise serializers.ValidationError(
                 _("Phone number is not verified"), code="unverified_phone_number"
             )
 
-        self.context["to_verified_phone_number"] = to_verified_phone_number
+        self.context["verified_phone_number"] = verified_phone_number
 
-        return to_phone_number
+        return intl_phone_number
 
+    def to_representation(self, instance):
+        return {}
+
+
+class CashOutTransactionSerializer(CashInCashOutBaseSerializerMixin, BasePINSerializer):
     # TODO: Refactor compute inclusive amount business logic
     @transaction.atomic
     def create(self, validated_data):
         from_account = self.context["account"]
-        to_phone_number = self.context["to_verified_phone_number"]
+        to_phone_number = self.context["verified_phone_number"]
 
         transaction = Transaction.create_CO_transaction(
             amount=validated_data.get("amount"),
@@ -156,7 +161,24 @@ class CashOutTransactionSerializer(BasePINSerializer):
                 _("Insufficient balance"), code="insufficient_balance"
             )
 
+        # Send CO request to queue
+
         return transaction
 
-    def to_representation(self, instance):
-        return {}
+
+class CashInTransactionSerializer(CashInCashOutBaseSerializerMixin):
+    @transaction.atomic
+    def create(self, validated_data):
+        account = self.context["account"]
+        verified_phone_number = self.context["verified_phone_number"]
+
+        transaction = Transaction.create_CI_transaction(
+            amount=validated_data.get("amount"),
+            to_account=account,
+            from_phone_number=verified_phone_number,
+        )
+
+        charge_amount = transaction.get_inclusive_amount(account.country)
+        # send CI request to queue
+
+        return transaction
