@@ -54,7 +54,7 @@ class AbstractPassCodeSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {**self.default_error_messages}, "invalid_phone_number"
             )
-
+        # +41446681800
         self.context["intl_phone_number"] = wrapper.as_e164
 
         return super().validate(data)
@@ -220,8 +220,21 @@ class CarrierBaseSerializer(serializers.Serializer):
         return value
 
 
-class AddPhoneNumberSerializer(CarrierBaseSerializer, CreatePasscodeSerializer):
-    pass
+class AddPhoneNumberSerializer(CreatePasscodeSerializer):
+    def validate_country_iso_code(self, iso_code):
+        acccount_country_iso_code = self.context["acccount_country_iso_code"]
+
+        if iso_code != acccount_country_iso_code:
+            raise serializers.ValidationError(
+                _("The country you provide does not match"), code="mismatch_country"
+            )
+
+        return iso_code
+
+    def validate(self, data):
+        data = super().validate(data)
+
+        return data
 
 
 class VerifyPhoneNumberSerializer(CarrierBaseSerializer, VerifyPassCodeSerializer):
