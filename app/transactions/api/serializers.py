@@ -3,7 +3,7 @@ from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions, serializers
 
-from app.accounts.api import serializers as accounts_serializers
+from app.accounts.api.serializers import AccountDetailsSerializer, PINSerializerMixin
 from app.accounts.models import Account, PhoneNumber
 from app.core.utils import AppAmountField
 from app.transactions.models import Transaction
@@ -54,8 +54,8 @@ class MPTransactionSerializer(BasePaymentTransactionSerializer):
 
 
 class TransactionDetailsSerializer(serializers.ModelSerializer):
-    receiver_account = accounts_serializers.AccountDetailsSerializer()
-    payer_account = accounts_serializers.AccountDetailsSerializer()
+    receiver_account = AccountDetailsSerializer()
+    payer_account = AccountDetailsSerializer()
 
     class Meta:
         model = Transaction
@@ -69,10 +69,6 @@ class TransactionDetailsSerializer(serializers.ModelSerializer):
             "payer_account",
             "receiver_account",
         )
-
-
-class BasePINSerializer(serializers.Serializer):
-    pin = serializers.CharField()
 
 
 class BaseBalanceValidationSerializerMixin:
@@ -94,7 +90,7 @@ class BaseBalanceValidationSerializerMixin:
 
 
 class ValidateTransactionSerializer(
-    BaseBalanceValidationSerializerMixin, BasePINSerializer
+    PINSerializerMixin, BaseBalanceValidationSerializerMixin, serializers.Serializer
 ):
     def update(self, instance, validated_data):
         validated_data.setdefault("account", instance.payer_account)
@@ -140,7 +136,9 @@ class CashInCashOutBaseSerializerMixin(serializers.Serializer):
         return {}
 
 
-class CashOutTransactionSerializer(CashInCashOutBaseSerializerMixin, BasePINSerializer):
+class CashOutTransactionSerializer(
+    PINSerializerMixin, CashInCashOutBaseSerializerMixin
+):
     # TODO: Refactor compute inclusive amount business logic
     @transaction.atomic
     def create(self, validated_data):

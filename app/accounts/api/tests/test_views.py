@@ -282,3 +282,21 @@ class VerifyPhoneNumberCreateAPIViewTestCase(APIViewTestCase):
         response = self.view_post(data=self.verify_phone_number_payload)
 
         self.assertEqual(status.HTTP_201_CREATED, response.status_code)
+
+
+class ModifyPINUpdateAPIViewTestCase(APIViewTestCase):
+    view_name = "api:accounts:accounts_modify_pin"
+
+    def setUp(self):
+        super().setUp()
+        self.account: Account = AccountFactory.create()
+        self.account.set_pin("3425")
+
+    def test_it_should_modify_pin_successfully(self):
+        self.authenticate_with_account(self.account)
+
+        payload = {"pin": "3425", "pin1": "4934", "pin2": "4934"}
+
+        response = self.view_put(data=payload)
+
+        self.assertEqual(status.HTTP_200_OK, response.status_code, response.data)
