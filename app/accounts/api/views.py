@@ -1,13 +1,14 @@
 from django.conf import settings
 from rest_framework import generics
 
-from app.accounts.api.mixins import AccountOwnerActionMixin
+from app.accounts.api.mixins import AccountOwnerActionMixin, ValidPINRequiredMixin
 from app.accounts.api.serializers import (
     AccountBalanceSerializer,
     AccountDetailsSerializer,
     AccountPaymentCodeSerializer,
     AddPhoneNumberSerializer,
     CreatePasscodeSerializer,
+    ModifyPINSerializer,
     PinCreationSerializer,
     VerifyPassCodeSerializer,
     VerifyPhoneNumberSerializer,
@@ -69,3 +70,12 @@ class VerifyPhoneNumberCreateAPIView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         return serializer.save(account=self.request.user)
+
+
+class ModifyPINUpdateAPIView(
+    ValidPINRequiredMixin, AccountOwnerActionMixin, generics.UpdateAPIView
+):
+    permission_classes = [IsAuthenticatedAccount]
+    serializer_class = ModifyPINSerializer
+    queryset = Account.objects.all()
+    lookup_field = "number"

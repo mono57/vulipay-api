@@ -16,6 +16,10 @@ from app.accounts.validators import pin_validator
 from app.core.utils import UnprocessableEntityError, is_valid_otp
 
 
+class PINSerializerMixin:
+    pin = serializers.CharField()
+
+
 class AbstractPassCodeSerializer(serializers.Serializer):
     country_iso_code = serializers.CharField()
     phone_number = serializers.CharField()
@@ -236,3 +240,7 @@ class VerifyPhoneNumberSerializer(CarrierBaseSerializer, VerifyPassCodeSerialize
 
     def to_representation(self, instance: Account):
         return {}
+
+
+class ModifyPINSerializer(PINSerializerMixin, PinCreationSerializer):
+    pass

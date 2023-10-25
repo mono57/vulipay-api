@@ -5,6 +5,7 @@ from app.accounts.api.views import (
     AccountPaymentCodeRetrieveAPIView,
     AccountPaymentDetailsRetrieveAPIView,
     AddPhoneNumberCreateAPIView,
+    ModifyPINUpdateAPIView,
     PassCodeCreateAPIView,
     PinCreationUpdateAPIView,
     VerifyPassCodeCreateAPIView,
@@ -35,7 +36,7 @@ urlpatterns = [
         name="accounts_payment_details",
     ),
     path(
-        "pin",
+        "pin/set",
         PinCreationUpdateAPIView.as_view(),
         name="accounts_set_pin",
     ),
@@ -54,4 +55,5 @@ urlpatterns = [
         VerifyPhoneNumberCreateAPIView.as_view(),
         name="accounts_verify_phonenumbers",
     ),
+    path("pin/modify", ModifyPINUpdateAPIView.as_view(), name="accounts_modify_pin"),
 ]
