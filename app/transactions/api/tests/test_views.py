@@ -270,3 +270,15 @@ class CashInTransactionCreateAPIViewTest(APIViewTestCase):
         response = self.view_post(data=payload)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+
+# class TransactionHistoryRetrieveAPIViewTestCase(APIViewTestCase):
+#     view_name = "api:transactions:transaction_transaction_history"
+
+#     def setUp(self):
+#         super().setUp()
+#         country =
+#         self.receiver_account = AccountFactory.create()
+
+#     def test_it_should_list_P2P_transaction(self):
+#         TransactionFactory

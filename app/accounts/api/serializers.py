@@ -244,3 +244,29 @@ class VerifyPhoneNumberSerializer(CarrierBaseSerializer, VerifyPassCodeSerialize
 
 class ModifyPINSerializer(PINSerializerMixin, PinCreationSerializer):
     pass
+
+
+class SupportedCarrierSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SupportedMobileMoneyCarrier
+        fields = ["name", "code", "flag"]
+
+
+class PhoneNumberSerializer(serializers.ModelSerializer):
+    carrier = SupportedCarrierSerializer()
+
+    class Meta:
+        model = PhoneNumber
+        fields = ["number", "carrier", "is_active", "primary"]
+
+
+class AccountInfoTransactionHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Account
+        fields = ["fisrt_name", "last_name"]
+
+
+class PhoneNumberTransactionHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PhoneNumber
+        fields = ["number"]
