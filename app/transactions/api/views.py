@@ -114,3 +114,9 @@ class CashInTransactionCreateAPIView(CreateAPIView):
         ctx = super().get_serializer_context()
         ctx["account"] = self.request.user
         return ctx
+
+
+class TransactionHistoryRetrieveAPIView(RetrieveAPIView):
+    permission_classes = [IsAuthenticatedAccount]
+    queryset = Transaction.objects.all()
+    serializer_class = serializers.TransactionHistoryListSerializer

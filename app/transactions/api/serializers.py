@@ -3,7 +3,13 @@ from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions, serializers
 
-from app.accounts.api.serializers import AccountDetailsSerializer, PINSerializerMixin
+from app.accounts.api.serializers import (
+    AccountDetailsSerializer,
+    AccountInfoTransactionHistorySerializer,
+    PhoneNumberSerializer,
+    PhoneNumberTransactionHistorySerializer,
+    PINSerializerMixin,
+)
 from app.accounts.models import Account, PhoneNumber
 from app.core.utils import AppAmountField
 from app.transactions.models import Transaction
@@ -180,3 +186,27 @@ class CashInTransactionSerializer(CashInCashOutBaseSerializerMixin):
         # send CI request to queue
 
         return transaction
+
+
+class TransactionHistoryListSerializer(serializers.ModelSerializer):
+    payer_account = AccountInfoTransactionHistorySerializer()
+    receiver_account = AccountInfoTransactionHistorySerializer()
+    from_account = AccountInfoTransactionHistorySerializer()
+    to_account = AccountInfoTransactionHistorySerializer()
+    from_phone_number = PhoneNumberTransactionHistorySerializer()
+    to_phone_number = PhoneNumberTransactionHistorySerializer()
+
+    class Meta:
+        model = Transaction
+        fields = [
+            "payer_account",
+            "receiver_account",
+            "from_account",
+            "to_account",
+            "from_phone_number",
+            "to_phone_number",
+            "charged_amount",
+            "status",
+            "type",
+            "created_on",
+        ]
