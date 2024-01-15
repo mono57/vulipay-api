@@ -257,7 +257,7 @@ class PhoneNumberSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PhoneNumber
-        fields = ["number", "carrier", "is_active", "primary"]
+        fields = ["number", "carrier"]
 
 
 class AccountInfoTransactionHistorySerializer(serializers.ModelSerializer):
@@ -267,6 +267,12 @@ class AccountInfoTransactionHistorySerializer(serializers.ModelSerializer):
 
 
 class PhoneNumberTransactionHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PhoneNumber
+        fields = ["number"]
+
+
+class VerifyPhoneNumberListItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = PhoneNumber
         fields = ["number"]

@@ -245,8 +245,6 @@ class PhoneNumber(AppModel):
     # National phone number
     # TODO: Variable to be rename to nat_phone_number vs intl_phone_number
     number = AppCharField(max_length=20)
-    primary = models.BooleanField(default=False)
-    is_active = models.BooleanField(default=True)
     carrier = models.ForeignKey(
         SupportedMobileMoneyCarrier,
         on_delete=models.DO_NOTHING,

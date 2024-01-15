@@ -11,6 +11,7 @@ from app.accounts.tests.factories import (
     AvailableCountryFactory,
     CarrierFactory,
     PassCodeFactory,
+    PhoneNumberFactory,
 )
 from app.core.utils import APIViewTestCase
 
@@ -228,7 +229,7 @@ class AccountBalanceRetrieveAPIView(APIViewTestCase):
 
 
 class AddPhoneNumberCreateAPIView(APIViewTestCase):
-    view_name = "api:accounts:accounts_add_phonenumbers"
+    view_name = "api:accounts:accounts_phonenumbers_list_create"
 
     def setUp(self):
         super().setUp()
@@ -300,3 +301,20 @@ class ModifyPINUpdateAPIViewTestCase(APIViewTestCase):
         response = self.view_put(data=payload)
 
         self.assertEqual(status.HTTP_200_OK, response.status_code, response.data)
+
+
+class VerifyPhoneNumberListAPIViewTestCase(APIViewTestCase):
+    view_name = "api:accounts:accounts_phonenumbers_list_create"
+
+    def setUp(self):
+        super().setUp()
+        self.account: Account = AccountFactory.create()
+        carrier = CarrierFactory.create(country=self.account.country)
+        PhoneNumberFactory.create(account=self.account, carrier=carrier)
+
+    def test_it_should_list_account_related_phonenumbers(self):
+        self.authenticate_with_account(self.account)
+
+        response = self.view_get()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.status_code)
