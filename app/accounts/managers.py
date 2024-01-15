@@ -67,3 +67,7 @@ class PhoneNumberManager(models.Manager):
         if qs.exists:
             return qs.first()
         return None
+
+    def get_verify_phonenumbers(self, account):
+        qs = self.filter(Q(account=account))
+        return qs

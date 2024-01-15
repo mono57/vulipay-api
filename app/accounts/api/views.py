@@ -11,9 +11,10 @@ from app.accounts.api.serializers import (
     ModifyPINSerializer,
     PinCreationSerializer,
     VerifyPassCodeSerializer,
+    VerifyPhoneNumberListItemSerializer,
     VerifyPhoneNumberSerializer,
 )
-from app.accounts.models import Account
+from app.accounts.models import Account, PhoneNumber
 from app.accounts.permissions import IsAuthenticatedAccount
 
 
@@ -57,10 +58,10 @@ class AccountBalanceRetrieveAPIView(
     serializer_class = AccountBalanceSerializer
 
 
-class AddPhoneNumberCreateAPIView(generics.CreateAPIView):
-    permission_classes = [IsAuthenticatedAccount]
-    serializer_class = AddPhoneNumberSerializer
-    http_method_names = ["post"]
+# class AddPhoneNumberCreateAPIView(generics.CreateAPIView):
+#     permission_classes = [IsAuthenticatedAccount]
+#     serializer_class = AddPhoneNumberSerializer
+#     http_method_names = ["post"]
 
 
 class VerifyPhoneNumberCreateAPIView(generics.CreateAPIView):
@@ -79,3 +80,21 @@ class ModifyPINUpdateAPIView(
     serializer_class = ModifyPINSerializer
     queryset = Account.objects.all()
     lookup_field = "number"
+
+
+class PhoneNumberListCreateAPIView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticatedAccount]
+
+    def get(self, request, *args, **kwargs):
+        self.serializer_class = VerifyPhoneNumberListItemSerializer
+        return super().get(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        self.serializer_class = AddPhoneNumberSerializer
+        return super().post(request, *args, **kwargs)
+
+    def get_queryset(self):
+        qs = PhoneNumber.objects.get_verify_phonenumbers(self.request.user).values(
+            "number"
+        )
+        return qs
