@@ -6,12 +6,13 @@ from django.utils import timezone
 
 from app.accounts.api.serializers import (
     AccountBalanceSerializer,
+    AccountInfoUpdateModelSerializer,
     AddPhoneNumberSerializer,
     CreatePasscodeSerializer,
     PinCreationSerializer,
     VerifyPassCodeSerializer,
 )
-from app.accounts.models import AvailableCountry, PassCode
+from app.accounts.models import Account, AvailableCountry, PassCode
 from app.accounts.tests.factories import (
     AccountFactory,
     AvailableCountryFactory,
@@ -209,3 +210,50 @@ class AddPhoneNumberSerializerTestCase(TestCase):
         serializer = AddPhoneNumberSerializer(data=self.data)
 
         self.assertTrue(serializer.is_valid())
+
+
+class UserInfoUpdateModelSerializerTestCase(TestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.account_data = {
+            "owner_first_name": "John",
+            "owner_last_name": "Doe",
+        }
+        self.account = AccountFactory.create(**self.account_data)
+
+        self.serializer_data = {
+            "first_name": "Jane",
+            "last_name": "Smith",
+        }
+
+        self.serializer = AccountInfoUpdateModelSerializer(
+            instance=self.account, data=self.serializer_data
+        )
+
+    def test_serializer_valid_data(self):
+        self.assertTrue(self.serializer.is_valid())
+
+    def test_it_should_serialize_user_info(self):
+        serializer = AccountInfoUpdateModelSerializer(instance=self.account)
+
+        data = serializer.data
+
+        self.assertIn("first_name", data)
+        self.assertIn("last_name", data)
+
+        self.assertEqual(data["first_name"], self.account_data["owner_first_name"])
+        self.assertEqual(data["last_name"], self.account_data["owner_last_name"])
+
+    def test_serializer_update_account(self):
+        self.serializer.is_valid()
+        self.serializer.save()
+
+        updated_account = Account.objects.get(pk=self.account.pk)
+
+        self.assertEqual(
+            updated_account.owner_first_name, self.serializer_data["first_name"]
+        )
+        self.assertEqual(
+            updated_account.owner_last_name, self.serializer_data["last_name"]
+        )

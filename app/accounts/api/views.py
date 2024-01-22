@@ -5,6 +5,7 @@ from app.accounts.api.mixins import AccountOwnerActionMixin, ValidPINRequiredMix
 from app.accounts.api.serializers import (
     AccountBalanceSerializer,
     AccountDetailsSerializer,
+    AccountInfoUpdateModelSerializer,
     AccountPaymentCodeSerializer,
     AddPhoneNumberSerializer,
     CreatePasscodeSerializer,
@@ -98,3 +99,10 @@ class PhoneNumberListCreateAPIView(generics.ListCreateAPIView):
             "number"
         )
         return qs
+
+
+class AccountInfoUpdateUpdateAPIView(AccountOwnerActionMixin, generics.UpdateAPIView):
+    permission_classes = [IsAuthenticatedAccount]
+    serializer_class = AccountInfoUpdateModelSerializer
+    queryset = Account.objects.all()
+    lookup_field = "number"

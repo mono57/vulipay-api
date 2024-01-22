@@ -318,3 +318,31 @@ class VerifyPhoneNumberListAPIViewTestCase(APIViewTestCase):
         response = self.view_get()
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.status_code)
+
+
+class AccountInfoUpdateAPIViewTestCase(APIViewTestCase):
+    view_name = "api:accounts:accounts_update_infos"
+
+    def setUp(self):
+        super().setUp()
+        self.account: Account = AccountFactory.create()
+
+    def test_it_should_modify_account_info_successfully(self):
+        self.authenticate_with_account(self.account)
+
+        payload = {"first_name": "Aymar", "last_name": "Amono"}
+
+        response = self.view_put(data=payload)
+
+        self.assertEqual(status.HTTP_200_OK, response.status_code, response.data)
+
+    def test_it_should_raise_invalid_data(self):
+        self.authenticate_with_account(self.account)
+
+        payload = {}
+
+        response = self.view_put(data=payload)
+
+        self.assertEqual(
+            status.HTTP_400_BAD_REQUEST, response.status_code, response.status_code
+        )

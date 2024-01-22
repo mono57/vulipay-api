@@ -276,3 +276,12 @@ class VerifyPhoneNumberListItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = PhoneNumber
         fields = ["number"]
+
+
+class AccountInfoUpdateModelSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(source="owner_first_name")
+    last_name = serializers.CharField(source="owner_last_name")
+
+    class Meta:
+        model = Account
+        fields = ("first_name", "last_name")

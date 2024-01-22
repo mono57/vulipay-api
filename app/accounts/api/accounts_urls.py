@@ -2,6 +2,7 @@ from django.urls import path
 
 from app.accounts.api.views import (
     AccountBalanceRetrieveAPIView,
+    AccountInfoUpdateUpdateAPIView,
     AccountPaymentCodeRetrieveAPIView,
     AccountPaymentDetailsRetrieveAPIView,
     ModifyPINUpdateAPIView,
@@ -56,6 +57,7 @@ urlpatterns = [
         name="accounts_verify_phonenumbers",
     ),
     path("pin/modify", ModifyPINUpdateAPIView.as_view(), name="accounts_modify_pin"),
+    path("", AccountInfoUpdateUpdateAPIView.as_view(), name="accounts_update_infos"),
     path(
         "phonenumbers",
         PhoneNumberListCreateAPIView.as_view(),
