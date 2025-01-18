@@ -1,5 +1,3 @@
-version: "3"
-
 volumes:
   vulipay_local_postgres_data: {}
   vulipay_local_postgres_data_backups: {}
