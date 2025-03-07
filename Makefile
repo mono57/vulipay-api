@@ -1,4 +1,4 @@
-.PHONY: build up down logs shell django-shell migrate makemigrations test clean
+.PHONY: build up down logs shell django-shell migrate makemigrations test clean create-app
 
 # Default target
 all: build up
@@ -42,3 +42,13 @@ test:
 # Clean up volumes and containers
 clean:
 	docker compose -f local.yml down -v
+
+# Create a new Django app
+# Usage: make create-app APP_NAME=your_app_name
+create-app:
+	@if [ -z "$(APP_NAME)" ]; then \
+		echo "Error: APP_NAME is required. Usage: make create-app APP_NAME=your_app_name"; \
+		exit 1; \
+	fi
+	docker compose -f local.yml exec django python manage.py startapp $(APP_NAME)
+	@echo "Django app '$(APP_NAME)' created successfully."
