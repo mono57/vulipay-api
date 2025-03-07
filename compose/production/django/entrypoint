@@ -9,8 +9,14 @@ if [ -z "${POSTGRES_USER}" ]; then
     base_postgres_image_default_user='postgres'
     export POSTGRES_USER="${base_postgres_image_default_user}"
 fi
+
+# Set DATABASE_URL and make sure it's available to child processes
 export DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}"
-echo $DATABASE_URL
+echo "Setting DATABASE_URL: $DATABASE_URL"
+
+# Add DATABASE_URL to .bashrc to ensure it's available in all shells
+echo "export DATABASE_URL=\"$DATABASE_URL\"" >> /root/.bashrc
+
 python << END
 import sys
 import time
@@ -40,5 +46,9 @@ while True:
 END
 
 >&2 echo 'PostgreSQL is available'
+
+# Print environment variables for debugging
+echo "Environment variables:"
+env | grep DATABASE_URL
 
 exec "$@"
