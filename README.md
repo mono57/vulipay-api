@@ -58,6 +58,19 @@ Vulipay API is a Django-based backend service for the Vulipay payment platform. 
 docker-compose -f local.yml run --rm django python manage.py test
 ```
 
+#### Test Coverage
+```bash
+# Run tests with coverage
+make test-coverage
+
+# Generate coverage report in terminal
+make test-coverage-report
+
+# Generate HTML coverage report
+make test-coverage-html
+```
+The HTML coverage report will be generated in the `htmlcov` directory. Open `htmlcov/index.html` in a browser to view the detailed coverage report.
+
 #### Creating a New Django App
 ```bash
 make create-app APP_NAME=your_app_name
