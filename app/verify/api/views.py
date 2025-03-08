@@ -4,7 +4,6 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from app.verify.api.serializers import GenerateOTPSerializer, VerifyOTPSerializer
-from app.verify.services import OTPService
 
 
 class GenerateOTPView(APIView):
@@ -18,21 +17,21 @@ class GenerateOTPView(APIView):
         serializer = GenerateOTPSerializer(data=request.data)
 
         if serializer.is_valid():
-            identifier = serializer.validated_data["identifier"]
-            channel = serializer.validated_data["channel"]
-
-            # Generate OTP
-            result = OTPService.generate_otp(identifier, channel)
+            # Generate OTP using the serializer
+            result = serializer.generate_otp()
 
             if result["success"]:
-                return Response(
-                    {
-                        "success": True,
-                        "message": result["message"],
-                        "expires_at": result["expires_at"],
-                    },
-                    status=status.HTTP_200_OK,
-                )
+                response_data = {
+                    "success": True,
+                    "message": result["message"],
+                    "expires_at": result["expires_at"],
+                }
+
+                # Include when the next OTP can be requested if available
+                if "otp" in result and result["otp"].next_otp_allowed_at:
+                    response_data["next_allowed_at"] = result["otp"].next_otp_allowed_at
+
+                return Response(response_data, status=status.HTTP_200_OK)
             else:
                 # Check if this is a waiting period error
                 if "waiting_seconds" in result:
@@ -47,10 +46,7 @@ class GenerateOTPView(APIView):
                     )
                 else:
                     return Response(
-                        {
-                            "success": False,
-                            "message": result["message"],
-                        },
+                        {"success": False, "message": result["message"]},
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     )
 
@@ -75,17 +71,20 @@ class VerifyOTPView(APIView):
         serializer = VerifyOTPSerializer(data=request.data)
 
         if serializer.is_valid():
-            identifier = serializer.validated_data["identifier"]
-            code = serializer.validated_data["code"]
-
-            # Verify OTP
-            result = OTPService.verify_otp(identifier, code)
+            # Verify OTP using the serializer
+            result = serializer.verify_otp()
 
             if result["success"]:
-                return Response(
-                    {"success": True, "message": result["message"]},
-                    status=status.HTTP_200_OK,
-                )
+                response_data = {"success": True, "message": result["message"]}
+
+                # Include user details and tokens if available
+                if "user" in result:
+                    response_data["user"] = result["user"]
+
+                if "tokens" in result:
+                    response_data["tokens"] = result["tokens"]
+
+                return Response(response_data, status=status.HTTP_200_OK)
             else:
                 return Response(
                     {"success": False, "message": result["message"]},

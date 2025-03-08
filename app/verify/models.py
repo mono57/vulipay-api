@@ -1,23 +1,27 @@
 import datetime
+import logging
 import random
 import string
-from typing import Optional
+from typing import Dict, Optional, Union
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.db import models
 from django.utils import timezone
+from rest_framework_simplejwt.tokens import RefreshToken
 
+from app.accounts.models import Account
 from app.core.utils.fields import AppCharField
 from app.core.utils.models import AppModel
+from app.verify.delivery_channels import DELIVERY_CHANNELS
 
-# Create your models here.
+logger = logging.getLogger(__name__)
+
+User = get_user_model()
 
 
 class OTPManager(models.Manager):
     def get_active_otp(self, identifier: str) -> Optional["OTP"]:
-        """
-        Get the most recent active OTP for a given identifier.
-        """
         return (
             self.filter(
                 identifier=identifier,
@@ -30,18 +34,11 @@ class OTPManager(models.Manager):
         )
 
     def get_latest_otp(self, identifier: str) -> Optional["OTP"]:
-        """
-        Get the most recent OTP for a given identifier, regardless of status.
-        """
         return self.filter(identifier=identifier).order_by("-created_on").first()
 
     def create_otp(
         self, identifier: str, channel: str = "sms", length: int = 6
     ) -> "OTP":
-        """
-        Create a new OTP for the given identifier.
-        """
-        # Check if we need to enforce a waiting period
         latest_otp = self.get_latest_otp(identifier)
 
         if (
@@ -49,7 +46,6 @@ class OTPManager(models.Manager):
             and latest_otp.next_otp_allowed_at
             and latest_otp.next_otp_allowed_at > timezone.now()
         ):
-            # Return None or raise an exception if waiting period is not over
             waiting_seconds = (
                 latest_otp.next_otp_allowed_at - timezone.now()
             ).total_seconds()
@@ -59,29 +55,23 @@ class OTPManager(models.Manager):
                 next_allowed_at=latest_otp.next_otp_allowed_at,
             )
 
-        # Expire any existing active OTPs for this identifier
         self.filter(identifier=identifier, is_used=False, is_expired=False).update(
             is_expired=True
         )
 
-        # Generate a new OTP code
         code = "".join(random.choices(string.digits, k=length))
 
-        # Calculate expiration time (default: 10 minutes)
         expires_at = timezone.now() + datetime.timedelta(
             minutes=getattr(settings, "OTP_EXPIRY_MINUTES", 10)
         )
 
-        # Calculate next allowed OTP time based on request count
         next_otp_allowed_at = None
         if latest_otp:
-            # Get the request count for this identifier in the last 24 hours
             request_count = self.filter(
                 identifier=identifier,
                 created_on__gte=timezone.now() - datetime.timedelta(hours=24),
             ).count()
 
-            # Progressive waiting periods
             waiting_periods = getattr(
                 settings, "OTP_WAITING_PERIODS", [0, 5, 30, 300, 1800, 3600]
             )
@@ -89,7 +79,6 @@ class OTPManager(models.Manager):
             if request_count < len(waiting_periods):
                 wait_seconds = waiting_periods[request_count]
             else:
-                # Use the last (maximum) waiting period for any additional requests
                 wait_seconds = waiting_periods[-1]
 
             if wait_seconds > 0:
@@ -97,7 +86,6 @@ class OTPManager(models.Manager):
                     seconds=wait_seconds
                 )
 
-        # Create and return the new OTP
         return self.create(
             identifier=identifier,
             code=code,
@@ -108,8 +96,6 @@ class OTPManager(models.Manager):
 
 
 class OTPWaitingPeriodError(Exception):
-    """Exception raised when a new OTP is requested before the waiting period is over."""
-
     def __init__(self, message, waiting_seconds=0, next_allowed_at=None):
         self.message = message
         self.waiting_seconds = waiting_seconds
@@ -118,10 +104,6 @@ class OTPWaitingPeriodError(Exception):
 
 
 class OTP(AppModel):
-    """
-    Model to store one-time passwords for user verification.
-    """
-
     CHANNEL_CHOICES = (
         ("sms", "SMS"),
         ("email", "Email"),
@@ -159,7 +141,6 @@ class OTP(AppModel):
 
     @property
     def is_valid(self) -> bool:
-        """Check if the OTP is still valid."""
         return (
             not self.is_used
             and not self.is_expired
@@ -167,33 +148,22 @@ class OTP(AppModel):
         )
 
     def verify(self, code: str) -> bool:
-        """
-        Verify the provided code against this OTP.
-
-        Returns:
-            bool: True if verification is successful, False otherwise.
-        """
-        # Increment attempt counter
         self.attempt_count += 1
 
-        # Check if max attempts reached
         max_attempts = getattr(settings, "OTP_MAX_ATTEMPTS", 3)
         if self.attempt_count > max_attempts:
             self.is_expired = True
             self.save()
             return False
 
-        # Check if OTP is valid
         if not self.is_valid:
             self.save()
             return False
 
-        # Check if code matches
         if self.code != code:
             self.save()
             return False
 
-        # Mark as used
         self.is_used = True
         self.used_at = timezone.now()
         self.save()
@@ -201,6 +171,111 @@ class OTP(AppModel):
         return True
 
     def mark_as_expired(self):
-        """Mark this OTP as expired."""
         self.is_expired = True
         self.save()
+
+    @classmethod
+    def generate(
+        cls, identifier: str, channel: str = "sms", length: int = 6
+    ) -> Dict[str, Union[bool, str, "OTP", timezone.datetime]]:
+        try:
+            if channel not in DELIVERY_CHANNELS:
+                logger.error(f"Unsupported OTP delivery channel: {channel}")
+                return {
+                    "success": False,
+                    "message": f"Unsupported delivery channel: {channel}",
+                }
+
+            try:
+                otp = cls.objects.create_otp(identifier, channel, length)
+
+                delivery_channel = DELIVERY_CHANNELS[channel]
+                if delivery_channel.send(identifier, otp.code):
+                    logger.info(f"OTP sent to {identifier} via {channel}")
+                    return {
+                        "success": True,
+                        "message": f"Verification code sent to {identifier} via {channel}.",
+                        "otp": otp,
+                        "expires_at": otp.expires_at,
+                    }
+                else:
+                    otp.mark_as_expired()
+                    logger.error(f"Failed to send OTP to {identifier} via {channel}")
+                    return {
+                        "success": False,
+                        "message": f"Failed to send verification code to {identifier}.",
+                    }
+            except OTPWaitingPeriodError as e:
+                logger.info(
+                    f"OTP waiting period not over for {identifier}: {e.message}"
+                )
+                return {
+                    "success": False,
+                    "message": e.message,
+                    "waiting_seconds": e.waiting_seconds,
+                    "next_allowed_at": e.next_allowed_at,
+                }
+        except Exception as e:
+            logger.error(f"Error generating OTP for {identifier}: {str(e)}")
+            return {
+                "success": False,
+                "message": f"An error occurred while generating the verification code: {str(e)}",
+            }
+
+    def get_user_details(self) -> Dict[str, Union[bool, str, Dict]]:
+        user = None
+        identifier = self.identifier
+
+        if identifier.startswith("+"):
+            try:
+                account = Account.objects.get(intl_phone_number=identifier)
+                user = account.user
+            except Account.DoesNotExist:
+                logger.warning(f"No user found with phone number {identifier}")
+        else:
+            try:
+                user = User.objects.get(email=identifier)
+            except User.DoesNotExist:
+                logger.warning(f"No user found with email {identifier}")
+
+        if user:
+            refresh = RefreshToken.for_user(user)
+
+            try:
+                account = Account.objects.get(user=user)
+                user_details = {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "phone_number": (
+                        account.intl_phone_number
+                        if hasattr(account, "intl_phone_number")
+                        else None
+                    ),
+                    "account_id": account.id if account else None,
+                }
+            except Account.DoesNotExist:
+                user_details = {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                }
+
+            return {
+                "success": True,
+                "message": "OTP verified successfully.",
+                "user": user_details,
+                "tokens": {
+                    "access": str(refresh.access_token),
+                    "refresh": str(refresh),
+                },
+            }
+        else:
+            return {
+                "success": True,
+                "message": "OTP verified successfully, but no user found with this identifier.",
+            }

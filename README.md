@@ -102,7 +102,7 @@ docker-compose -f local.yml run --rm django python manage.py migrate
 
 ### Verification
 - `POST /api/verify/generate/` - Generate OTP
-- `POST /api/verify/verify/` - Verify OTP
+- `POST /api/verify/verify/` - Verify OTP and get user details with tokens
 
 ### Transactions
 - `GET /api/transactions/` - List transactions
@@ -125,18 +125,20 @@ The `verify` app handles user verification through one-time passwords (OTPs). It
   - Fourth request: 5 minutes
   - Fifth request: 30 minutes
   - Sixth request and beyond: 1 hour
+- Returns user details and authentication tokens upon successful verification
 
 ### Usage Example
 
 #### Generate OTP
 ```python
-from app.verify.services import OTPService
+from app.verify.models import OTP
 
 # Generate OTP for phone number
-result = OTPService.generate_otp("+237698765432", channel="sms")
+result = OTP.generate("+237698765432", channel="sms")
 if result['success']:
     otp = result['otp']
     expires_at = result['expires_at']
+    next_allowed_at = otp.next_otp_allowed_at  # When the next OTP can be requested
 else:
     # Handle error
     if 'waiting_seconds' in result:
@@ -149,26 +151,50 @@ else:
         error_message = result['message']
 
 # Generate OTP for email
-result = OTPService.generate_otp("user@example.com", channel="email")
+result = OTP.generate("user@example.com", channel="email")
 ```
 
 #### Verify OTP
 ```python
-from app.verify.services import OTPService
+from app.verify.api.serializers import VerifyOTPSerializer
 
-# Verify OTP
-result = OTPService.verify_otp("+237698765432", "123456")
-if result["success"]:
-    # OTP verified successfully
-    pass
-else:
-    # OTP verification failed
-    error_message = result["message"]
+# Create and validate the serializer
+serializer = VerifyOTPSerializer(data={
+    "phone_number": "698765432",
+    "country_iso_code": "CM",
+    "code": "123456"
+})
+
+if serializer.is_valid():
+    # Verify OTP
+    result = serializer.verify_otp()
+    if result["success"]:
+        # OTP verified successfully
+        if "user" in result:
+            # User details are available
+            user_details = result["user"]
+            # Access token for authentication
+            access_token = result["tokens"]["access"]
+            # Refresh token for getting new access tokens
+            refresh_token = result["tokens"]["refresh"]
+    else:
+        # OTP verification failed
+        error_message = result["message"]
 ```
 
 ### API Response Examples
 
 #### Generate OTP Success
+```json
+{
+  "success": true,
+  "message": "Verification code sent to +237698765432 via sms.",
+  "expires_at": "2023-03-08T12:34:56Z",
+  "next_allowed_at": "2023-03-08T12:35:01Z"
+}
+```
+
+#### Generate OTP Success (First Request)
 ```json
 {
   "success": true,
@@ -187,11 +213,32 @@ else:
 }
 ```
 
-#### Verify OTP Success
+#### Verify OTP Success (With User Details)
 ```json
 {
   "success": true,
-  "message": "OTP verified successfully."
+  "message": "OTP verified successfully.",
+  "user": {
+    "id": 1,
+    "username": "testuser",
+    "email": "user@example.com",
+    "first_name": "Test",
+    "last_name": "User",
+    "phone_number": "+237698765432",
+    "account_id": 1
+  },
+  "tokens": {
+    "access": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+    "refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+  }
+}
+```
+
+#### Verify OTP Success (No User Found)
+```json
+{
+  "success": true,
+  "message": "OTP verified successfully, but no user found with this identifier."
 }
 ```
 

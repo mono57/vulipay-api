@@ -32,52 +32,61 @@ class GenerateOTPViewTestCase(APITestCase):
             "channel": "email",
         }
 
-    @patch("app.verify.services.OTPService.generate_otp")
-    def test_generate_otp_with_phone_success(self, mock_generate_otp):
-        # Mock the OTP generation
-        mock_generate_otp.return_value = {
+    @patch("app.verify.models.OTP.generate")
+    def test_generate_otp_with_phone_success(self, mock_generate):
+        next_otp_allowed_at = timezone.now() + datetime.timedelta(seconds=5)
+        mock_otp = OTP(
+            identifier="+237698765432",
+            code="123456",
+            channel="sms",
+            expires_at=timezone.now() + datetime.timedelta(minutes=10),
+            next_otp_allowed_at=next_otp_allowed_at,
+        )
+
+        mock_generate.return_value = {
             "success": True,
             "message": "Verification code sent to +237698765432 via sms.",
-            "otp": OTP(
-                identifier="+237698765432",
-                code="123456",
-                channel="sms",
-                expires_at=timezone.now() + datetime.timedelta(minutes=10),
-            ),
-            "expires_at": timezone.now() + datetime.timedelta(minutes=10),
+            "otp": mock_otp,
+            "expires_at": mock_otp.expires_at,
         }
 
         response = self.client.post(self.url, self.valid_phone_data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data["success"])
-        mock_generate_otp.assert_called_once_with("+237698765432", "sms")
+        self.assertIn("expires_at", response.data)
+        self.assertIn("next_allowed_at", response.data)
+        self.assertEqual(response.data["next_allowed_at"], next_otp_allowed_at)
+        mock_generate.assert_called_once()
 
-    @patch("app.verify.services.OTPService.generate_otp")
-    def test_generate_otp_with_email_success(self, mock_generate_otp):
-        # Mock the OTP generation
-        mock_generate_otp.return_value = {
+    @patch("app.verify.models.OTP.generate")
+    def test_generate_otp_with_email_success_no_next_allowed(self, mock_generate):
+        mock_otp = OTP(
+            identifier="test@example.com",
+            code="123456",
+            channel="email",
+            expires_at=timezone.now() + datetime.timedelta(minutes=10),
+            next_otp_allowed_at=None,  # No next allowed time for first request
+        )
+
+        mock_generate.return_value = {
             "success": True,
             "message": "Verification code sent to test@example.com via email.",
-            "otp": OTP(
-                identifier="test@example.com",
-                code="123456",
-                channel="email",
-                expires_at=timezone.now() + datetime.timedelta(minutes=10),
-            ),
-            "expires_at": timezone.now() + datetime.timedelta(minutes=10),
+            "otp": mock_otp,
+            "expires_at": mock_otp.expires_at,
         }
 
         response = self.client.post(self.url, self.valid_email_data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data["success"])
-        mock_generate_otp.assert_called_once_with("test@example.com", "email")
+        self.assertIn("expires_at", response.data)
+        self.assertNotIn("next_allowed_at", response.data)  # Should not be in response
+        mock_generate.assert_called_once()
 
-    @patch("app.verify.services.OTPService.generate_otp")
-    def test_generate_otp_failure(self, mock_generate_otp):
-        # Mock the OTP generation failure
-        mock_generate_otp.return_value = {
+    @patch("app.verify.models.OTP.generate")
+    def test_generate_otp_failure(self, mock_generate):
+        mock_generate.return_value = {
             "success": False,
             "message": "Failed to send verification code to +237698765432.",
         }
@@ -86,13 +95,12 @@ class GenerateOTPViewTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
         self.assertFalse(response.data["success"])
-        mock_generate_otp.assert_called_once_with("+237698765432", "sms")
+        mock_generate.assert_called_once()
 
-    @patch("app.verify.services.OTPService.generate_otp")
-    def test_generate_otp_waiting_period(self, mock_generate_otp):
-        # Mock the OTP generation with waiting period error
+    @patch("app.verify.models.OTP.generate")
+    def test_generate_otp_waiting_period(self, mock_generate):
         next_allowed_at = timezone.now() + datetime.timedelta(seconds=30)
-        mock_generate_otp.return_value = {
+        mock_generate.return_value = {
             "success": False,
             "message": "Please wait 30 seconds before requesting a new OTP.",
             "waiting_seconds": 30,
@@ -109,10 +117,9 @@ class GenerateOTPViewTestCase(APITestCase):
         )
         self.assertEqual(response.data["waiting_seconds"], 30)
         self.assertEqual(response.data["next_allowed_at"], next_allowed_at)
-        mock_generate_otp.assert_called_once_with("+237698765432", "sms")
+        mock_generate.assert_called_once()
 
     def test_generate_otp_invalid_data(self):
-        # Missing both phone_number and email
         response = self.client.post(self.url, {"channel": "sms"}, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -141,9 +148,8 @@ class VerifyOTPViewTestCase(APITestCase):
             "code": "123456",
         }
 
-    @patch("app.verify.services.OTPService.verify_otp")
+    @patch("app.verify.api.serializers.VerifyOTPSerializer.verify_otp")
     def test_verify_otp_success(self, mock_verify_otp):
-        # Mock the OTP verification
         mock_verify_otp.return_value = {
             "success": True,
             "message": "OTP verified successfully.",
@@ -153,11 +159,55 @@ class VerifyOTPViewTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data["success"])
-        mock_verify_otp.assert_called_once_with("+237698765432", "123456")
+        mock_verify_otp.assert_called_once()
 
-    @patch("app.verify.services.OTPService.verify_otp")
+    @patch("app.verify.api.serializers.VerifyOTPSerializer.verify_otp")
+    def test_verify_otp_success_with_user_details(self, mock_verify_otp):
+        mock_verify_otp.return_value = {
+            "success": True,
+            "message": "OTP verified successfully.",
+            "user": {
+                "id": 1,
+                "username": "testuser",
+                "email": "test@example.com",
+                "first_name": "Test",
+                "last_name": "User",
+                "phone_number": "+237698765432",
+                "account_id": 1,
+            },
+            "tokens": {
+                "access": "access_token_value",
+                "refresh": "refresh_token_value",
+            },
+        }
+
+        response = self.client.post(self.url, self.valid_phone_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["success"])
+        self.assertIn("user", response.data)
+        self.assertIn("tokens", response.data)
+        self.assertEqual(response.data["user"]["username"], "testuser")
+        self.assertEqual(response.data["tokens"]["access"], "access_token_value")
+        mock_verify_otp.assert_called_once()
+
+    @patch("app.verify.api.serializers.VerifyOTPSerializer.verify_otp")
+    def test_verify_otp_success_without_user(self, mock_verify_otp):
+        mock_verify_otp.return_value = {
+            "success": True,
+            "message": "OTP verified successfully, but no user found with this identifier.",
+        }
+
+        response = self.client.post(self.url, self.valid_phone_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["success"])
+        self.assertNotIn("user", response.data)
+        self.assertNotIn("tokens", response.data)
+        mock_verify_otp.assert_called_once()
+
+    @patch("app.verify.api.serializers.VerifyOTPSerializer.verify_otp")
     def test_verify_otp_failure(self, mock_verify_otp):
-        # Mock the OTP verification failure
         mock_verify_otp.return_value = {
             "success": False,
             "message": "Invalid code. 2 attempts remaining.",
@@ -167,10 +217,9 @@ class VerifyOTPViewTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(response.data["success"])
-        mock_verify_otp.assert_called_once_with("+237698765432", "123456")
+        mock_verify_otp.assert_called_once()
 
     def test_verify_otp_invalid_data(self):
-        # Missing both phone_number and email
         response = self.client.post(self.url, {"code": "123456"}, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
