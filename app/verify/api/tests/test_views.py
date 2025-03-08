@@ -1,11 +1,13 @@
+import datetime
 from unittest.mock import patch
 
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from app.accounts.models import AvailableCountry
-from app.verify.models import OTP
+from app.verify.models import OTP, OTPWaitingPeriodError
 
 
 class GenerateOTPViewTestCase(APITestCase):
@@ -33,13 +35,17 @@ class GenerateOTPViewTestCase(APITestCase):
     @patch("app.verify.services.OTPService.generate_otp")
     def test_generate_otp_with_phone_success(self, mock_generate_otp):
         # Mock the OTP generation
-        mock_otp = OTP(
-            identifier="+237698765432",
-            code="123456",
-            channel="sms",
-            expires_at="2023-01-01T12:00:00Z",
-        )
-        mock_generate_otp.return_value = mock_otp
+        mock_generate_otp.return_value = {
+            "success": True,
+            "message": "Verification code sent to +237698765432 via sms.",
+            "otp": OTP(
+                identifier="+237698765432",
+                code="123456",
+                channel="sms",
+                expires_at=timezone.now() + datetime.timedelta(minutes=10),
+            ),
+            "expires_at": timezone.now() + datetime.timedelta(minutes=10),
+        }
 
         response = self.client.post(self.url, self.valid_phone_data, format="json")
 
@@ -50,13 +56,17 @@ class GenerateOTPViewTestCase(APITestCase):
     @patch("app.verify.services.OTPService.generate_otp")
     def test_generate_otp_with_email_success(self, mock_generate_otp):
         # Mock the OTP generation
-        mock_otp = OTP(
-            identifier="test@example.com",
-            code="123456",
-            channel="email",
-            expires_at="2023-01-01T12:00:00Z",
-        )
-        mock_generate_otp.return_value = mock_otp
+        mock_generate_otp.return_value = {
+            "success": True,
+            "message": "Verification code sent to test@example.com via email.",
+            "otp": OTP(
+                identifier="test@example.com",
+                code="123456",
+                channel="email",
+                expires_at=timezone.now() + datetime.timedelta(minutes=10),
+            ),
+            "expires_at": timezone.now() + datetime.timedelta(minutes=10),
+        }
 
         response = self.client.post(self.url, self.valid_email_data, format="json")
 
@@ -67,12 +77,38 @@ class GenerateOTPViewTestCase(APITestCase):
     @patch("app.verify.services.OTPService.generate_otp")
     def test_generate_otp_failure(self, mock_generate_otp):
         # Mock the OTP generation failure
-        mock_generate_otp.return_value = None
+        mock_generate_otp.return_value = {
+            "success": False,
+            "message": "Failed to send verification code to +237698765432.",
+        }
 
         response = self.client.post(self.url, self.valid_phone_data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
         self.assertFalse(response.data["success"])
+        mock_generate_otp.assert_called_once_with("+237698765432", "sms")
+
+    @patch("app.verify.services.OTPService.generate_otp")
+    def test_generate_otp_waiting_period(self, mock_generate_otp):
+        # Mock the OTP generation with waiting period error
+        next_allowed_at = timezone.now() + datetime.timedelta(seconds=30)
+        mock_generate_otp.return_value = {
+            "success": False,
+            "message": "Please wait 30 seconds before requesting a new OTP.",
+            "waiting_seconds": 30,
+            "next_allowed_at": next_allowed_at,
+        }
+
+        response = self.client.post(self.url, self.valid_phone_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertFalse(response.data["success"])
+        self.assertEqual(
+            response.data["message"],
+            "Please wait 30 seconds before requesting a new OTP.",
+        )
+        self.assertEqual(response.data["waiting_seconds"], 30)
+        self.assertEqual(response.data["next_allowed_at"], next_allowed_at)
         mock_generate_otp.assert_called_once_with("+237698765432", "sms")
 
     def test_generate_otp_invalid_data(self):

@@ -118,6 +118,13 @@ The `verify` app handles user verification through one-time passwords (OTPs). It
 - Configurable OTP expiration time (default: 10 minutes)
 - Limited verification attempts (default: 3)
 - Automatic expiration of previous OTPs when generating new ones
+- Progressive waiting periods between OTP requests to prevent abuse:
+  - First request: No waiting period
+  - Second request: 5 seconds
+  - Third request: 30 seconds
+  - Fourth request: 5 minutes
+  - Fifth request: 30 minutes
+  - Sixth request and beyond: 1 hour
 
 ### Usage Example
 
@@ -126,10 +133,23 @@ The `verify` app handles user verification through one-time passwords (OTPs). It
 from app.verify.services import OTPService
 
 # Generate OTP for phone number
-otp = OTPService.generate_otp("+237698765432", channel="sms")
+result = OTPService.generate_otp("+237698765432", channel="sms")
+if result['success']:
+    otp = result['otp']
+    expires_at = result['expires_at']
+else:
+    # Handle error
+    if 'waiting_seconds' in result:
+        # User needs to wait before requesting another OTP
+        waiting_seconds = result['waiting_seconds']
+        next_allowed_at = result['next_allowed_at']
+        error_message = result['message']  # "Please wait X seconds before requesting a new OTP"
+    else:
+        # Other error
+        error_message = result['message']
 
 # Generate OTP for email
-otp = OTPService.generate_otp("user@example.com", channel="email")
+result = OTPService.generate_otp("user@example.com", channel="email")
 ```
 
 #### Verify OTP
@@ -146,6 +166,43 @@ else:
     error_message = result["message"]
 ```
 
+### API Response Examples
+
+#### Generate OTP Success
+```json
+{
+  "success": true,
+  "message": "Verification code sent to +237698765432 via sms.",
+  "expires_at": "2023-03-08T12:34:56Z"
+}
+```
+
+#### Generate OTP Waiting Period Error
+```json
+{
+  "success": false,
+  "message": "Please wait 30 seconds before requesting a new OTP.",
+  "waiting_seconds": 30,
+  "next_allowed_at": "2023-03-08T12:35:26Z"
+}
+```
+
+#### Verify OTP Success
+```json
+{
+  "success": true,
+  "message": "OTP verified successfully."
+}
+```
+
+#### Verify OTP Error
+```json
+{
+  "success": false,
+  "message": "Invalid code. 2 attempts remaining."
+}
+```
+
 ## Environment Variables
 
 The application uses environment variables for configuration. Key variables include:
@@ -154,6 +211,9 @@ The application uses environment variables for configuration. Key variables incl
 - `DJANGO_SECRET_KEY` - Django secret key
 - `DJANGO_ALLOWED_HOSTS` - Allowed hosts for production
 - `DJANGO_DEBUG` - Debug mode (True/False)
+- `OTP_EXPIRY_MINUTES` - Minutes until OTP expires (default: 10)
+- `OTP_MAX_ATTEMPTS` - Maximum verification attempts (default: 3)
+- `OTP_WAITING_PERIODS` - List of waiting periods in seconds (default: [0, 5, 30, 300, 1800, 3600])
 
 ## Deployment
 

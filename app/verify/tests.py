@@ -4,7 +4,7 @@ from unittest.mock import patch
 from django.test import TestCase
 from django.utils import timezone
 
-from app.verify.models import OTP
+from app.verify.models import OTP, OTPWaitingPeriodError
 
 
 class OTPModelTestCase(TestCase):
@@ -129,6 +129,18 @@ class OTPManagerTestCase(TestCase):
 
         otp = OTP.objects.get_active_otp(self.identifier)
         self.assertIsNone(otp)
+
+    def test_get_latest_otp(self):
+        # Create a newer OTP
+        newer_otp = OTP.objects.create(
+            identifier=self.identifier,
+            code="111111",
+            channel="sms",
+            expires_at=timezone.now() + datetime.timedelta(minutes=10),
+        )
+
+        otp = OTP.objects.get_latest_otp(self.identifier)
+        self.assertEqual(otp, newer_otp)
 
     @patch("app.verify.models.random.choices")
     def test_create_otp(self, mock_choices):

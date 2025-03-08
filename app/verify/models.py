@@ -29,12 +29,36 @@ class OTPManager(models.Manager):
             .first()
         )
 
+    def get_latest_otp(self, identifier: str) -> Optional["OTP"]:
+        """
+        Get the most recent OTP for a given identifier, regardless of status.
+        """
+        return self.filter(identifier=identifier).order_by("-created_on").first()
+
     def create_otp(
         self, identifier: str, channel: str = "sms", length: int = 6
     ) -> "OTP":
         """
         Create a new OTP for the given identifier.
         """
+        # Check if we need to enforce a waiting period
+        latest_otp = self.get_latest_otp(identifier)
+
+        if (
+            latest_otp
+            and latest_otp.next_otp_allowed_at
+            and latest_otp.next_otp_allowed_at > timezone.now()
+        ):
+            # Return None or raise an exception if waiting period is not over
+            waiting_seconds = (
+                latest_otp.next_otp_allowed_at - timezone.now()
+            ).total_seconds()
+            raise OTPWaitingPeriodError(
+                f"Please wait {int(waiting_seconds)} seconds before requesting a new OTP.",
+                waiting_seconds=waiting_seconds,
+                next_allowed_at=latest_otp.next_otp_allowed_at,
+            )
+
         # Expire any existing active OTPs for this identifier
         self.filter(identifier=identifier, is_used=False, is_expired=False).update(
             is_expired=True
@@ -48,10 +72,49 @@ class OTPManager(models.Manager):
             minutes=getattr(settings, "OTP_EXPIRY_MINUTES", 10)
         )
 
+        # Calculate next allowed OTP time based on request count
+        next_otp_allowed_at = None
+        if latest_otp:
+            # Get the request count for this identifier in the last 24 hours
+            request_count = self.filter(
+                identifier=identifier,
+                created_on__gte=timezone.now() - datetime.timedelta(hours=24),
+            ).count()
+
+            # Progressive waiting periods
+            waiting_periods = getattr(
+                settings, "OTP_WAITING_PERIODS", [0, 5, 30, 300, 1800, 3600]
+            )
+
+            if request_count < len(waiting_periods):
+                wait_seconds = waiting_periods[request_count]
+            else:
+                # Use the last (maximum) waiting period for any additional requests
+                wait_seconds = waiting_periods[-1]
+
+            if wait_seconds > 0:
+                next_otp_allowed_at = timezone.now() + datetime.timedelta(
+                    seconds=wait_seconds
+                )
+
         # Create and return the new OTP
         return self.create(
-            identifier=identifier, code=code, channel=channel, expires_at=expires_at
+            identifier=identifier,
+            code=code,
+            channel=channel,
+            expires_at=expires_at,
+            next_otp_allowed_at=next_otp_allowed_at,
         )
+
+
+class OTPWaitingPeriodError(Exception):
+    """Exception raised when a new OTP is requested before the waiting period is over."""
+
+    def __init__(self, message, waiting_seconds=0, next_allowed_at=None):
+        self.message = message
+        self.waiting_seconds = waiting_seconds
+        self.next_allowed_at = next_allowed_at
+        super().__init__(self.message)
 
 
 class OTP(AppModel):
@@ -77,6 +140,9 @@ class OTP(AppModel):
     expires_at = models.DateTimeField()
     used_at = models.DateTimeField(null=True, blank=True)
     attempt_count = models.PositiveSmallIntegerField(default=0)
+    next_otp_allowed_at = models.DateTimeField(
+        null=True, blank=True, help_text="When the next OTP can be generated"
+    )
 
     objects = OTPManager()
 
@@ -131,6 +197,7 @@ class OTP(AppModel):
         self.is_used = True
         self.used_at = timezone.now()
         self.save()
+
         return True
 
     def mark_as_expired(self):

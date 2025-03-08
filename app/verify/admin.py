@@ -12,6 +12,7 @@ class OTPAdmin(admin.ModelAdmin):
         "is_used",
         "is_expired",
         "expires_at",
+        "next_otp_allowed_at",
         "created_on",
     )
     list_filter = ("channel", "is_used", "is_expired")
@@ -28,6 +29,7 @@ class OTPAdmin(admin.ModelAdmin):
                     "expires_at",
                     "used_at",
                     "attempt_count",
+                    "next_otp_allowed_at",
                 )
             },
         ),

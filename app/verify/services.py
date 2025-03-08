@@ -5,7 +5,7 @@ from typing import Dict, Optional, Union
 from django.conf import settings
 from django.utils import timezone
 
-from app.verify.models import OTP
+from app.verify.models import OTP, OTPWaitingPeriodError
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +133,7 @@ class OTPService:
     @staticmethod
     def generate_otp(
         identifier: str, channel: str = "sms", length: int = 6
-    ) -> Optional[OTP]:
+    ) -> Dict[str, Union[bool, str, OTP, int, timezone.datetime]]:
         """
         Generate a new OTP for the given identifier.
 
@@ -143,30 +143,55 @@ class OTPService:
             length: The length of the OTP code
 
         Returns:
-            Optional[OTP]: The generated OTP object, or None if generation failed
+            Dict: A dictionary with the generation result, message, and OTP object if successful
         """
         try:
             # Check if the channel is supported
             if channel not in DELIVERY_CHANNELS:
                 logger.error(f"Unsupported OTP delivery channel: {channel}")
-                return None
+                return {
+                    "success": False,
+                    "message": f"Unsupported delivery channel: {channel}",
+                }
 
-            # Create the OTP
-            otp = OTP.objects.create_otp(identifier, channel, length)
+            try:
+                # Create the OTP
+                otp = OTP.objects.create_otp(identifier, channel, length)
 
-            # Send the OTP
-            delivery_channel = DELIVERY_CHANNELS[channel]
-            if delivery_channel.send(identifier, otp.code):
-                logger.info(f"OTP sent to {identifier} via {channel}")
-                return otp
-            else:
-                # If sending fails, mark the OTP as expired
-                otp.mark_as_expired()
-                logger.error(f"Failed to send OTP to {identifier} via {channel}")
-                return None
+                # Send the OTP
+                delivery_channel = DELIVERY_CHANNELS[channel]
+                if delivery_channel.send(identifier, otp.code):
+                    logger.info(f"OTP sent to {identifier} via {channel}")
+                    return {
+                        "success": True,
+                        "message": f"Verification code sent to {identifier} via {channel}.",
+                        "otp": otp,
+                        "expires_at": otp.expires_at,
+                    }
+                else:
+                    # If sending fails, mark the OTP as expired
+                    otp.mark_as_expired()
+                    logger.error(f"Failed to send OTP to {identifier} via {channel}")
+                    return {
+                        "success": False,
+                        "message": f"Failed to send verification code to {identifier}.",
+                    }
+            except OTPWaitingPeriodError as e:
+                logger.info(
+                    f"OTP waiting period not over for {identifier}: {e.message}"
+                )
+                return {
+                    "success": False,
+                    "message": e.message,
+                    "waiting_seconds": e.waiting_seconds,
+                    "next_allowed_at": e.next_allowed_at,
+                }
         except Exception as e:
             logger.error(f"Error generating OTP for {identifier}: {str(e)}")
-            return None
+            return {
+                "success": False,
+                "message": f"An error occurred while generating the verification code: {str(e)}",
+            }
 
     @staticmethod
     def verify_otp(identifier: str, code: str) -> Dict[str, Union[bool, str]]:
