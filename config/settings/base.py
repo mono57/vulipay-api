@@ -54,9 +54,14 @@ THIRD_PARTY_APPS = ["phonenumber_field", "rest_framework_simplejwt"]
 LOCAL_APPS = [
     "app.accounts",
     "app.transactions",
+    "app.verify.apps.VerifyConfig",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
+
+# OTP Settings
+OTP_EXPIRY_MINUTES = 10
+OTP_MAX_ATTEMPTS = 3
 
 # AUTHENTICATION
 

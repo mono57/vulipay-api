@@ -8,4 +8,5 @@ urlpatterns = [
         "transactions/",
         include("app.transactions.api.transactions_urls", namespace="transactions"),
     ),
+    path("verify/", include("app.verify.api.urls", namespace="verify")),
 ]
