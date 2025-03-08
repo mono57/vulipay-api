@@ -6,26 +6,13 @@ from app.accounts.api.views import (
     AccountPaymentCodeRetrieveAPIView,
     AccountPaymentDetailsRetrieveAPIView,
     ModifyPINUpdateAPIView,
-    PassCodeCreateAPIView,
     PhoneNumberListCreateAPIView,
     PinCreationUpdateAPIView,
-    VerifyPassCodeCreateAPIView,
-    VerifyPhoneNumberCreateAPIView,
 )
 
 app_name = "accounts"
 
 urlpatterns = [
-    path(
-        "passcodes",
-        PassCodeCreateAPIView.as_view(),
-        name="accounts_passcodes",
-    ),
-    path(
-        "passcodes/verify",
-        VerifyPassCodeCreateAPIView.as_view(),
-        name="accounts_passcodes_verify",
-    ),
     path(
         "<str:number>/payment-code",
         AccountPaymentCodeRetrieveAPIView.as_view(),
@@ -45,16 +32,6 @@ urlpatterns = [
         "balance",
         AccountBalanceRetrieveAPIView.as_view(),
         name="accounts_balance",
-    ),
-    # path(
-    #     "phonenumbers",
-    #     AddPhoneNumberCreateAPIView.as_view(),
-    #     name="accounts_add_phonenumbers",
-    # ),
-    path(
-        "phonenumbers/verify",
-        VerifyPhoneNumberCreateAPIView.as_view(),
-        name="accounts_verify_phonenumbers",
     ),
     path("pin/modify", ModifyPINUpdateAPIView.as_view(), name="accounts_modify_pin"),
     path("", AccountInfoUpdateUpdateAPIView.as_view(), name="accounts_update_infos"),

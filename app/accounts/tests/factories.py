@@ -45,17 +45,6 @@ class AccountFactory(django.DjangoModelFactory):
         return self.create(**kwargs)
 
 
-class PassCodeFactory(django.DjangoModelFactory):
-    class Meta:
-        model = PassCode
-
-    intl_phone_number = "+237698049742"
-    code = "987657"
-    sent_on = timezone.now()
-    next_verif_attempt_on = timezone.now()
-    next_passcode_on = timezone.now()
-
-
 class CarrierFactory(django.DjangoModelFactory):
     class Meta:
         model = SupportedMobileMoneyCarrier

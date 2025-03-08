@@ -12,7 +12,7 @@ from app.accounts.api.serializers import (
     PinCreationSerializer,
     VerifyPassCodeSerializer,
 )
-from app.accounts.models import Account, AvailableCountry, PassCode
+from app.accounts.models import Account, AvailableCountry
 from app.accounts.tests.factories import (
     AccountFactory,
     AvailableCountryFactory,

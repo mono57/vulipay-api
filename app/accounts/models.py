@@ -5,14 +5,11 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from app.accounts.managers import AccountManager, PassCodeManager, PhoneNumberManager
+from app.accounts.managers import AccountManager, PhoneNumberManager
 from app.core.utils import (
     AppCharField,
     AppModel,
-    MessageClient,
     check_pin,
-    get_carrier,
-    make_otp,
     make_payment_code,
     make_pin,
 )
@@ -57,105 +54,6 @@ class Currency(AppModel):
 
     def __str__(self):
         return f"{self.name} - {self.iso_code} - {self.symbol}"
-
-
-class PassCode(AppModel):
-    intl_phone_number = AppCharField(max_length=15, null=False)
-    code = AppCharField(max_length=8, null=False)
-    sent_on = models.DateTimeField(null=True)
-    verified = models.BooleanField(default=False)
-    expired = models.BooleanField(default=False)
-    next_passcode_on = models.DateTimeField(null=False)
-    next_verif_attempt_on = models.DateTimeField(null=False)
-    last_attempt_on = models.DateTimeField(null=True)
-    attempt_count = models.IntegerField(default=0)
-    passcode_count = models.IntegerField(default=1)
-
-    objects = PassCodeManager()
-
-    class Meta:
-        indexes = [models.Index(fields=["intl_phone_number"])]
-
-    def __str__(self):
-        return self.code
-
-    @property
-    def key_expired(self):
-        if self.expired:
-            return True
-
-        sent_threshold = self.sent_on + datetime.timedelta(
-            seconds=settings.OTP_TIMESTAMP
-        )
-
-        return sent_threshold < timezone.now()
-
-    @property
-    def is_verified(self):
-        return self.verified
-
-    @classmethod
-    def create(cls, intl_phone_number):
-        last_code: cls = cls.objects.get_last_code(intl_phone_number)
-
-        passcode_count = 1
-        next_passcode_on = compute_next_attempt_time(passcode_count)
-
-        if last_code and not last_code.is_verified:
-            last_code.set_expired()
-            passcode_count = last_code.passcode_count + 1
-            next_passcode_on = compute_next_attempt_time(passcode_count)
-
-        code = make_otp()
-
-        code = cls._default_manager.create(
-            intl_phone_number=intl_phone_number,
-            next_verif_attempt_on=timezone.now(),
-            next_passcode_on=next_passcode_on,
-            passcode_count=passcode_count,
-            code=code,
-        )
-
-        code.send_code()
-
-        return code
-
-    def verify(self, code):
-        matched = self.code == code
-
-        if not matched:
-            self.increate_next_attempt_time()
-        else:
-            self.set_verified()
-
-        return matched
-
-    def increate_next_attempt_time(self):
-        verif_attempt_count = self.attempt_count + 1
-        next_verif_attempt_on = compute_next_verif_attempt_time(verif_attempt_count)
-
-        self.last_attempt_on = timezone.now()
-        self.next_passcode_on = next_verif_attempt_on
-        self.next_verif_attempt_on = next_verif_attempt_on
-        self.attempt_count = verif_attempt_count
-
-        self.save()
-
-    def set_verified(self, is_verified=True):
-        self.verified = is_verified
-        self.expired = is_verified
-        self.save()
-
-    def set_expired(self):
-        self.expired = True
-        self.save()
-
-    def send_code(self):
-        body = MessageClient._BODY_VIRIFICATION.format(self.code)
-        MessageClient.send_message(body, self.intl_phone_number)
-        self.sent_on = datetime.datetime.now(datetime.timezone.utc)
-
-        self.save()
 
 
 class Account(AppModel):

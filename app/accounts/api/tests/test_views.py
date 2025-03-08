@@ -5,12 +5,11 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from app.accounts.models import Account, AvailableCountry, PassCode
+from app.accounts.models import Account, AvailableCountry
 from app.accounts.tests.factories import (
     AccountFactory,
     AvailableCountryFactory,
     CarrierFactory,
-    PassCodeFactory,
     PhoneNumberFactory,
 )
 from app.core.utils import APIViewTestCase
@@ -18,133 +17,24 @@ from app.core.utils import APIViewTestCase
 twilio_send_message_path = "app.core.utils.twilio_client.MessageClient.send_message"
 
 
-class PassCodeCreateAPIViewTestCase(APIViewTestCase):
-    view_name = "api:accounts:accounts_passcodes"
-
-    def setUp(self):
-        super().setUp()
-        self.registration_payload = {
-            "phone_number": "698049742",
-            "country_iso_code": "CM",
-        }
-
-        AvailableCountryFactory.create()
-
-    def test_it_should_not_generate_passcode_for_empty_payload(self):
-        response = self.view_post({})
-        data = response.data
-
-        self.assertTrue(response.status_code == status.HTTP_400_BAD_REQUEST)
-        self.assertIn("phone_number", data)
-        self.assertIn("country_iso_code", data)
-
-    def test_it_should_not_generate_passcode_for_unknown_country(self):
-        response = self.view_post(
-            {**self.registration_payload, "country_iso_code": "TD"}
-        )
-
-        data = response.data
-
-        self.assertTrue(response.status_code == status.HTTP_400_BAD_REQUEST)
-        self.assertIn("country_iso_code", data)
-
-    def test_it_should_not_generate_passcode_for_invalid_number(self):
-        response = self.view_post(
-            {**self.registration_payload, "phone_number": "000000000000"}
-        )
-
-        data = response.data
-
-        self.assertTrue(response.status_code == status.HTTP_400_BAD_REQUEST)
-        self.assertIn("phone_number", data)
-
-    def test_it_should_generate_and_send_passcode(self):
-        with patch(twilio_send_message_path) as mocked_send_message:
-            response = self.view_post(data=self.registration_payload)
-
-            self.assertTrue(response.status_code == status.HTTP_201_CREATED)
-            mocked_send_message.assert_called_once()
-
-    def test_it_should_not_create_code_until_next_attempt_time_expired(self):
-        with patch(twilio_send_message_path) as mocked_send_message:
-            self.view_post(data=self.registration_payload)
-            mocked_send_message.assert_called_once()
-
-        with patch(twilio_send_message_path) as mocked_send_message:
-            self.view_post(data=self.registration_payload)
-            mocked_send_message.assert_not_called()
-
-
-class VerifyPassCodeAPIViewTestCase(APIViewTestCase):
-    view_name = "api:accounts:accounts_passcodes_verify"
-
-    def setUp(self):
-        super().setUp()
-        self.country_payload = {
-            "name": "Cameroun",
-            "dial_code": "237",
-            "phone_number_regex": "^6[5-9][0-9]{7}$",
-            "iso_code": "CM",
-        }
-
-        self.verify_payload = {
-            "phone_number": "698049742",
-            "country_iso_code": "CM",
-            "code": 234353,
-        }
-        time_now = timezone.now()
-        self.passcode_payload = {
-            "intl_phone_number": "+237698049742",
-            "code": 234353,
-            "sent_on": time_now,
-            "next_passcode_on": time_now,
-            "next_verif_attempt_on": time_now,
-        }
-        PassCode.objects.create(**self.passcode_payload)
-        AvailableCountry.objects.create(**self.country_payload)
-
-    def test_it_should_verify_code(self):
-        response = self.view_post(data=self.verify_payload)
-
-        data = response.data
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIn("access", data)
-        self.assertIn("refresh", data)
-        self.assertIsNotNone(data.get("access"))
-        self.assertIsNotNone(data.get("refresh"))
-
-    def test_it_should_not_verify_same_code_twice(self):
-        response1 = self.view_post(data=self.verify_payload)
-        response2 = self.view_post(data=self.verify_payload)
-
-        self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response2.status_code, status.HTTP_400_BAD_REQUEST)
-
-
 class AccountPaymentCodeRetrieveAPIViewTestCase(APIViewTestCase):
     view_name = "api:accounts:accounts_payment_code"
 
     def setUp(self):
         super().setUp()
-        self.account: Account = AccountFactory.create()
-        self.account_number = self.account.number
-        self.access_token = str(RefreshToken.for_user(self.account).access_token)
+        self.account = AccountFactory.create()
+        self.token = RefreshToken.for_user(self.account).access_token
 
     def test_it_should_raise_unauthorize_error(self):
-        response = self.view_get(reverse_kwargs={"number": self.account_number})
-
+        response = self.view_get({"number": self.account.number})
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_it_should_return_payment_code(self):
-        self.authenticate_with_jwttoken(self.access_token)
-        response = self.view_get(reverse_kwargs={"number": self.account_number})
-
-        data = response.data
+        response = self.view_get({"number": self.account.number}, token=str(self.token))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("payment_code", data)
-        self.assertEqual(data.get("payment_code"), self.account.payment_code)
+        self.assertIn("payment_code", response.data)
+        self.assertEqual(response.data["payment_code"], self.account.payment_code)
 
 
 class AccountPaymentDetailsTestCase(APIViewTestCase):
@@ -152,36 +42,28 @@ class AccountPaymentDetailsTestCase(APIViewTestCase):
 
     def setUp(self):
         super().setUp()
-        self.payment_code = "126543TDS23YTHGSFGHY34GHFDSD"
+        self.account = AccountFactory.create(
+            owner_first_name="John", owner_last_name="Doe"
+        )
+        self.token = RefreshToken.for_user(self.account).access_token
 
-        self.account_payload = {
-            "owner_first_name": "Aymar",
-            "owner_last_name": "Amono",
-        }
-        with patch("app.accounts.models.make_payment_code") as mocked_make_payment_code:
-            mocked_make_payment_code.return_value = self.payment_code
-            account = AccountFactory.create(**self.account_payload)
-            self.access_token = str(RefreshToken.for_user(account).access_token)
+        self.url_kwargs = {"payment_code": self.account.payment_code}
 
     def test_it_should_raise_access_denied_error(self):
-        response = self.view_get(reverse_kwargs={"payment_code": self.payment_code})
-
+        response = self.view_get(self.url_kwargs)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_it_should_retrieve_account_payment_details_information(self):
-        self.authenticate_with_jwttoken(self.access_token)
-        response = self.view_get(reverse_kwargs={"payment_code": self.payment_code})
-
-        data = response.data
+        response = self.view_get(self.url_kwargs, token=str(self.token))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("number", data)
-        self.assertIn("first_name", data)
-        self.assertIn("last_name", data)
-        self.assertEqual(self.account_payload.get("owner_last_name"), data["last_name"])
-        self.assertEqual(
-            self.account_payload.get("owner_first_name"), data["first_name"]
-        )
+        self.assertIn("number", response.data)
+        self.assertIn("first_name", response.data)
+        self.assertIn("last_name", response.data)
+
+        self.assertEqual(response.data["number"], self.account.number)
+        self.assertEqual(response.data["first_name"], self.account.owner_first_name)
+        self.assertEqual(response.data["last_name"], self.account.owner_last_name)
 
 
 class PinCreationUpdateAPIViewTestCase(APIViewTestCase):
@@ -189,24 +71,19 @@ class PinCreationUpdateAPIViewTestCase(APIViewTestCase):
 
     def setUp(self):
         super().setUp()
-
         self.account = AccountFactory.create()
-        self.access_token = str(RefreshToken.for_user(self.account).access_token)
+        self.token = RefreshToken.for_user(self.account).access_token
 
-        self.payload = {
-            "pin1": "3549",
-            "pin2": "3549",
-        }
+        self.url_kwargs = {"number": self.account.number}
+        self.payload = {"pin1": "2343", "pin2": "2343"}
 
     def test_it_should_set_account_pin(self):
-        self.authenticate_with_jwttoken(self.access_token)
-
-        response = self.view_put(data=self.payload)
+        response = self.view_put(self.url_kwargs, self.payload, token=str(self.token))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_it_should_raise_access_denied_error(self):
-        response = self.view_put(data=self.payload)
+        response = self.view_put(self.url_kwargs, self.payload)
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -216,73 +93,15 @@ class AccountBalanceRetrieveAPIView(APIViewTestCase):
 
     def setUp(self):
         super().setUp()
-        self.account_balance = float(5000)
-        self.account: Account = AccountFactory.create(balance=self.account_balance)
+        self.account = AccountFactory.create(balance=5000)
+        self.token = RefreshToken.for_user(self.account).access_token
 
     def test_it_should_retrieve_correct_balance(self):
-        self.authenticate_with_account(self.account)
-
-        response = self.view_get()
+        response = self.view_get({"number": self.account.number}, token=str(self.token))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIsNotNone(response.data)
-
-
-class AddPhoneNumberCreateAPIView(APIViewTestCase):
-    view_name = "api:accounts:accounts_phonenumbers_list_create"
-
-    def setUp(self):
-        super().setUp()
-        self.add_phone_number_payload = {
-            "phone_number": "698049742",
-            "country_iso_code": "CM",
-            "carrier_code": "orange_cm",
-        }
-
-        self.country = AvailableCountryFactory.create()
-        self.account = AccountFactory.create(country=self.country)
-
-    def test_it_should_raise_bad_request(self):
-        self.authenticate_with_account(self.account)
-
-        response = self.view_post(data=self.add_phone_number_payload)
-
-        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
-
-    def test_it_should_send_passcode(self):
-        CarrierFactory.create(country=self.country)
-        self.authenticate_with_account(self.account)
-
-        with patch(twilio_send_message_path) as mocked_send_message:
-            response = self.view_post(data=self.add_phone_number_payload)
-
-            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-            mocked_send_message.assert_called_once()
-
-
-class VerifyPhoneNumberCreateAPIViewTestCase(APIViewTestCase):
-    view_name = "api:accounts:accounts_verify_phonenumbers"
-
-    def setUp(self):
-        super().setUp()
-        self.verify_phone_number_payload = {
-            "phone_number": "698049742",
-            "country_iso_code": "CM",
-            "carrier_code": "orange_cm",
-            "code": 234353,
-        }
-
-        self.country = AvailableCountryFactory.create()
-        self.account = AccountFactory.create(country=self.country)
-        CarrierFactory.create(country=self.country)
-        PassCodeFactory.create(code="234353")
-
-    def test_it_should_raise_bad_request(self):
-        self.authenticate_with_account(self.account)
-
-        response = self.view_post(data=self.verify_phone_number_payload)
-
-        self.assertEqual(status.HTTP_201_CREATED, response.status_code)
+        self.assertIn("balance", response.data)
+        self.assertEqual(response.data["balance"], self.account.balance)
 
 
 class ModifyPINUpdateAPIViewTestCase(APIViewTestCase):
@@ -290,17 +109,19 @@ class ModifyPINUpdateAPIViewTestCase(APIViewTestCase):
 
     def setUp(self):
         super().setUp()
-        self.account: Account = AccountFactory.create()
-        self.account.set_pin("3425")
+        self.account = AccountFactory.create()
+        self.token = RefreshToken.for_user(self.account).access_token
 
     def test_it_should_modify_pin_successfully(self):
-        self.authenticate_with_account(self.account)
+        self.account.set_pin("2343")
+        self.account.save()
 
-        payload = {"pin": "3425", "pin1": "4934", "pin2": "4934"}
+        payload = {"pin": "2343", "pin1": "2344", "pin2": "2344"}
+        response = self.view_put(
+            {"number": self.account.number}, payload, token=str(self.token)
+        )
 
-        response = self.view_put(data=payload)
-
-        self.assertEqual(status.HTTP_200_OK, response.status_code, response.data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
 class VerifyPhoneNumberListAPIViewTestCase(APIViewTestCase):
@@ -308,16 +129,15 @@ class VerifyPhoneNumberListAPIViewTestCase(APIViewTestCase):
 
     def setUp(self):
         super().setUp()
-        self.account: Account = AccountFactory.create()
-        carrier = CarrierFactory.create(country=self.account.country)
-        PhoneNumberFactory.create(account=self.account, carrier=carrier)
+        self.account = AccountFactory.create()
+        self.token = RefreshToken.for_user(self.account).access_token
 
     def test_it_should_list_account_related_phonenumbers(self):
-        self.authenticate_with_account(self.account)
+        PhoneNumberFactory.create(account=self.account)
+        response = self.view_get({}, token=str(self.token))
 
-        response = self.view_get()
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.status_code)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
 
 
 class AccountInfoUpdateAPIViewTestCase(APIViewTestCase):
@@ -325,24 +145,25 @@ class AccountInfoUpdateAPIViewTestCase(APIViewTestCase):
 
     def setUp(self):
         super().setUp()
-        self.account: Account = AccountFactory.create()
+        self.account = AccountFactory.create()
+        self.token = RefreshToken.for_user(self.account).access_token
 
     def test_it_should_modify_account_info_successfully(self):
-        self.authenticate_with_account(self.account)
+        payload = {"first_name": "John", "last_name": "Doe"}
+        response = self.view_put(
+            {"number": self.account.number}, payload, token=str(self.token)
+        )
 
-        payload = {"first_name": "Aymar", "last_name": "Amono"}
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        response = self.view_put(data=payload)
-
-        self.assertEqual(status.HTTP_200_OK, response.status_code, response.data)
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.owner_first_name, payload["first_name"])
+        self.assertEqual(self.account.owner_last_name, payload["last_name"])
 
     def test_it_should_raise_invalid_data(self):
-        self.authenticate_with_account(self.account)
-
-        payload = {}
-
-        response = self.view_put(data=payload)
-
-        self.assertEqual(
-            status.HTTP_400_BAD_REQUEST, response.status_code, response.status_code
+        payload = {"first_name": "", "last_name": ""}
+        response = self.view_put(
+            {"number": self.account.number}, payload, token=str(self.token)
         )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

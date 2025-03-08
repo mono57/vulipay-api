@@ -7,26 +7,12 @@ from app.accounts.api.serializers import (
     AccountDetailsSerializer,
     AccountInfoUpdateModelSerializer,
     AccountPaymentCodeSerializer,
-    AddPhoneNumberSerializer,
-    CreatePasscodeSerializer,
     ModifyPINSerializer,
     PinCreationSerializer,
-    VerifyPassCodeSerializer,
     VerifyPhoneNumberListItemSerializer,
-    VerifyPhoneNumberSerializer,
 )
 from app.accounts.models import Account, PhoneNumber
 from app.accounts.permissions import IsAuthenticatedAccount
-
-
-class PassCodeCreateAPIView(generics.CreateAPIView):
-    http_method_names = ["post"]
-    serializer_class = CreatePasscodeSerializer
-
-
-class VerifyPassCodeCreateAPIView(generics.CreateAPIView):
-    http_method_names = ["post"]
-    serializer_class = VerifyPassCodeSerializer
 
 
 class BaseAccountRetrieveAPIView(generics.RetrieveAPIView):
@@ -59,21 +45,6 @@ class AccountBalanceRetrieveAPIView(
     serializer_class = AccountBalanceSerializer
 
 
-# class AddPhoneNumberCreateAPIView(generics.CreateAPIView):
-#     permission_classes = [IsAuthenticatedAccount]
-#     serializer_class = AddPhoneNumberSerializer
-#     http_method_names = ["post"]
-
-
-class VerifyPhoneNumberCreateAPIView(generics.CreateAPIView):
-    permission_classes = [IsAuthenticatedAccount]
-    serializer_class = VerifyPhoneNumberSerializer
-    http_method_names = ["post"]
-
-    def perform_create(self, serializer):
-        return serializer.save(account=self.request.user)
-
-
 class ModifyPINUpdateAPIView(
     ValidPINRequiredMixin, AccountOwnerActionMixin, generics.UpdateAPIView
 ):
@@ -83,16 +54,9 @@ class ModifyPINUpdateAPIView(
     lookup_field = "number"
 
 
-class PhoneNumberListCreateAPIView(generics.ListCreateAPIView):
+class PhoneNumberListCreateAPIView(generics.ListAPIView):
     permission_classes = [IsAuthenticatedAccount]
-
-    def get(self, request, *args, **kwargs):
-        self.serializer_class = VerifyPhoneNumberListItemSerializer
-        return super().get(request, *args, **kwargs)
-
-    def post(self, request, *args, **kwargs):
-        self.serializer_class = AddPhoneNumberSerializer
-        return super().post(request, *args, **kwargs)
+    serializer_class = VerifyPhoneNumberListItemSerializer
 
     def get_queryset(self):
         qs = PhoneNumber.objects.get_verify_phonenumbers(self.request.user).values(
