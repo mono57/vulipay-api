@@ -22,25 +22,37 @@ class GenerateOTPView(APIView):
             channel = serializer.validated_data["channel"]
 
             # Generate OTP
-            otp = OTPService.generate_otp(identifier, channel)
+            result = OTPService.generate_otp(identifier, channel)
 
-            if otp:
+            if result["success"]:
                 return Response(
                     {
                         "success": True,
-                        "message": f"Verification code sent to {identifier} via {channel}.",
-                        "expires_at": otp.expires_at,
+                        "message": result["message"],
+                        "expires_at": result["expires_at"],
                     },
                     status=status.HTTP_200_OK,
                 )
             else:
-                return Response(
-                    {
-                        "success": False,
-                        "message": f"Failed to send verification code to {identifier}.",
-                    },
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
+                # Check if this is a waiting period error
+                if "waiting_seconds" in result:
+                    return Response(
+                        {
+                            "success": False,
+                            "message": result["message"],
+                            "waiting_seconds": result["waiting_seconds"],
+                            "next_allowed_at": result["next_allowed_at"],
+                        },
+                        status=status.HTTP_429_TOO_MANY_REQUESTS,
+                    )
+                else:
+                    return Response(
+                        {
+                            "success": False,
+                            "message": result["message"],
+                        },
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    )
 
         return Response(
             {
