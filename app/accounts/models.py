@@ -153,7 +153,7 @@ class PassCode(AppModel):
     def send_code(self):
         body = MessageClient._BODY_VIRIFICATION.format(self.code)
         MessageClient.send_message(body, self.intl_phone_number)
-        self.sent_on = datetime.datetime.now(timezone.utc)
+        self.sent_on = datetime.datetime.now(datetime.timezone.utc)
 
         self.save()
 

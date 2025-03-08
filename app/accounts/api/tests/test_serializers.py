@@ -78,7 +78,7 @@ class VerifyPassCodeSerializerTestCase(TestCase):
         self.passcode_payload = {
             "intl_phone_number": "+237698493823",
             "code": "234543",
-            "sent_on": datetime.datetime.now(timezone.utc),
+            "sent_on": datetime.datetime.now(datetime.timezone.utc),
             "next_verif_attempt_on": timezone.now(),
             "next_passcode_on": timezone.now(),
         }
@@ -147,7 +147,7 @@ class VerifyPassCodeSerializerTestCase(TestCase):
             "app.accounts.models.PassCode.objects.get_last_code"
         ) as mocked_get_last_code:
             self.passcode_payload["sent_on"] = datetime.datetime.now(
-                timezone.utc
+                datetime.timezone.utc
             ) - datetime.timedelta(seconds=40)
             mocked_get_last_code.return_value = PassCode.objects.create(
                 **self.passcode_payload
