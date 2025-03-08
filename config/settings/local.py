@@ -31,8 +31,12 @@ EMAIL_BACKEND = env(
 
 # INSTALLED_APPS = ["whitenoise.runserver_nostatic"] + INSTALLED_APPS
 
-hostname, _, ips = socket.gethostbyname_ex(socket.gethostname())
-INTERNAL_IPS = [".".join(ip.split(".")[:-1] + ["1"]) for ip in ips]
+# Try to get internal IPs, but don't fail if it doesn't work
+try:
+    hostname, _, ips = socket.gethostbyname_ex(socket.gethostname())
+    INTERNAL_IPS = [".".join(ip.split(".")[:-1] + ["1"]) for ip in ips]
+except socket.gaierror:
+    INTERNAL_IPS = ["127.0.0.1"]
 
 # django-extensions
 
@@ -40,7 +44,9 @@ INSTALLED_APPS += ["django_extensions"]
 
 SIMPLE_JWT = {
     **SIMPLE_JWT,
-    "SIGNING_KEY": env("JWT_SECRET_KEY", default="36r_!xm+r$egega@)pgb*1&uv^wl56j5j0+cjs039z&n(gy523"),
+    "SIGNING_KEY": env(
+        "JWT_SECRET_KEY", default="36r_!xm+r$egega@)pgb*1&uv^wl56j5j0+cjs039z&n(gy523"
+    ),
     "ACCESS_TOKEN_LIFETIME": timedelta(days=5),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=10),
 }
