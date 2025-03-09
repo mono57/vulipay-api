@@ -46,3 +46,5 @@ tomli==2.0.1
 twilio==7.3.0
 urllib3==1.26.7
 virtualenv==20.13.0
+drf-spectacular==0.28.0
+django-cors-headers==4.3.1

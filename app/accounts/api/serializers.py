@@ -100,10 +100,10 @@ class PhoneNumberSerializer(serializers.ModelSerializer):
         fields = ["number", "carrier"]
 
 
-class AccountInfoTransactionHistorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Account
-        fields = ["fisrt_name", "last_name"]
+# class AccountInfoTransactionHistorySerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = Account
+#         fields = ["first_name", "last_name"]
 
 
 class PhoneNumberTransactionHistorySerializer(serializers.ModelSerializer):

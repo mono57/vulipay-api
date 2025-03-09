@@ -49,7 +49,13 @@ DJANGO_APPS = [
     "django.forms",
 ]
 
-THIRD_PARTY_APPS = ["phonenumber_field", "rest_framework_simplejwt"]
+THIRD_PARTY_APPS = [
+    "phonenumber_field",
+    "rest_framework_simplejwt",
+    "rest_framework",
+    "drf_spectacular",
+    "corsheaders",
+]
 
 LOCAL_APPS = [
     "app.accounts",
@@ -102,7 +108,6 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.common.BrokenLinkEmailsMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -191,7 +196,9 @@ LOGGING = {
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "app.accounts.authentication.AppJWTAuthentication",
-    )
+    ),
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
 SIMPLE_JWT = {
@@ -206,3 +213,27 @@ PAYMENT_CODE_PREFFIX = "vulipay"
 PIN_MAX_LENGTH = 4
 MASTER_INTL_PHONE_NUMBER = "0000000000"
 MASTER_PHONE_NUMBER = "00000000"
+
+# SWAGGER SETTINGS
+SWAGGER_SETTINGS = {
+    "SECURITY_DEFINITIONS": {
+        "Bearer": {"type": "apiKey", "name": "Authorization", "in": "header"}
+    },
+    "USE_SESSION_AUTH": False,
+}
+
+# DRF Spectacular Settings
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Vulipay API",
+    "DESCRIPTION": "API documentation for Vulipay",
+    "VERSION": "v1",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "CONTACT": {
+        "name": "Vulipay",
+        "email": "contact@vulipay.com",
+    },
+    "LICENSE": {
+        "name": "Proprietary License",
+    },
+    "TERMS_OF_SERVICE": "https://www.vulipay.com/terms/",
+}

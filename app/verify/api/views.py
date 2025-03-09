@@ -1,3 +1,4 @@
+from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -7,9 +8,52 @@ from app.verify.api.serializers import GenerateOTPSerializer, VerifyOTPSerialize
 
 
 class GenerateOTPView(APIView):
+    """
+    API endpoint for generating One-Time Passwords (OTPs).
+
+    This endpoint allows clients to request an OTP to be sent to a phone number or email address.
+    The OTP can then be used for verification purposes.
+    """
+
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=GenerateOTPSerializer,
+        operation_id="generate_otp",
+        description="Generate a new OTP for a phone number or email address",
+        responses={
+            200: OpenApiResponse(
+                description="OTP generated successfully",
+                response={
+                    "type": "object",
+                    "properties": {
+                        "success": {"type": "boolean", "description": "Success status"},
+                        "message": {"type": "string", "description": "Success message"},
+                        "expires_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "OTP expiration time",
+                        },
+                        "next_allowed_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "Time when next OTP can be requested",
+                            "nullable": True,
+                        },
+                    },
+                },
+            ),
+            400: OpenApiResponse(description="Invalid request data"),
+            429: OpenApiResponse(description="Too many OTP requests"),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+    )
     def post(self, request, *args, **kwargs):
+        """
+        Generate a new OTP for a phone number or email address.
+
+        The OTP will be sent to the provided phone number or email address.
+        """
         serializer = GenerateOTPSerializer(data=request.data)
 
         if serializer.is_valid():
@@ -54,9 +98,70 @@ class GenerateOTPView(APIView):
 
 
 class VerifyOTPView(APIView):
+    """
+    API endpoint for verifying One-Time Passwords (OTPs).
+
+    This endpoint allows clients to verify an OTP that was sent to a phone number or email address.
+    If the verification is successful, authentication tokens will be returned.
+    """
+
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=VerifyOTPSerializer,
+        operation_id="verify_otp",
+        description="Verify an OTP for a phone number or email address",
+        responses={
+            200: OpenApiResponse(
+                description="OTP verified successfully",
+                response={
+                    "type": "object",
+                    "properties": {
+                        "success": {"type": "boolean", "description": "Success status"},
+                        "message": {"type": "string", "description": "Success message"},
+                        "user": {
+                            "type": "object",
+                            "properties": {
+                                "full_name": {
+                                    "type": "string",
+                                    "description": "User full name",
+                                },
+                                "email": {
+                                    "type": "string",
+                                    "description": "User email",
+                                },
+                                "phone_number": {
+                                    "type": "string",
+                                    "description": "User phone number",
+                                    "nullable": True,
+                                },
+                            },
+                        },
+                        "tokens": {
+                            "type": "object",
+                            "properties": {
+                                "access": {
+                                    "type": "string",
+                                    "description": "JWT access token",
+                                },
+                                "refresh": {
+                                    "type": "string",
+                                    "description": "JWT refresh token",
+                                },
+                            },
+                        },
+                    },
+                },
+            ),
+            400: OpenApiResponse(description="Invalid request data or invalid OTP"),
+        },
+    )
     def post(self, request, *args, **kwargs):
+        """
+        Verify an OTP for a phone number or email address.
+
+        If the verification is successful, authentication tokens will be returned.
+        """
         serializer = VerifyOTPSerializer(data=request.data)
 
         if serializer.is_valid():

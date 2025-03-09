@@ -6,7 +6,6 @@ from app.transactions.api.views import (
     MPTransactionCreateAPIView,
     P2PTransactionCreateAPIView,
     TransactionDetailsRetrieveAPIView,
-    TransactionHistoryRetrieveAPIView,
     TransactionPairingUpdateAPIView,
     ValidateTransactionUpdateAPIView,
 )
@@ -48,10 +47,5 @@ urlpatterns = [
         "<str:payment_code>/pairing",
         TransactionPairingUpdateAPIView.as_view(),
         name="transactions_transaction_pairing",
-    ),
-    path(
-        "history",
-        TransactionHistoryRetrieveAPIView.as_view(),
-        name="transaction_transaction_history",
     ),
 ]

@@ -10,12 +10,36 @@ User = get_user_model()
 
 
 class GenerateOTPSerializer(serializers.Serializer):
-    phone_number = serializers.CharField(required=False)
-    email = serializers.EmailField(required=False)
-    country_iso_code = serializers.CharField(required=False)
-    channel = serializers.ChoiceField(choices=OTP.CHANNEL_CHOICES, default="sms")
+    """
+    Serializer for generating One-Time Passwords (OTPs).
+
+    This serializer validates the request data for generating an OTP.
+    Either a phone number with country code or an email address must be provided.
+    """
+
+    phone_number = serializers.CharField(
+        required=False, help_text="Phone number to send the OTP to"
+    )
+    email = serializers.EmailField(
+        required=False, help_text="Email address to send the OTP to"
+    )
+    country_iso_code = serializers.CharField(
+        required=False, help_text="ISO code of the country (e.g., 'CM' for Cameroon)"
+    )
+    channel = serializers.ChoiceField(
+        choices=OTP.CHANNEL_CHOICES,
+        default="sms",
+        help_text="Channel to send the OTP through (sms, email, whatsapp)",
+    )
 
     def validate(self, attrs):
+        """
+        Validate the request data.
+
+        Ensures that either a phone number with country code or an email address is provided.
+        If a phone number is provided, the country_iso_code is required.
+        If an email is provided and the channel is 'sms', the channel is automatically switched to 'email'.
+        """
         if not attrs.get("phone_number") and not attrs.get("email"):
             raise serializers.ValidationError(
                 _("Either phone_number or email must be provided.")
@@ -44,6 +68,11 @@ class GenerateOTPSerializer(serializers.Serializer):
         return attrs
 
     def generate_otp(self):
+        """
+        Generate an OTP for the provided identifier.
+
+        Returns a dictionary with the result of the OTP generation.
+        """
         identifier = self.validated_data["identifier"]
         channel = self.validated_data["channel"]
 
@@ -51,12 +80,33 @@ class GenerateOTPSerializer(serializers.Serializer):
 
 
 class VerifyOTPSerializer(serializers.Serializer):
-    phone_number = serializers.CharField(required=False)
-    email = serializers.EmailField(required=False)
-    country_iso_code = serializers.CharField(required=False)
-    code = serializers.CharField(required=True)
+    """
+    Serializer for verifying One-Time Passwords (OTPs).
+
+    This serializer validates the request data for verifying an OTP.
+    Either a phone number with country code or an email address must be provided,
+    along with the OTP code to verify.
+    """
+
+    phone_number = serializers.CharField(
+        required=False, help_text="Phone number the OTP was sent to"
+    )
+    email = serializers.EmailField(
+        required=False, help_text="Email address the OTP was sent to"
+    )
+    country_iso_code = serializers.CharField(
+        required=False, help_text="ISO code of the country (e.g., 'CM' for Cameroon)"
+    )
+    code = serializers.CharField(required=True, help_text="OTP code to verify")
 
     def validate(self, attrs):
+        """
+        Validate the request data.
+
+        Ensures that either a phone number with country code or an email address is provided.
+        If a phone number is provided, the country_iso_code is required.
+        The code must contain only digits.
+        """
         if not attrs.get("phone_number") and not attrs.get("email"):
             raise serializers.ValidationError(
                 _("Either phone_number or email must be provided.")
@@ -87,6 +137,18 @@ class VerifyOTPSerializer(serializers.Serializer):
         return attrs
 
     def verify_otp(self):
+        """
+        Verify the OTP code for the provided identifier.
+
+        This method attempts to verify the OTP code against the active OTP for the identifier.
+        If successful, it returns user information and authentication tokens.
+        If unsuccessful, it returns an error message with the number of remaining attempts.
+
+        Returns:
+            dict: A dictionary containing the result of the verification.
+                If successful, includes user information and authentication tokens.
+                If unsuccessful, includes an error message.
+        """
         identifier = self.validated_data["identifier"]
         code = self.validated_data["code"]
 
