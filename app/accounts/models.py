@@ -1,11 +1,12 @@
 import datetime
 
 from django.conf import settings
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from app.accounts.managers import AccountManager, PhoneNumberManager
+from app.accounts.managers import AccountManager, PhoneNumberManager, UserManager
 from app.core.utils import (
     AppCharField,
     AppModel,
@@ -31,6 +32,57 @@ def compute_next_verif_attempt_time(count) -> datetime.datetime:
 
 def create_master_account_after_migration():
     Account.objects.create_master_account()
+
+
+class User(AbstractBaseUser, PermissionsMixin):
+    phone_number = AppCharField(
+        _("Phone Number"), max_length=20, unique=True, null=True, blank=True
+    )
+    email = models.EmailField(_("Email address"), unique=True, null=True, blank=True)
+    full_name = AppCharField(_("Full name"), max_length=150, null=True, blank=True)
+
+    is_staff = models.BooleanField(
+        _("staff status"),
+        default=False,
+        help_text=_("Designates whether the user can log into this admin site."),
+    )
+    is_active = models.BooleanField(
+        _("active"),
+        default=True,
+        help_text=_(
+            "Designates whether this user should be treated as active. "
+            "Unselect this instead of deleting accounts."
+        ),
+    )
+    date_joined = models.DateTimeField(_("date joined"), default=timezone.now)
+
+    objects = UserManager()
+
+    USERNAME_FIELD = "email"
+    EMAIL_FIELD = "email"
+    REQUIRED_FIELDS = []  # Email is already required as USERNAME_FIELD
+
+    class Meta:
+        verbose_name = _("user")
+        verbose_name_plural = _("users")
+
+    def __str__(self):
+        if self.phone_number:
+            return self.phone_number
+        return self.email or str(self.id)
+
+    def clean(self):
+        super().clean()
+        if not self.phone_number and not self.email:
+            raise ValueError(
+                _("User must have either a phone number or an email address")
+            )
+
+    def get_full_name(self):
+        return self.full_name.strip() if self.full_name else ""
+
+    def get_short_name(self):
+        return self.full_name.split()[0] if self.full_name else ""
 
 
 class AvailableCountry(AppModel):

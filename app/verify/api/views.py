@@ -7,17 +7,12 @@ from app.verify.api.serializers import GenerateOTPSerializer, VerifyOTPSerialize
 
 
 class GenerateOTPView(APIView):
-    """
-    API view for generating OTP.
-    """
-
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         serializer = GenerateOTPSerializer(data=request.data)
 
         if serializer.is_valid():
-            # Generate OTP using the serializer
             result = serializer.generate_otp()
 
             if result["success"]:
@@ -27,13 +22,11 @@ class GenerateOTPView(APIView):
                     "expires_at": result["expires_at"],
                 }
 
-                # Include when the next OTP can be requested if available
                 if "otp" in result and result["otp"].next_otp_allowed_at:
                     response_data["next_allowed_at"] = result["otp"].next_otp_allowed_at
 
                 return Response(response_data, status=status.HTTP_200_OK)
             else:
-                # Check if this is a waiting period error
                 if "waiting_seconds" in result:
                     return Response(
                         {
@@ -61,23 +54,17 @@ class GenerateOTPView(APIView):
 
 
 class VerifyOTPView(APIView):
-    """
-    API view for verifying OTP.
-    """
-
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         serializer = VerifyOTPSerializer(data=request.data)
 
         if serializer.is_valid():
-            # Verify OTP using the serializer
             result = serializer.verify_otp()
 
             if result["success"]:
                 response_data = {"success": True, "message": result["message"]}
 
-                # Include user details and tokens if available
                 if "user" in result:
                     response_data["user"] = result["user"]
 

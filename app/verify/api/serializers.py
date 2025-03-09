@@ -1,8 +1,12 @@
+from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from app.accounts.models import AvailableCountry
 from app.verify.models import OTP
+
+User = get_user_model()
 
 
 class GenerateOTPSerializer(serializers.Serializer):
@@ -95,7 +99,21 @@ class VerifyOTPSerializer(serializers.Serializer):
             }
 
         if otp.verify(code):
-            return otp.get_user_details()
+            user, created = User.objects.get_or_create(email=identifier)
+            refresh = RefreshToken.for_user(user)
+
+            return {
+                "created": created,
+                "user": {
+                    "full_name": user.full_name,
+                    "email": user.email,
+                    "phone_number": user.phone_number,
+                },
+                "tokens": {
+                    "access": str(refresh.access_token),
+                    "refresh": str(refresh),
+                },
+            }
         else:
             from django.conf import settings
 

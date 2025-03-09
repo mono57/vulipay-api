@@ -10,11 +10,27 @@ from app.accounts.models import *
 
 class UserFactory(django.DjangoModelFactory):
     class Meta:
-        model = Account
+        model = User
 
-    first_name = faker("first_name")
-    last_name = faker("last_name")
+    full_name = faker("name")
     email = faker("email")
+    phone_number = factory.Sequence(lambda n: f"+2376980497{n:02d}")
+
+    @classmethod
+    def create_with_password(cls, password="password", **kwargs):
+        user = cls.create(**kwargs)
+        user.set_password(password)
+        user.save()
+        return user
+
+    @classmethod
+    def create_superuser(cls, **kwargs):
+        kwargs.setdefault("is_staff", True)
+        kwargs.setdefault("is_superuser", True)
+        kwargs.setdefault("email", faker("email").generate({}))
+
+        user = cls.create_with_password(**kwargs)
+        return user
 
 
 class AvailableCountryFactory(django.DjangoModelFactory):
