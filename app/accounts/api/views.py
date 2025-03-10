@@ -1,5 +1,5 @@
 from django.conf import settings
-from rest_framework import generics
+from rest_framework import generics, permissions
 
 from app.accounts.api.mixins import AccountOwnerActionMixin, ValidPINRequiredMixin
 from app.accounts.api.serializers import (
@@ -9,6 +9,7 @@ from app.accounts.api.serializers import (
     AccountPaymentCodeSerializer,
     ModifyPINSerializer,
     PinCreationSerializer,
+    UserFullNameUpdateSerializer,
     VerifyPhoneNumberListItemSerializer,
 )
 from app.accounts.models import Account, PhoneNumber
@@ -70,3 +71,11 @@ class AccountInfoUpdateUpdateAPIView(AccountOwnerActionMixin, generics.UpdateAPI
     serializer_class = AccountInfoUpdateModelSerializer
     queryset = Account.objects.all()
     lookup_field = "number"
+
+
+class UserFullNameUpdateView(generics.UpdateAPIView):
+    serializer_class = UserFullNameUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user

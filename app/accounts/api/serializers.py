@@ -1,3 +1,4 @@
+from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 from phonenumber_field.phonenumber import PhoneNumber as PhoneNumberWrapper
@@ -12,7 +13,8 @@ from app.accounts.models import (
     SupportedMobileMoneyCarrier,
 )
 from app.accounts.validators import pin_validator
-from app.core.utils import UnprocessableEntityError, is_valid_otp
+
+User = get_user_model()
 
 
 class PINSerializerMixin:
@@ -125,3 +127,21 @@ class AccountInfoUpdateModelSerializer(serializers.ModelSerializer):
     class Meta:
         model = Account
         fields = ("first_name", "last_name")
+
+
+class UserFullNameUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for updating a user's full name.
+    """
+
+    class Meta:
+        model = User
+        fields = ("full_name",)
+
+    def validate_full_name(self, value):
+        """
+        Validate that the full_name is not empty.
+        """
+        if not value or not value.strip():
+            raise serializers.ValidationError("Full name cannot be empty.")
+        return value.strip()

@@ -8,6 +8,7 @@ from app.accounts.api.views import (
     ModifyPINUpdateAPIView,
     PhoneNumberListCreateAPIView,
     PinCreationUpdateAPIView,
+    UserFullNameUpdateView,
 )
 
 app_name = "accounts"
@@ -39,5 +40,8 @@ urlpatterns = [
         "phonenumbers",
         PhoneNumberListCreateAPIView.as_view(),
         name="accounts_phonenumbers_list_create",
+    ),
+    path(
+        "user/full-name", UserFullNameUpdateView.as_view(), name="user_full_name_update"
     ),
 ]
