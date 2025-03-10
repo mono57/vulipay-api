@@ -1,4 +1,5 @@
 import datetime
+import os
 import random
 
 from django.conf import settings
@@ -75,7 +76,9 @@ class UserManager(BaseUserManager):
                 models.Q(email=identifier) | models.Q(phone_number=identifier)
             )
         except self.model.DoesNotExist:
-            return None
+            raise self.model.DoesNotExist(
+                f"User with identifier {identifier} does not exist"
+            )
 
 
 class PhoneNumberManager(models.Manager):

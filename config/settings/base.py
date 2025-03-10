@@ -76,7 +76,6 @@ OTP_WAITING_PERIODS = [0, 5, 30, 300, 1800, 3600]
 AUTH_USER_MODEL = "accounts.User"
 
 AUTHENTICATION_BACKENDS = [
-    "app.accounts.backends.EmailOrPhoneNumberBackend",
     "django.contrib.auth.backends.ModelBackend",
 ]
 
