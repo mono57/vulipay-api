@@ -31,10 +31,6 @@ class AccountManager(Manager):
 
 class UserManager(BaseUserManager):
     def create_user(self, phone_number=None, email=None, password=None, **extra_fields):
-        """
-        Create and save a regular user with the given phone number, email, and password.
-        At least one of phone_number or email must be provided.
-        """
         if not phone_number and not email:
             raise ValueError(
                 _("User must have either a phone number or an email address")
@@ -45,10 +41,6 @@ class UserManager(BaseUserManager):
 
         # Set default empty string for full_name if not provided
         extra_fields.setdefault("full_name", "")
-
-        # Set username to either email or phone_number
-        username = email if email else phone_number
-        extra_fields.setdefault("username", username)
 
         user = self.model(phone_number=phone_number, email=email, **extra_fields)
         if password:
@@ -78,14 +70,9 @@ class UserManager(BaseUserManager):
         return self.create_user(phone_number, email, password, **extra_fields)
 
     def get_by_natural_key(self, identifier):
-        """
-        Enable login with either email, phone_number, or username.
-        """
         try:
             return self.get(
-                models.Q(username=identifier)
-                | models.Q(email=identifier)
-                | models.Q(phone_number=identifier)
+                models.Q(email=identifier) | models.Q(phone_number=identifier)
             )
         except self.model.DoesNotExist:
             return None

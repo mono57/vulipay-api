@@ -162,36 +162,6 @@ class VerifyOTPViewTestCase(APITestCase):
         mock_verify_otp.assert_called_once()
 
     @patch("app.verify.api.serializers.VerifyOTPSerializer.verify_otp")
-    def test_verify_otp_success_with_user_details(self, mock_verify_otp):
-        mock_verify_otp.return_value = {
-            "success": True,
-            "message": "OTP verified successfully.",
-            "user": {
-                "id": 1,
-                "username": "testuser",
-                "email": "test@example.com",
-                "first_name": "Test",
-                "last_name": "User",
-                "phone_number": "+237698765432",
-                "account_id": 1,
-            },
-            "tokens": {
-                "access": "access_token_value",
-                "refresh": "refresh_token_value",
-            },
-        }
-
-        response = self.client.post(self.url, self.valid_phone_data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data["success"])
-        self.assertIn("user", response.data)
-        self.assertIn("tokens", response.data)
-        self.assertEqual(response.data["user"]["username"], "testuser")
-        self.assertEqual(response.data["tokens"]["access"], "access_token_value")
-        mock_verify_otp.assert_called_once()
-
-    @patch("app.verify.api.serializers.VerifyOTPSerializer.verify_otp")
     def test_verify_otp_success_without_user(self, mock_verify_otp):
         mock_verify_otp.return_value = {
             "success": True,

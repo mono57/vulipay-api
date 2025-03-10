@@ -23,7 +23,6 @@ urlpatterns = [
     path("", Index.as_view()),
     path("api/v1/", include("app.core.apiv1_urls", namespace="api")),
     path("admin/", admin.site.urls),
-    # OpenAPI 3 documentation with drf-spectacular
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "swagger/",

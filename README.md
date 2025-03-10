@@ -233,7 +233,6 @@ if serializer.is_valid():
   "message": "OTP verified successfully.",
   "user": {
     "id": 1,
-    "username": "testuser",
     "email": "user@example.com",
     "first_name": "Test",
     "last_name": "User",
