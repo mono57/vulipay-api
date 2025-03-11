@@ -1,7 +1,7 @@
 from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 
-from app.accounts.models import Account, AvailableCountry, PhoneNumber
+from app.accounts.models import Account, AvailableCountry, PhoneNumber, User
 from app.core.utils import (
     AppCharField,
     AppModel,
@@ -190,3 +190,106 @@ class Transaction(AppModel):
         self.receiver_account.credit(self.amount)
         Account.credit_master_account(self.calculated_fee)
         self.set_as_COMPLETED()
+
+
+class PaymentMethod(AppModel):
+    PAYMENT_TYPE_CHOICES = (
+        ("card", "Card"),
+        ("mobile_money", "Mobile Money"),
+    )
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="payment_methods",
+        help_text=_("User who owns this payment method"),
+    )
+    type = models.CharField(
+        max_length=50,
+        choices=PAYMENT_TYPE_CHOICES,
+        help_text=_("Type of payment method (card or mobile money)"),
+    )
+    default_method = models.BooleanField(
+        default=False,
+        help_text=_("Whether this is the default payment method for the user"),
+    )
+
+    cardholder_name = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text=_("Name of the cardholder (for card payment methods)"),
+    )
+    masked_card_number = models.CharField(
+        max_length=19,
+        null=True,
+        blank=True,
+        help_text=_(
+            "Masked card number, e.g., **** **** **** 1234 (for card payment methods)"
+        ),
+    )
+    expiry_date = models.CharField(
+        max_length=7,
+        null=True,
+        blank=True,
+        help_text=_("Card expiry date in MM/YYYY format (for card payment methods)"),
+    )
+    cvv_hash = models.TextField(
+        null=True,
+        blank=True,
+        help_text=_("Hashed CVV (not plaintext) for card payment methods"),
+    )
+    billing_address = models.TextField(
+        null=True,
+        blank=True,
+        help_text=_(
+            "Billing address associated with the card (for card payment methods)"
+        ),
+    )
+
+    # Mobile Money Fields (Only for 'mobile_money' type)
+    provider = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+        help_text=_(
+            "Mobile money provider, e.g., M-Pesa, MTN Mobile Money (for mobile money payment methods)"
+        ),
+    )
+    mobile_number = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        help_text=_(
+            "Mobile number associated with the mobile money account (for mobile money payment methods)"
+        ),
+    )
+    account_name = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text=_(
+            "Name associated with the mobile money account (for mobile money payment methods)"
+        ),
+    )
+
+    class Meta:
+        verbose_name = _("payment method")
+        verbose_name_plural = _("payment methods")
+
+    def __str__(self):
+        if self.type == "card":
+            return f"Card: {self.masked_card_number}"
+        else:
+            return f"Mobile Money: {self.provider} - {self.mobile_number}"
+
+    def save(self, *args, **kwargs):
+        if self.default_method:
+            PaymentMethod.objects.filter(user=self.user, default_method=True).update(
+                default_method=False
+            )
+
+        if not self.pk and not PaymentMethod.objects.filter(user=self.user).exists():
+            self.default_method = True
+
+        super().save(*args, **kwargs)

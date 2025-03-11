@@ -1,10 +1,18 @@
+import random
+
 import factory
 from factory import Faker as faker
 from factory import django
 
-from app.accounts.tests.factories import AvailableCountryFactory
+from app.accounts.tests.factories import (
+    AccountFactory,
+    AvailableCountryFactory,
+    PhoneNumberFactory,
+    UserFactory,
+)
 from app.core.utils import make_payment_code, make_transaction_ref
 from app.transactions.models import (
+    PaymentMethod,
     Transaction,
     TransactionFee,
     TransactionStatus,
@@ -35,7 +43,7 @@ class TransactionFactory(django.DjangoModelFactory):
             status=status,
             receiver_account=receiver_account,
             **kwargs,
-            type=TransactionType.P2P
+            type=TransactionType.P2P,
         )
 
     @classmethod
@@ -48,7 +56,7 @@ class TransactionFactory(django.DjangoModelFactory):
             amount=2000,
             calculated_fee=40,
             charged_amount=2040,
-            **kwargs
+            **kwargs,
         )
 
 
@@ -70,3 +78,39 @@ class TransactionFeeFactory(django.DjangoModelFactory):
     @classmethod
     def create_ci_transaction_fee(cls, **kwargs):
         return cls.create(**kwargs, transaction_type=TransactionType.CashIn)
+
+
+class PaymentMethodFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PaymentMethod
+
+    user = factory.SubFactory(UserFactory)
+    type = "card"
+    default_method = False
+
+    cardholder_name = factory.Faker("name")
+    masked_card_number = factory.LazyAttribute(
+        lambda _: f"**** **** **** {random.randint(1000, 9999)}"
+    )
+    expiry_date = factory.LazyAttribute(
+        lambda _: f"{random.randint(1, 12):02d}/{random.randint(2025, 2030)}"
+    )
+    cvv_hash = factory.Faker("sha256")
+    billing_address = factory.Faker("address")
+
+    @factory.post_generation
+    def make_mobile_money(self, create, extracted, **kwargs):
+        if not create:
+            return
+
+        if extracted:
+            self.type = "mobile_money"
+            self.cardholder_name = None
+            self.masked_card_number = None
+            self.expiry_date = None
+            self.cvv_hash = None
+            self.billing_address = None
+
+            self.provider = "MTN Mobile Money"
+            self.mobile_number = f"+{random.randint(10000000000, 99999999999)}"
+            self.account_name = "Test User"

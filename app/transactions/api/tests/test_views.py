@@ -1,6 +1,8 @@
 import json
 
+from django.urls import reverse
 from rest_framework import status
+from rest_framework.test import APIClient, APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from app.accounts.models import Account
@@ -9,10 +11,11 @@ from app.accounts.tests.factories import (
     AccountFactory,
     CarrierFactory,
     PhoneNumberFactory,
+    UserFactory,
 )
 from app.core.utils import APIViewTestCase
 from app.transactions.api.views import P2PTransactionCreateAPIView
-from app.transactions.models import Transaction, TransactionStatus
+from app.transactions.models import PaymentMethod, Transaction, TransactionStatus
 from app.transactions.tests.factories import TransactionFactory, TransactionFeeFactory
 
 
@@ -272,13 +275,180 @@ class CashInTransactionCreateAPIViewTest(APIViewTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
 
-# class TransactionHistoryRetrieveAPIViewTestCase(APIViewTestCase):
-#     view_name = "api:transactions:transaction_transaction_history"
+class PaymentMethodAPITestCase(APITestCase):
+    def setUp(self):
+        self.user = UserFactory.create()
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
 
-#     def setUp(self):
-#         super().setUp()
-#         country =
-#         self.receiver_account = AccountFactory.create()
+        self.card_payment = PaymentMethod.objects.create(
+            user=self.user,
+            type="card",
+            cardholder_name="John Doe",
+            masked_card_number="**** **** **** 1234",
+            expiry_date="12/2025",
+            cvv_hash="hashed_cvv",
+            billing_address="123 Main St, City, Country",
+            default_method=True,
+        )
 
-#     def test_it_should_list_P2P_transaction(self):
-#         TransactionFactory
+        self.mobile_payment = PaymentMethod.objects.create(
+            user=self.user,
+            type="mobile_money",
+            provider="MTN Mobile Money",
+            mobile_number="1234567890",
+        )
+
+        self.list_create_url = reverse("api:transactions:payment_methods_list_create")
+        self.detail_url = reverse(
+            "api:transactions:payment_method_detail",
+            kwargs={"pk": self.card_payment.pk},
+        )
+        self.set_default_url = reverse(
+            "api:transactions:payment_method_set_default",
+            kwargs={"pk": self.mobile_payment.pk},
+        )
+
+    def test_list_payment_methods(self):
+        response = self.client.get(self.list_create_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        card_data = next(item for item in response.data if item["type"] == "card")
+        self.assertEqual(
+            card_data["masked_card_number"], self.card_payment.masked_card_number
+        )
+        self.assertTrue(card_data["default_method"])
+
+        mobile_data = next(
+            item for item in response.data if item["type"] == "mobile_money"
+        )
+        self.assertEqual(mobile_data["provider"], self.mobile_payment.provider)
+        self.assertEqual(
+            mobile_data["mobile_number"], self.mobile_payment.mobile_number
+        )
+        self.assertFalse(mobile_data["default_method"])
+
+    def test_create_card_payment_method(self):
+        data = {
+            "type": "card",
+            "cardholder_name": "Jane Doe",
+            "card_number": "4111 1111 1111 1111",
+            "expiry_date": "12/2025",
+            "cvv": "123",
+            "billing_address": "456 Main St, City, Country",
+        }
+
+        response = self.client.post(self.list_create_url, data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["cardholder_name"], "Jane Doe")
+        self.assertEqual(response.data["masked_card_number"], "**** **** **** 1111")
+        self.assertEqual(response.data["expiry_date"], "12/2025")
+        self.assertNotIn("card_number", response.data)
+        self.assertNotIn("cvv", response.data)
+
+        payment_method = PaymentMethod.objects.get(pk=response.data["id"])
+        self.assertEqual(payment_method.cardholder_name, "Jane Doe")
+        self.assertEqual(payment_method.masked_card_number, "**** **** **** 1111")
+        self.assertEqual(payment_method.type, "card")
+        self.assertFalse(payment_method.default_method)
+
+    def test_create_mobile_money_payment_method(self):
+        data = {
+            "type": "mobile_money",
+            "provider": "Orange Money",
+            "mobile_number": "9876543210",
+        }
+
+        response = self.client.post(self.list_create_url, data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["provider"], "Orange Money")
+        self.assertEqual(response.data["mobile_number"], "9876543210")
+
+        payment_method = PaymentMethod.objects.get(pk=response.data["id"])
+        self.assertEqual(payment_method.provider, "Orange Money")
+        self.assertEqual(payment_method.mobile_number, "9876543210")
+        self.assertEqual(payment_method.type, "mobile_money")
+        self.assertFalse(payment_method.default_method)
+
+    def test_retrieve_payment_method(self):
+        response = self.client.get(self.detail_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], self.card_payment.pk)
+        self.assertEqual(response.data["type"], "card")
+        self.assertEqual(
+            response.data["masked_card_number"], self.card_payment.masked_card_number
+        )
+
+    def test_update_payment_method(self):
+        data = {"cardholder_name": "Updated Name", "billing_address": "Updated Address"}
+
+        response = self.client.patch(self.detail_url, data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["cardholder_name"], "Updated Name")
+        self.assertEqual(response.data["billing_address"], "Updated Address")
+
+        self.card_payment.refresh_from_db()
+        self.assertEqual(self.card_payment.cardholder_name, "Updated Name")
+        self.assertEqual(self.card_payment.billing_address, "Updated Address")
+
+    def test_delete_payment_method(self):
+        response = self.client.delete(self.detail_url)
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+        with self.assertRaises(PaymentMethod.DoesNotExist):
+            PaymentMethod.objects.get(pk=self.card_payment.pk)
+
+    def test_set_default_payment_method(self):
+        response = self.client.put(self.set_default_url, {}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["default_method"])
+
+        self.mobile_payment.refresh_from_db()
+        self.card_payment.refresh_from_db()
+        self.assertTrue(self.mobile_payment.default_method)
+        self.assertFalse(self.card_payment.default_method)
+
+    def test_authentication_required(self):
+        client = APIClient()
+
+        response = client.get(self.list_create_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        response = client.post(self.list_create_url, {}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        response = client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        response = client.patch(self.detail_url, {}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        response = client.delete(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        response = client.put(self.set_default_url, {}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_user_can_only_access_own_payment_methods(self):
+        other_user = UserFactory.create()
+        other_payment = PaymentMethod.objects.create(
+            user=other_user,
+            type="card",
+            cardholder_name="Other User",
+            masked_card_number="**** **** **** 5678",
+        )
+
+        other_detail_url = reverse(
+            "api:transactions:payment_method_detail", kwargs={"pk": other_payment.pk}
+        )
+        response = self.client.get(other_detail_url)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

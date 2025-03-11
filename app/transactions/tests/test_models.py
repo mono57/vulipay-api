@@ -4,7 +4,13 @@ from django.test import TransactionTestCase
 
 from app.accounts.models import Account
 from app.accounts.tests import factories as f
-from app.transactions.models import Transaction, TransactionStatus, TransactionType
+from app.accounts.tests.factories import UserFactory
+from app.transactions.models import (
+    PaymentMethod,
+    Transaction,
+    TransactionStatus,
+    TransactionType,
+)
 from app.transactions.tests.factories import TransactionFactory
 
 
@@ -88,3 +94,85 @@ class TransactionTestCase(TransactionTestCase):
         mocked_credit_master.assert_called_once_with(transaction.calculated_fee)
         mocked_credit_receiver.assert_called_once_with(transaction.amount)
         mocked_debit_payer.assert_called_once_with(transaction.charged_amount)
+
+
+class PaymentMethodModelTestCase(TransactionTestCase):
+    def setUp(self):
+        self.user = UserFactory.create()
+
+    def test_create_card_payment_method(self):
+        payment_method = PaymentMethod.objects.create(
+            user=self.user,
+            type="card",
+            cardholder_name="John Doe",
+            masked_card_number="**** **** **** 1234",
+            expiry_date="12/2025",
+            cvv_hash="hashed_cvv",
+            billing_address="123 Main St, City, Country",
+        )
+
+        self.assertEqual(payment_method.user, self.user)
+        self.assertEqual(payment_method.type, "card")
+        self.assertEqual(payment_method.cardholder_name, "John Doe")
+        self.assertEqual(payment_method.masked_card_number, "**** **** **** 1234")
+        self.assertEqual(payment_method.expiry_date, "12/2025")
+        self.assertEqual(payment_method.cvv_hash, "hashed_cvv")
+        self.assertEqual(payment_method.billing_address, "123 Main St, City, Country")
+        self.assertTrue(payment_method.default_method)
+
+    def test_create_mobile_money_payment_method(self):
+        payment_method = PaymentMethod.objects.create(
+            user=self.user,
+            type="mobile_money",
+            provider="MTN Mobile Money",
+            mobile_number="1234567890",
+        )
+
+        self.assertEqual(payment_method.user, self.user)
+        self.assertEqual(payment_method.type, "mobile_money")
+        self.assertEqual(payment_method.provider, "MTN Mobile Money")
+        self.assertEqual(payment_method.mobile_number, "1234567890")
+        self.assertTrue(payment_method.default_method)
+
+    def test_default_payment_method_behavior(self):
+        payment_method1 = PaymentMethod.objects.create(
+            user=self.user,
+            type="card",
+            cardholder_name="John Doe",
+            masked_card_number="**** **** **** 1234",
+        )
+
+        payment_method2 = PaymentMethod.objects.create(
+            user=self.user,
+            type="mobile_money",
+            provider="MTN Mobile Money",
+            mobile_number="1234567890",
+        )
+
+        payment_method1.refresh_from_db()
+        payment_method2.refresh_from_db()
+        self.assertTrue(payment_method1.default_method)
+        self.assertFalse(payment_method2.default_method)
+
+        payment_method2.default_method = True
+        payment_method2.save()
+
+        payment_method1.refresh_from_db()
+        payment_method2.refresh_from_db()
+        self.assertFalse(payment_method1.default_method)
+        self.assertTrue(payment_method2.default_method)
+
+    def test_string_representation(self):
+        card = PaymentMethod.objects.create(
+            user=self.user, type="card", masked_card_number="**** **** **** 1234"
+        )
+
+        mobile = PaymentMethod.objects.create(
+            user=self.user,
+            type="mobile_money",
+            provider="MTN",
+            mobile_number="1234567890",
+        )
+
+        self.assertEqual(str(card), "Card: **** **** **** 1234")
+        self.assertEqual(str(mobile), "Mobile Money: MTN - 1234567890")

@@ -5,6 +5,8 @@ from app.transactions.api.views import (
     CashOutTransactionCreateAPIView,
     MPTransactionCreateAPIView,
     P2PTransactionCreateAPIView,
+    PaymentMethodDetailAPIView,
+    PaymentMethodListCreateAPIView,
     TransactionDetailsRetrieveAPIView,
     TransactionPairingUpdateAPIView,
     ValidateTransactionUpdateAPIView,
@@ -47,5 +49,15 @@ urlpatterns = [
         "<str:payment_code>/pairing",
         TransactionPairingUpdateAPIView.as_view(),
         name="transactions_transaction_pairing",
+    ),
+    path(
+        "payment-methods/",
+        PaymentMethodListCreateAPIView.as_view(),
+        name="payment_methods_list_create",
+    ),
+    path(
+        "payment-methods/<int:pk>/",
+        PaymentMethodDetailAPIView.as_view(),
+        name="payment_method_detail",
     ),
 ]

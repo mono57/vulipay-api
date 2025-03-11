@@ -1,11 +1,24 @@
 from django.utils.translation import gettext_lazy as _
-from rest_framework import exceptions, views
-from rest_framework.generics import CreateAPIView, RetrieveAPIView, UpdateAPIView
+from drf_spectacular.utils import (
+    OpenApiExample,
+    OpenApiParameter,
+    OpenApiResponse,
+    extend_schema,
+)
+from rest_framework import exceptions, permissions, views
+from rest_framework.generics import (
+    CreateAPIView,
+    ListCreateAPIView,
+    RetrieveAPIView,
+    RetrieveUpdateDestroyAPIView,
+    UpdateAPIView,
+)
+from rest_framework.response import Response
 
 from app.accounts.api.mixins import ValidPINRequiredMixin
 from app.accounts.permissions import IsAuthenticatedAccount
 from app.transactions.api import serializers
-from app.transactions.models import Transaction, TransactionStatus
+from app.transactions.models import PaymentMethod, Transaction, TransactionStatus
 
 
 class P2PTransactionCreateAPIView(CreateAPIView):
@@ -114,3 +127,106 @@ class CashInTransactionCreateAPIView(CreateAPIView):
         ctx = super().get_serializer_context()
         ctx["account"] = self.request.user
         return ctx
+
+
+@extend_schema(
+    tags=["Payment Methods"],
+    description="List and create payment methods",
+    responses={
+        200: serializers.PaymentMethodSerializer(many=True),
+        201: serializers.PaymentMethodSerializer,
+    },
+    request=serializers.PaymentMethodSerializer,
+    examples=[
+        OpenApiExample(
+            "Card Payment Method",
+            value={
+                "type": "card",
+                "cardholder_name": "John Doe",
+                "card_number": "4111 1111 1111 1111",
+                "expiry_date": "12/2025",
+                "cvv": "123",
+                "billing_address": "123 Main St, City, Country",
+            },
+            request_only=True,
+        ),
+        OpenApiExample(
+            "Mobile Money Payment Method",
+            value={
+                "type": "mobile_money",
+                "provider": "MTN Mobile Money",
+                "mobile_number": "+237612345678",
+            },
+            request_only=True,
+        ),
+    ],
+)
+class PaymentMethodListCreateAPIView(ListCreateAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = serializers.PaymentMethodSerializer
+
+    def get_queryset(self):
+        return PaymentMethod.objects.filter(user=self.request.user)
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            payment_type = self.request.data.get("type")
+            if payment_type == "card":
+                return serializers.CardPaymentMethodSerializer
+            elif payment_type == "mobile_money":
+                return serializers.MobileMoneyPaymentMethodSerializer
+
+        return self.serializer_class
+
+
+@extend_schema(
+    tags=["Payment Methods"],
+    description="Retrieve, update, and delete payment methods",
+    responses={
+        200: serializers.PaymentMethodSerializer,
+        204: None,
+    },
+    parameters=[
+        OpenApiParameter(
+            name="pk",
+            description="Payment method ID",
+            required=True,
+            type=int,
+            location=OpenApiParameter.PATH,
+        ),
+    ],
+    examples=[
+        OpenApiExample(
+            "Card Payment Method Update",
+            value={
+                "cardholder_name": "Updated Name",
+                "billing_address": "Updated Address",
+            },
+            request_only=True,
+        ),
+        OpenApiExample(
+            "Mobile Money Payment Method Update",
+            value={
+                "provider": "Updated Provider",
+                "mobile_number": "+237698765432",
+            },
+            request_only=True,
+        ),
+    ],
+)
+class PaymentMethodDetailAPIView(RetrieveUpdateDestroyAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = serializers.PaymentMethodSerializer
+
+    def get_queryset(self):
+        return PaymentMethod.objects.filter(user=self.request.user)
+
+    def get_serializer_class(self):
+        if self.request.method in ["PUT", "PATCH"]:
+            payment_method = self.get_object()
+            if payment_method.type == "card":
+                return serializers.CardPaymentMethodSerializer
+            elif payment_method.type == "mobile_money":
+                return serializers.MobileMoneyPaymentMethodSerializer
+
+        return self.serializer_class
