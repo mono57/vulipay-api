@@ -2,7 +2,6 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TransactionTestCase
 
-from app.accounts.models import Account
 from app.accounts.tests import factories as f
 from app.accounts.tests.factories import UserFactory
 from app.transactions.models import (
@@ -10,8 +9,10 @@ from app.transactions.models import (
     Transaction,
     TransactionStatus,
     TransactionType,
+    Wallet,
+    WalletType,
 )
-from app.transactions.tests.factories import TransactionFactory
+from app.transactions.tests.factories import TransactionFactory, WalletFactory
 
 
 class TransactionTestCase(TransactionTestCase):
@@ -176,3 +177,96 @@ class PaymentMethodModelTestCase(TransactionTestCase):
 
         self.assertEqual(str(card), "Card: **** **** **** 1234")
         self.assertEqual(str(mobile), "Mobile Money: MTN - 1234567890")
+
+
+class WalletModelTestCase(TransactionTestCase):
+    def setUp(self):
+        self.user = UserFactory.create()
+
+        self.main_wallet = Wallet.objects.get(
+            user=self.user, wallet_type=WalletType.MAIN
+        )
+
+        self.main_wallet.balance = 1000
+        self.main_wallet.save()
+
+        self.other_user = UserFactory.create()
+        self.other_main_wallet = Wallet.objects.get(
+            user=self.other_user, wallet_type=WalletType.MAIN
+        )
+        self.other_main_wallet.balance = 2000
+        self.other_main_wallet.save()
+
+        self.other_business_wallet = WalletFactory.create_business_wallet(
+            user=self.other_user, balance=3000
+        )
+
+    def test_wallet_creation(self):
+        self.assertEqual(self.main_wallet.user, self.user)
+        self.assertEqual(self.main_wallet.wallet_type, WalletType.MAIN)
+        self.assertEqual(self.main_wallet.balance, 1000)
+        self.assertTrue(self.main_wallet.is_active)
+
+        business_wallet = WalletFactory.create_business_wallet(
+            user=self.user, balance=2000
+        )
+        self.assertEqual(business_wallet.user, self.user)
+        self.assertEqual(business_wallet.wallet_type, WalletType.BUSINESS)
+        self.assertEqual(business_wallet.balance, 2000)
+        self.assertTrue(business_wallet.is_active)
+
+        with self.assertRaises(IntegrityError):
+            Wallet.objects.create(user=self.user, wallet_type=WalletType.MAIN)
+
+    def test_wallet_deposit(self):
+        new_balance = self.main_wallet.deposit(500)
+        self.assertEqual(new_balance, 1500)
+        self.main_wallet.refresh_from_db()
+        self.assertEqual(self.main_wallet.balance, 1500)
+
+        with self.assertRaises(ValueError):
+            self.main_wallet.deposit(-100)
+
+    def test_wallet_withdraw(self):
+        new_balance = self.main_wallet.withdraw(500)
+        self.assertEqual(new_balance, 500)
+        self.main_wallet.refresh_from_db()
+        self.assertEqual(self.main_wallet.balance, 500)
+
+        with self.assertRaises(ValueError):
+            self.main_wallet.withdraw(-100)
+
+        with self.assertRaises(ValueError):
+            self.main_wallet.withdraw(1000)
+
+    def test_wallet_transfer(self):
+        business_wallet = WalletFactory.create_business_wallet(
+            user=self.user, balance=0
+        )
+        result = self.main_wallet.transfer(business_wallet, 500)
+
+        self.assertTrue(result)
+        self.main_wallet.refresh_from_db()
+        business_wallet.refresh_from_db()
+        self.assertEqual(self.main_wallet.balance, 500)
+        self.assertEqual(business_wallet.balance, 500)
+
+        result = self.main_wallet.transfer(self.other_main_wallet, 200)
+
+        self.assertTrue(result)
+        self.main_wallet.refresh_from_db()
+        self.other_main_wallet.refresh_from_db()
+        self.assertEqual(self.main_wallet.balance, 300)
+        self.assertEqual(self.other_main_wallet.balance, 2200)
+
+        with self.assertRaises(ValueError):
+            self.main_wallet.transfer(business_wallet, -100)
+
+        with self.assertRaises(ValueError):
+            self.main_wallet.transfer(business_wallet, 1000)
+
+    def test_string_representation(self):
+        self.assertEqual(str(self.main_wallet), f"{self.user.email}'s Main Wallet")
+
+        business_wallet = WalletFactory.create_business_wallet(user=self.user)
+        self.assertEqual(str(business_wallet), f"{self.user.email}'s Business Wallet")

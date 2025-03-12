@@ -12,7 +12,15 @@ from rest_framework import exceptions, serializers
 from app.accounts.api.serializers import AccountDetailsSerializer, PINSerializerMixin
 from app.accounts.models import Account, PhoneNumber
 from app.core.utils import AppAmountField
-from app.transactions.models import PaymentMethod, Transaction, TransactionStatus
+from app.transactions.models import (
+    PaymentMethod,
+    Transaction,
+    TransactionFee,
+    TransactionStatus,
+    TransactionType,
+    Wallet,
+    WalletType,
+)
 
 
 class BasePaymentTransactionSerializer(serializers.Serializer):
@@ -345,3 +353,22 @@ class MobileMoneyPaymentMethodSerializer(serializers.ModelSerializer):
         validated_data["user"] = self.context["request"].user
 
         return super().create(validated_data)
+
+
+class WalletSerializer(serializers.ModelSerializer):
+    wallet_type_display = serializers.CharField(
+        source="get_wallet_type_display", read_only=True
+    )
+
+    class Meta:
+        model = Wallet
+        fields = [
+            "id",
+            "balance",
+            "wallet_type",
+            "wallet_type_display",
+            "created_at",
+            "last_updated",
+            "is_active",
+        ]
+        read_only_fields = ["id", "balance", "created_at", "last_updated"]

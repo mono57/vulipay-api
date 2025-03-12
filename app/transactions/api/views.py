@@ -5,7 +5,7 @@ from drf_spectacular.utils import (
     OpenApiResponse,
     extend_schema,
 )
-from rest_framework import exceptions, permissions, views
+from rest_framework import exceptions, permissions, status, views
 from rest_framework.generics import (
     CreateAPIView,
     ListCreateAPIView,

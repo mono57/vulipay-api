@@ -1,7 +1,9 @@
+from django.contrib.auth import get_user_model
 from django.db import models, transaction
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from app.accounts.models import Account, AvailableCountry, PhoneNumber, User
+from app.accounts.models import Account, AvailableCountry, PhoneNumber
 from app.core.utils import (
     AppCharField,
     AppModel,
@@ -13,20 +15,22 @@ from app.transactions import managers
 from app.transactions.managers import TransactionFeeManager
 from app.transactions.utils import compute_inclusive_amount
 
+User = get_user_model()
+
 
 class TransactionStatus(models.TextChoices):
     INITIATED = "INITIATED", _("Initiated")
     PENDING = "PENDING", _("Pending")
-    SUCCEED = "SUCCEED", _("Succeed")
-    COMPLETED = "COMPLETED", ("Completed")
+    COMPLETED = "COMPLETED", _("Completed")
     FAILED = "FAILED", _("Failed")
+    CANCELLED = "CANCELLED", _("Cancelled")
 
 
 class TransactionType(models.TextChoices):
     P2P = "P2P", _("Peer to Peer")
-    MP = "MP", _("Merchant payment")
-    CashIn = "CI", _("Cash In")
+    MP = "MP", _("Merchant Payment")
     CashOut = "CO", _("Cash Out")
+    CashIn = "CI", _("Cash In")
 
 
 class TransactionFee(AppModel):
@@ -293,3 +297,71 @@ class PaymentMethod(AppModel):
             self.default_method = True
 
         super().save(*args, **kwargs)
+
+
+class WalletType(models.TextChoices):
+    MAIN = "MAIN", _("Main Wallet")
+    BUSINESS = "BUSINESS", _("Business Wallet")
+
+
+class Wallet(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="wallets")
+    balance = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text=_("Current wallet balance"),
+    )
+    wallet_type = models.CharField(
+        max_length=10,
+        choices=WalletType.choices,
+        default=WalletType.MAIN,
+        help_text=_("Type of wallet (Main or Business)"),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_updated = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(
+        default=True, help_text=_("Whether the wallet is active")
+    )
+
+    class Meta:
+        unique_together = ["user", "wallet_type"]
+        verbose_name = _("Wallet")
+        verbose_name_plural = _("Wallets")
+
+    def __str__(self):
+        return f"{self.user.email}'s {self.get_wallet_type_display()}"
+
+    def deposit(self, amount):
+        if amount <= 0:
+            raise ValueError(_("Deposit amount must be positive"))
+
+        self.balance += amount
+        self.save()
+        return self.balance
+
+    def withdraw(self, amount):
+        if amount <= 0:
+            raise ValueError(_("Withdrawal amount must be positive"))
+
+        if amount > self.balance:
+            raise ValueError(_("Insufficient funds"))
+
+        self.balance -= amount
+        self.save()
+        return self.balance
+
+    def transfer(self, destination_wallet, amount):
+        if amount <= 0:
+            raise ValueError(_("Transfer amount must be positive"))
+
+        if amount > self.balance:
+            raise ValueError(_("Insufficient funds"))
+
+        self.balance -= amount
+        destination_wallet.balance += amount
+
+        self.save()
+        destination_wallet.save()
+
+        return True

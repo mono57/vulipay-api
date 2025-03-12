@@ -17,6 +17,8 @@ from app.transactions.models import (
     TransactionFee,
     TransactionStatus,
     TransactionType,
+    Wallet,
+    WalletType,
 )
 
 
@@ -114,3 +116,21 @@ class PaymentMethodFactory(factory.django.DjangoModelFactory):
             self.provider = "MTN Mobile Money"
             self.mobile_number = f"+{random.randint(10000000000, 99999999999)}"
             self.account_name = "Test User"
+
+
+class WalletFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Wallet
+
+    user = factory.SubFactory(UserFactory)
+    balance = factory.LazyAttribute(lambda _: random.randint(1000, 10000))
+    wallet_type = WalletType.MAIN
+    is_active = True
+
+    @classmethod
+    def create_main_wallet(cls, **kwargs):
+        return cls.create(wallet_type=WalletType.MAIN, **kwargs)
+
+    @classmethod
+    def create_business_wallet(cls, **kwargs):
+        return cls.create(wallet_type=WalletType.BUSINESS, **kwargs)
