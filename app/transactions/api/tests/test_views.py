@@ -14,9 +14,16 @@ from app.accounts.tests.factories import (
     PhoneNumberFactory,
     UserFactory,
 )
-from app.core.utils import APIViewTestCase
+from app.core.utils import APIViewTestCase, make_payment_code, make_transaction_ref
 from app.transactions.api.views import P2PTransactionCreateAPIView
-from app.transactions.models import PaymentMethod, Transaction, TransactionStatus
+from app.transactions.models import (
+    PaymentMethod,
+    Transaction,
+    TransactionStatus,
+    TransactionType,
+    Wallet,
+    WalletType,
+)
 from app.transactions.tests.factories import TransactionFactory, TransactionFeeFactory
 
 
@@ -447,5 +454,139 @@ class PaymentMethodAPITestCase(APITestCase):
             "api:transactions:payment_method_detail", kwargs={"pk": other_payment.pk}
         )
         response = self.client.get(other_detail_url)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class AddFundsTransactionAPITestCase(APITestCase):
+    def setUp(self):
+        self.user = UserFactory.create()
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+        # Create a BUSINESS wallet for the user
+        self.wallet = Wallet.objects.create(
+            user=self.user, wallet_type=WalletType.BUSINESS, balance=0
+        )
+
+        # Create a payment method for the user
+        self.payment_method = PaymentMethod.objects.create(
+            user=self.user,
+            type="mobile_money",
+            provider="MTN Mobile Money",
+            mobile_number="+237670000000",
+        )
+
+        self.add_funds_url = reverse("api:transactions:transactions_cash_in")
+        self.callback_url = reverse("api:transactions:transactions_cash_in_callback")
+
+    def test_initiate_add_funds_transaction(self):
+        data = {
+            "amount": 1000,
+            "payment_method_id": self.payment_method.id,
+            "wallet_id": self.wallet.id,
+        }
+
+        response = self.client.post(self.add_funds_url, data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify a transaction was created
+        transaction = Transaction.objects.filter(
+            type=TransactionType.CashIn,
+            payment_method=self.payment_method,
+            wallet=self.wallet,
+            amount=1000,
+        ).first()
+
+        self.assertIsNotNone(transaction)
+        self.assertEqual(transaction.status, TransactionStatus.INITIATED)
+
+    def test_add_funds_callback_success(self):
+        # First create a transaction
+        transaction = Transaction.objects.create(
+            type=TransactionType.CashIn,
+            status=TransactionStatus.INITIATED,
+            amount=1000,
+            payment_method=self.payment_method,
+            wallet=self.wallet,
+            reference=make_transaction_ref(TransactionType.CashIn),
+            payment_code=make_payment_code(
+                make_transaction_ref(TransactionType.CashIn),
+                TransactionType.CashIn,
+            ),
+        )
+
+        # Initial wallet balance
+        initial_balance = self.wallet.balance
+
+        # Call the callback with success
+        data = {
+            "transaction_reference": transaction.reference,
+            "status": "success",
+            "processor_reference": "ext-ref-123",
+        }
+
+        response = self.client.post(self.callback_url, data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Refresh the transaction and wallet
+        transaction.refresh_from_db()
+        self.wallet.refresh_from_db()
+
+        # Verify the transaction was completed
+        self.assertEqual(transaction.status, TransactionStatus.COMPLETED)
+
+        # Verify the wallet balance was updated
+        self.assertEqual(self.wallet.balance, initial_balance + 1000)
+
+    def test_add_funds_callback_failure(self):
+        # First create a transaction
+        transaction = Transaction.objects.create(
+            type=TransactionType.CashIn,
+            status=TransactionStatus.INITIATED,
+            amount=1000,
+            payment_method=self.payment_method,
+            wallet=self.wallet,
+            reference=make_transaction_ref(TransactionType.CashIn),
+            payment_code=make_payment_code(
+                make_transaction_ref(TransactionType.CashIn),
+                TransactionType.CashIn,
+            ),
+        )
+
+        # Initial wallet balance
+        initial_balance = self.wallet.balance
+
+        # Call the callback with failure
+        data = {
+            "transaction_reference": transaction.reference,
+            "status": "failed",
+            "failure_reason": "Payment declined by provider",
+        }
+
+        response = self.client.post(self.callback_url, data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Refresh the transaction and wallet
+        transaction.refresh_from_db()
+        self.wallet.refresh_from_db()
+
+        # Verify the transaction was marked as failed
+        self.assertEqual(transaction.status, TransactionStatus.FAILED)
+
+        # Verify the wallet balance was not updated
+        self.assertEqual(self.wallet.balance, initial_balance)
+
+    def test_add_funds_callback_transaction_not_found(self):
+        # Call the callback with a non-existent transaction reference
+        data = {
+            "transaction_reference": "non-existent-reference",
+            "status": "success",
+        }
+
+        response = self.client.post(self.callback_url, data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

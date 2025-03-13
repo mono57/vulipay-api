@@ -46,6 +46,23 @@ class TransactionFee(AppModel):
         return self.fee
 
 
+class PaymentMethodType(AppModel):
+    name = AppCharField(_("Name"), max_length=255)
+    code = AppCharField(_("Code"), max_length=255)
+    cash_in_transaction_fee = models.FloatField(_("Cash In Transaction Fee"), null=True)
+    cash_out_transaction_fee = models.FloatField(
+        _("Cash Out Transaction Fee"), null=True
+    )
+    country = models.ForeignKey(AvailableCountry, null=True, on_delete=models.SET_NULL)
+
+    class Meta:
+        verbose_name = _("Payment Method Type")
+        verbose_name_plural = _("Payment Method Types")
+
+    def __str__(self):
+        return self.name
+
+
 class Transaction(AppModel):
     reference = AppCharField(_("Reference"), max_length=30)
     payment_code = AppCharField(_("Payment code"), max_length=255)
@@ -86,6 +103,20 @@ class Transaction(AppModel):
         null=True,
         on_delete=models.SET_NULL,
         related_name="cashin_transactions",
+    )
+    payment_method = models.ForeignKey(
+        "PaymentMethod",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="transactions",
+        help_text=_("Payment method used for the transaction"),
+    )
+    wallet = models.ForeignKey(
+        "Wallet",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="transactions",
+        help_text=_("Wallet associated with the transaction"),
     )
     notes = models.TextField(_("Notes"), null=True)
 
@@ -336,7 +367,9 @@ class Wallet(models.Model):
         if amount <= 0:
             raise ValueError(_("Deposit amount must be positive"))
 
-        self.balance += amount
+        from decimal import Decimal
+
+        self.balance += Decimal(str(amount))
         self.save()
         return self.balance
 

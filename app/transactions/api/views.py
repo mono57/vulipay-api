@@ -1,24 +1,38 @@
+from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
     OpenApiExample,
     OpenApiParameter,
     OpenApiResponse,
     extend_schema,
+    inline_serializer,
 )
-from rest_framework import exceptions, permissions, status, views
+from rest_framework import exceptions, permissions
+from rest_framework import serializers as drf_serializers
+from rest_framework import status, views
 from rest_framework.generics import (
     CreateAPIView,
+    ListAPIView,
     ListCreateAPIView,
     RetrieveAPIView,
     RetrieveUpdateDestroyAPIView,
     UpdateAPIView,
 )
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from app.accounts.api.mixins import ValidPINRequiredMixin
 from app.accounts.permissions import IsAuthenticatedAccount
+from app.core.utils import make_payment_code, make_transaction_ref
 from app.transactions.api import serializers
-from app.transactions.models import PaymentMethod, Transaction, TransactionStatus
+from app.transactions.models import (
+    PaymentMethod,
+    Transaction,
+    TransactionStatus,
+    TransactionType,
+    Wallet,
+)
 
 
 class P2PTransactionCreateAPIView(CreateAPIView):
@@ -230,3 +244,103 @@ class PaymentMethodDetailAPIView(RetrieveUpdateDestroyAPIView):
                 return serializers.MobileMoneyPaymentMethodSerializer
 
         return self.serializer_class
+
+
+@extend_schema(
+    tags=["Transactions"],
+    description="Initiate a Cash In transaction from a payment method to a wallet",
+    responses={
+        201: serializers.AddFundsTransactionSerializer,
+    },
+    request=serializers.AddFundsTransactionSerializer,
+    examples=[
+        OpenApiExample(
+            "Cash In Request",
+            value={
+                "amount": 1000,
+                "payment_method_id": 1,
+                "wallet_id": 1,
+            },
+            request_only=True,
+        ),
+    ],
+)
+class AddFundsTransactionCreateAPIView(CreateAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = serializers.AddFundsTransactionSerializer
+
+    def perform_create(self, serializer):
+        transaction = serializer.save()
+        # Here you would typically call an external service to process the payment
+        # For now, we just return the transaction details
+        return transaction
+
+
+@extend_schema(
+    tags=["Transactions"],
+    description="Callback endpoint for external payment processor to complete a Cash In transaction",
+    responses={
+        200: OpenApiResponse(description="Transaction successfully processed"),
+        400: OpenApiResponse(description="Invalid request"),
+        404: OpenApiResponse(description="Transaction not found"),
+    },
+    request=inline_serializer(
+        name="CashInCallbackSerializer",
+        fields={
+            "transaction_reference": drf_serializers.CharField(),
+            "status": drf_serializers.ChoiceField(choices=["success", "failed"]),
+            "processor_reference": drf_serializers.CharField(required=False),
+            "failure_reason": drf_serializers.CharField(required=False),
+        },
+    ),
+)
+class AddFundsCallbackAPIView(APIView):
+    permission_classes = [permissions.AllowAny]  # External service needs access
+
+    def post(self, request, *args, **kwargs):
+        transaction_reference = request.data.get("transaction_reference")
+        transaction_status = request.data.get("status")
+        processor_reference = request.data.get("processor_reference")
+        failure_reason = request.data.get("failure_reason")
+
+        if not transaction_reference or not transaction_status:
+            return Response(
+                {"error": "Missing required fields"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            transaction = Transaction.objects.get(
+                reference=transaction_reference, type=TransactionType.CashIn
+            )
+        except Transaction.DoesNotExist:
+            return Response(
+                {"error": "Transaction not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        if transaction_status == "success":
+            # Process successful transaction
+            transaction.status = TransactionStatus.COMPLETED
+            if transaction.wallet:
+                transaction.wallet.deposit(transaction.amount)
+
+            # Add processor reference if provided
+            if processor_reference:
+                transaction.notes = f"Processor reference: {processor_reference}"
+
+            transaction.save()
+
+            return Response(
+                {"message": "Transaction completed successfully"},
+                status=status.HTTP_200_OK,
+            )
+        else:
+            # Process failed transaction
+            transaction.status = TransactionStatus.FAILED
+            if failure_reason:
+                transaction.notes = f"Failure reason: {failure_reason}"
+
+            transaction.save()
+
+            return Response(
+                {"message": "Transaction marked as failed"}, status=status.HTTP_200_OK
+            )

@@ -40,6 +40,14 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     email = models.EmailField(_("Email address"), unique=True, null=True, blank=True)
     full_name = AppCharField(_("Full name"), max_length=150, null=True, blank=True)
+    country = models.ForeignKey(
+        "AvailableCountry",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="users",
+        help_text=_("User's country, set during OTP verification"),
+    )
 
     is_staff = models.BooleanField(
         _("staff status"),
@@ -67,9 +75,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name_plural = _("users")
 
     def __str__(self):
-        if self.phone_number:
-            return self.phone_number
-        return self.email or str(self.id)
+        identifier = self.phone_number or self.email or str(self.id)
+        if self.country:
+            return f"{identifier} ({self.country.name})"
+        return identifier
 
     def clean(self):
         super().clean()

@@ -235,6 +235,60 @@ class VerifyOTPSerializerTestCase(TestCase):
     @patch("app.verify.models.OTP.objects.get_active_otp")
     @patch("app.accounts.models.User.objects.get_or_create")
     @patch("rest_framework_simplejwt.tokens.RefreshToken.for_user")
+    @patch("app.accounts.models.AvailableCountry.objects.get")
+    def test_verify_otp_sets_country(
+        self,
+        mock_country_get,
+        mock_refresh_token,
+        mock_get_or_create,
+        mock_get_active_otp,
+    ):
+        # Test that country is set during OTP verification
+        mock_otp = Mock()
+        mock_otp.verify.return_value = True
+        mock_get_active_otp.return_value = mock_otp
+
+        # Create a mock user
+        mock_user = Mock()
+        mock_user.full_name = "Test User"
+        mock_user.email = "test@example.com"
+        mock_user.phone_number = "+237698765432"
+        mock_user.country = None
+
+        # Mock get_or_create to return a tuple (user, created)
+        mock_get_or_create.return_value = (mock_user, False)
+
+        # Create a mock country
+        mock_country = Mock()
+        mock_country.name = "Cameroon"
+        mock_country_get.return_value = mock_country
+
+        # Create a mock token with a string representation
+        mock_token = Mock()
+        mock_token.access_token = "access_token_value"
+        type(mock_token).__str__ = lambda self: "refresh_token_value"
+        mock_refresh_token.return_value = mock_token
+
+        # Add country_iso_code to the valid data
+        data = self.valid_phone_data.copy()
+        data["country_iso_code"] = "CM"
+
+        serializer = VerifyOTPSerializer(data=data)
+        self.assertTrue(serializer.is_valid())
+
+        result = serializer.verify_otp()
+
+        # Check that the country was set on the user
+        mock_country_get.assert_called_with(iso_code="CM")
+        self.assertEqual(mock_user.country, mock_country)
+        mock_user.save.assert_called_once()
+
+        # Check that the country is included in the response
+        self.assertEqual(result["user"]["country"], "Cameroon")
+
+    @patch("app.verify.models.OTP.objects.get_active_otp")
+    @patch("app.accounts.models.User.objects.get_or_create")
+    @patch("rest_framework_simplejwt.tokens.RefreshToken.for_user")
     def test_verify_otp_with_email(
         self, mock_refresh_token, mock_get_or_create, mock_get_active_otp
     ):

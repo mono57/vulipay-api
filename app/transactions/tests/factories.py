@@ -13,6 +13,7 @@ from app.accounts.tests.factories import (
 from app.core.utils import make_payment_code, make_transaction_ref
 from app.transactions.models import (
     PaymentMethod,
+    PaymentMethodType,
     Transaction,
     TransactionFee,
     TransactionStatus,
@@ -134,3 +135,18 @@ class WalletFactory(factory.django.DjangoModelFactory):
     @classmethod
     def create_business_wallet(cls, **kwargs):
         return cls.create(wallet_type=WalletType.BUSINESS, **kwargs)
+
+
+class PaymentMethodTypeFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PaymentMethodType
+
+    name = factory.Faker("word")
+    code = factory.LazyAttribute(lambda o: o.name.upper())
+    cash_in_transaction_fee = factory.LazyAttribute(
+        lambda _: round(random.uniform(0.5, 5.0), 2)
+    )
+    cash_out_transaction_fee = factory.LazyAttribute(
+        lambda _: round(random.uniform(0.5, 5.0), 2)
+    )
+    country = factory.SubFactory(AvailableCountryFactory)

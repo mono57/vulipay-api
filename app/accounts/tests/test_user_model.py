@@ -51,6 +51,13 @@ class UserModelTestCase(TestCase):
             str(self.user_with_both), "+237698049701"
         )  # Phone number takes precedence
 
+        # Test with country
+        self.user_with_email.country = self.country
+        self.user_with_email.save()
+        self.assertEqual(
+            str(self.user_with_email), f"test@example.com ({self.country.name})"
+        )
+
     def test_get_full_name(self):
         """Test the get_full_name method"""
         user = UserFactory.create(full_name="John Doe")
@@ -78,3 +85,16 @@ class UserModelTestCase(TestCase):
         """Test that phone numbers must be unique"""
         with self.assertRaises(IntegrityError):
             UserFactory.create(phone_number="+237698049700")
+
+    def test_user_with_country(self):
+        """Test that a user can have a country associated with it"""
+        user = UserFactory.create(email="country@example.com")
+        self.assertIsNone(user.country)
+
+        user.country = self.country
+        user.save()
+
+        user.refresh_from_db()
+        self.assertEqual(user.country, self.country)
+        self.assertEqual(user.country.name, self.country.name)
+        self.assertEqual(user.country.iso_code, self.country.iso_code)

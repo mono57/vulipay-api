@@ -12,6 +12,7 @@ from rest_framework import exceptions, serializers
 from app.accounts.api.serializers import AccountDetailsSerializer, PINSerializerMixin
 from app.accounts.models import Account, PhoneNumber
 from app.core.utils import AppAmountField
+from app.core.utils.hashers import make_payment_code, make_transaction_ref
 from app.transactions.models import (
     PaymentMethod,
     Transaction,
@@ -355,20 +356,79 @@ class MobileMoneyPaymentMethodSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
+@extend_schema_serializer(component_name="Wallet")
 class WalletSerializer(serializers.ModelSerializer):
-    wallet_type_display = serializers.CharField(
-        source="get_wallet_type_display", read_only=True
-    )
-
     class Meta:
         model = Wallet
         fields = [
             "id",
             "balance",
             "wallet_type",
-            "wallet_type_display",
             "created_at",
             "last_updated",
             "is_active",
         ]
         read_only_fields = ["id", "balance", "created_at", "last_updated"]
+
+
+@extend_schema_serializer(component_name="CashInTransaction")
+class AddFundsTransactionSerializer(serializers.Serializer):
+    amount = AppAmountField(required=True, help_text="Amount to add to the wallet")
+    payment_method_id = serializers.IntegerField(
+        required=True, help_text="ID of the payment method to use"
+    )
+    wallet_id = serializers.IntegerField(
+        required=True, help_text="ID of the wallet to add funds to"
+    )
+
+    def validate_payment_method_id(self, value):
+        user = self.context["request"].user
+        try:
+            payment_method = PaymentMethod.objects.get(pk=value, user=user)
+            self.context["payment_method"] = payment_method
+            return value
+        except PaymentMethod.DoesNotExist:
+            raise serializers.ValidationError(
+                _("Payment method not found"), code="payment_method_not_found"
+            )
+
+    def validate_wallet_id(self, value):
+        user = self.context["request"].user
+        try:
+            wallet = Wallet.objects.get(pk=value, user=user)
+            self.context["wallet"] = wallet
+            return value
+        except Wallet.DoesNotExist:
+            raise serializers.ValidationError(
+                _("Wallet not found"), code="wallet_not_found"
+            )
+
+    def validate_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError(
+                _("Amount must be greater than zero"), code="invalid_amount"
+            )
+        return value
+
+    def create(self, validated_data):
+        payment_method = self.context["payment_method"]
+        wallet = self.context["wallet"]
+        user = self.context["request"].user
+        amount = validated_data["amount"]
+
+        # Create a transaction record for the add funds operation
+        transaction = Transaction.objects.create(
+            type=TransactionType.CashIn,
+            status=TransactionStatus.INITIATED,
+            amount=amount,
+            payer_account=user.account if hasattr(user, "account") else None,
+            reference=make_transaction_ref(TransactionType.CashIn),
+            payment_code=make_payment_code(
+                make_transaction_ref(TransactionType.CashIn),
+                TransactionType.CashIn,
+            ),
+            payment_method=payment_method,
+            wallet=wallet,
+        )
+
+        return transaction

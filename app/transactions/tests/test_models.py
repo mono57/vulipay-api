@@ -1,18 +1,24 @@
 from unittest.mock import MagicMock, patch
 
+from django.db import IntegrityError
 from django.test import TransactionTestCase
 
 from app.accounts.tests import factories as f
 from app.accounts.tests.factories import UserFactory
 from app.transactions.models import (
     PaymentMethod,
+    PaymentMethodType,
     Transaction,
     TransactionStatus,
     TransactionType,
     Wallet,
     WalletType,
 )
-from app.transactions.tests.factories import TransactionFactory, WalletFactory
+from app.transactions.tests.factories import (
+    AvailableCountryFactory,
+    TransactionFactory,
+    WalletFactory,
+)
 
 
 class TransactionTestCase(TransactionTestCase):
@@ -270,3 +276,56 @@ class WalletModelTestCase(TransactionTestCase):
 
         business_wallet = WalletFactory.create_business_wallet(user=self.user)
         self.assertEqual(str(business_wallet), f"{self.user.email}'s Business Wallet")
+
+
+class PaymentMethodTypeTestCase(TransactionTestCase):
+    def setUp(self):
+        self.country = AvailableCountryFactory.create()
+        self.payment_method_type = PaymentMethodType.objects.create(
+            name="Credit Card",
+            code="CREDIT_CARD",
+            cash_in_transaction_fee=1.5,
+            cash_out_transaction_fee=2.0,
+            country=self.country,
+        )
+
+    def test_payment_method_type_creation(self):
+        self.assertEqual(self.payment_method_type.name, "Credit Card")
+        self.assertEqual(self.payment_method_type.code, "CREDIT_CARD")
+        self.assertEqual(self.payment_method_type.cash_in_transaction_fee, 1.5)
+        self.assertEqual(self.payment_method_type.cash_out_transaction_fee, 2.0)
+        self.assertEqual(self.payment_method_type.country, self.country)
+
+    def test_string_representation(self):
+        self.assertEqual(str(self.payment_method_type), "Credit Card")
+
+    def test_payment_method_type_with_null_country(self):
+        payment_method_type = PaymentMethodType.objects.create(
+            name="Mobile Money",
+            code="MOBILE_MONEY",
+            cash_in_transaction_fee=1.0,
+            cash_out_transaction_fee=1.5,
+            country=None,
+        )
+        self.assertIsNone(payment_method_type.country)
+
+    def test_payment_method_type_with_null_fees(self):
+        payment_method_type = PaymentMethodType.objects.create(
+            name="Bank Transfer",
+            code="BANK_TRANSFER",
+            cash_in_transaction_fee=None,
+            cash_out_transaction_fee=None,
+            country=self.country,
+        )
+        self.assertIsNone(payment_method_type.cash_in_transaction_fee)
+        self.assertIsNone(payment_method_type.cash_out_transaction_fee)
+
+    def test_payment_method_type_update(self):
+        self.payment_method_type.name = "Updated Credit Card"
+        self.payment_method_type.cash_in_transaction_fee = 2.5
+        self.payment_method_type.save()
+
+        self.payment_method_type.refresh_from_db()
+
+        self.assertEqual(self.payment_method_type.name, "Updated Credit Card")
+        self.assertEqual(self.payment_method_type.cash_in_transaction_fee, 2.5)

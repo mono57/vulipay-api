@@ -11,9 +11,10 @@ class UserAdmin(BaseUserAdmin):
         "email",
         "phone_number",
         "full_name",
+        "country",
         "is_staff",
     )
-    list_filter = ("is_staff", "is_superuser", "is_active")
+    list_filter = ("is_staff", "is_superuser", "is_active", "country")
     search_fields = ("phone_number", "email", "full_name")
     ordering = ("email", "phone_number")
 
@@ -21,7 +22,7 @@ class UserAdmin(BaseUserAdmin):
         (None, {"fields": ("email", "phone_number", "password")}),
         (
             _("Personal info"),
-            {"fields": ("full_name",)},
+            {"fields": ("full_name", "country")},
         ),
         (
             _("Permissions"),

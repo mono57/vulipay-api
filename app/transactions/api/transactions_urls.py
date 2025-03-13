@@ -1,6 +1,8 @@
 from django.urls import path
 
 from app.transactions.api.views import (
+    AddFundsCallbackAPIView,
+    AddFundsTransactionCreateAPIView,
     CashInTransactionCreateAPIView,
     CashOutTransactionCreateAPIView,
     MPTransactionCreateAPIView,
@@ -34,6 +36,16 @@ urlpatterns = [
         "CI",
         CashInTransactionCreateAPIView.as_view(),
         name="transactions_ci_transactions",
+    ),
+    path(
+        "cash-in",
+        AddFundsTransactionCreateAPIView.as_view(),
+        name="transactions_cash_in",
+    ),
+    path(
+        "cash-in/callback",
+        AddFundsCallbackAPIView.as_view(),
+        name="transactions_cash_in_callback",
     ),
     path(
         "<str:payment_code>/details",
