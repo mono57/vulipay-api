@@ -143,7 +143,9 @@ class MakePinCode(TestCase):
 
     def test_it_should_hash_pin_code(self, mocked_make_password: MagicMock):
         hashers.make_pin(self.pin_to_hash)
-        mocked_make_password.assert_called_once_with(self.pin_to_hash, "bcrypt_sha256")
+        mocked_make_password.assert_called_once_with(
+            self.pin_to_hash, None, "pbkdf2_sha256"
+        )
 
     # @override_settings(
     #     PASSWORD_HASHERS=["django.contrib.auth.hashers.UnsaltedMD5PasswordHasher"]

@@ -461,7 +461,6 @@ class AddFundsTransactionSerializer(serializers.Serializer):
             amount=amount,
             calculated_fee=calculated_fee,
             charged_amount=charged_amount,
-            payer_account=user.account if hasattr(user, "account") else None,
             reference=make_transaction_ref(TransactionType.CashIn),
             payment_code=make_payment_code(
                 make_transaction_ref(TransactionType.CashIn),

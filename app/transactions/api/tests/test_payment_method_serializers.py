@@ -133,17 +133,15 @@ class MobileMoneyPaymentMethodSerializerTestCase(TestCase):
 
     def test_mobile_money_payment_method_serializer_with_payment_method_type(self):
         """Test that MobileMoneyPaymentMethodSerializer correctly handles payment_method_type field."""
-        # Import PhoneNumber from phonenumber_field
-        from phonenumber_field.phonenumber import PhoneNumber
-
-        # Create a valid phone number object
-        phone_number = PhoneNumber.from_string("+233612345678")
+        # Use a string representation of a phone number instead of a PhoneNumber object
+        phone_number = "+233612345678"
 
         data = {
             "name": "My MTN Mobile Money",
-            "provider": "MTN",
-            "mobile_number": phone_number,  # Use the PhoneNumber object
+            "provider": "MTN Mobile Money",
+            "mobile_number": phone_number,  # Use the string representation
             "payment_method_type": self.mtn_type.id,
+            "default_method": False,
         }
 
         # Mock the request context

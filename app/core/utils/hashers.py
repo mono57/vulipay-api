@@ -49,12 +49,12 @@ def make_payment_code(payment_code, type):
 
 @functools.lru_cache
 def make_pin(str_pin):
-    hasher = "bcrypt_sha256"
-    return make_password(str_pin, hasher)
+    hasher = "pbkdf2_sha256"
+    return make_password(str_pin, None, hasher)
 
 
 def check_pin(pin, raw_pin):
-    hasher = "bcrypt_sha256"
+    hasher = "pbkdf2_sha256"
     return check_password(raw_pin, pin, preferred=hasher)
 
 

@@ -124,8 +124,6 @@ class PaymentMethodAPITestCase(APITestCase):
         self.assertFalse(payment_method.default_method)
 
     def test_create_mobile_money_payment_method_with_type(self):
-        from phonenumber_field.phonenumber import PhoneNumber
-
         # Create a valid phone number for Cameroon
         phone_number = "+237670000000"
 
@@ -248,10 +246,6 @@ class PaymentMethodAPITestCase(APITestCase):
         self.assertIn("already exists", response.data["card_number"][0])
 
     def test_prevent_duplicate_mobile_money_payment_method(self):
-        """Test that creating a duplicate mobile money payment method returns an error"""
-        # First create a mobile money payment method
-        from phonenumber_field.phonenumber import PhoneNumber
-
         # Create a valid phone number for Cameroon
         phone_number = "+237670000000"
 

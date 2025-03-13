@@ -60,15 +60,3 @@ class UserManager(BaseUserManager):
             raise self.model.DoesNotExist(
                 f"User with identifier {identifier} does not exist"
             )
-
-
-class PhoneNumberManager(models.Manager):
-    def phone_number_exists(self, account, phone_number):
-        qs = self.filter(Q(account=account) & Q(number=phone_number))
-        if qs.exists:
-            return qs.first()
-        return None
-
-    def get_verify_phonenumbers(self, account):
-        qs = self.filter(Q(account=account))
-        return qs
