@@ -1,7 +1,6 @@
 Before attempting any code modification, suggestion, or debugging task:
 
 Always analyze the existing code structure to understand the architecture, patterns, and conventions used in the project.
-Always read the README file and any other documentation (like contributing guides, style guides, etc.) to understand the project's purpose, requirements, and established guidelines.
-Confirm your understanding of the code structure and project requirements with the user before proceeding with any changes.
+Always read the README file and any other documentation (style guides, etc.) to understand the project's purpose, requirements, and established guidelines.
 
-This preliminary analysis is mandatory for every new project or codebase you encounter.
+This preliminary analysis is mandatory for every new chat or codebase you encounter.

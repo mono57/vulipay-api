@@ -53,7 +53,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         ),
     )
     date_joined = models.DateTimeField(_("date joined"), default=timezone.now)
-    pin = AppCharField(_("PIN"), max_length=4, null=True, blank=True)
+    pin = AppCharField(_("PIN"), max_length=128, null=True, blank=True)
 
     objects = UserManager()
 

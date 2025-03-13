@@ -14,3 +14,36 @@ class UserFullNameUpdateSerializer(serializers.ModelSerializer):
         if not value or not value.strip():
             raise serializers.ValidationError(_("Full name cannot be empty."))
         return value.strip()
+
+
+class UserPINSetupSerializer(serializers.Serializer):
+    pin1 = serializers.CharField(max_length=4, min_length=4, write_only=True)
+    pin2 = serializers.CharField(max_length=4, min_length=4, write_only=True)
+
+    def _validate_pin(self, value):
+        """
+        Validate that the PIN is 4 digits.
+        """
+        if not value.isdigit():
+            raise serializers.ValidationError(_("PIN must contain only digits."))
+        if len(value) != 4:
+            raise serializers.ValidationError(_("PIN must be exactly 4 digits."))
+        return value
+
+    def validate_pin1(self, value):
+        return self._validate_pin(value)
+
+    def validate_pin2(self, value):
+        return self._validate_pin(value)
+
+    def validate(self, data):
+        """
+        Check that pin1 and pin2 match.
+        """
+        if data["pin1"] != data["pin2"]:
+            raise serializers.ValidationError(_("PINs do not match."))
+        return data
+
+    def update(self, instance, validated_data):
+        instance.set_pin(validated_data["pin1"])
+        return instance
