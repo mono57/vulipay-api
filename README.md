@@ -262,6 +262,185 @@ if serializer.is_valid():
 }
 ```
 
+## Payment API Guide
+
+The Payment API allows users to manage payment methods and view available payment method types. This guide demonstrates how to use the API with curl commands.
+
+### Authentication Flow
+
+First, you need to authenticate to get a JWT token:
+
+```bash
+# Generate an OTP
+curl -X POST http://localhost:8000/api/v1/verify/generate/ \
+  -H "Content-Type: application/json" \
+  -d '{"email":"your-email@example.com"}'
+
+# Verify the OTP to get a JWT token
+curl -X POST http://localhost:8000/api/v1/verify/verify/ \
+  -H "Content-Type: application/json" \
+  -d '{"email":"your-email@example.com","code":"YOUR_OTP_CODE"}'
+```
+
+The response will include access and refresh tokens:
+```json
+{
+  "success": true,
+  "message": "OTP verified successfully.",
+  "user": {
+    "full_name": "",
+    "email": "your-email@example.com",
+    "phone_number": null,
+    "country": null
+  },
+  "tokens": {
+    "access": "YOUR_ACCESS_TOKEN",
+    "refresh": "YOUR_REFRESH_TOKEN"
+  }
+}
+```
+
+### List Payment Method Types
+
+Before creating a payment method, you need to know the available payment method types:
+
+```bash
+curl -X GET http://localhost:8000/api/v1/transactions/payment-method-types/ \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+You can also filter by country:
+
+```bash
+curl -X GET "http://localhost:8000/api/v1/transactions/payment-method-types/?country_code=CM" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+### Create a Card Payment Method
+
+Use the payment method type ID from the previous step:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/transactions/payment-methods/ \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "card",
+    "cardholder_name": "John Doe",
+    "card_number": "4111111111111111",
+    "expiry_date": "12/2025",
+    "cvv": "123",
+    "billing_address": "123 Main St, City, Country",
+    "payment_method_type": 1,
+    "default_method": true
+  }'
+```
+
+Response:
+```json
+{
+  "id": 6,
+  "default_method": true,
+  "cardholder_name": "John Doe",
+  "masked_card_number": "**** **** **** 1111",
+  "expiry_date": "12/2025",
+  "cvv_hash": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
+  "billing_address": "123 Main St, City, Country"
+}
+```
+
+### Create a Mobile Money Payment Method
+
+```bash
+curl -X POST http://localhost:8000/api/v1/transactions/payment-methods/ \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "mobile_money",
+    "provider": "MTN Mobile Money",
+    "mobile_number": "+237671234567",
+    "payment_method_type": 2,
+    "default_method": false
+  }'
+```
+
+Response:
+```json
+{
+  "id": 7,
+  "default_method": false,
+  "provider": "MTN Mobile Money",
+  "mobile_number": "+237671234567"
+}
+```
+
+Note: The mobile number must be in a valid E.164 format (e.g., +237671234567).
+
+### List All Payment Methods
+
+```bash
+curl -X GET http://localhost:8000/api/v1/transactions/payment-methods/ \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+Response:
+```json
+[
+  {
+    "id": 6,
+    "type": "card",
+    "default_method": true,
+    "cardholder_name": "John Doe",
+    "masked_card_number": "**** **** **** 1111",
+    "expiry_date": "12/2025"
+  },
+  {
+    "id": 7,
+    "type": "mobile_money",
+    "default_method": false,
+    "provider": "MTN Mobile Money",
+    "mobile_number": "+237671234567"
+  }
+]
+```
+
+### Get Details of a Specific Payment Method
+
+```bash
+curl -X GET http://localhost:8000/api/v1/transactions/payment-methods/6/ \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+Response:
+```json
+{
+  "id": 6,
+  "type": "card",
+  "default_method": true,
+  "cardholder_name": "John Doe",
+  "masked_card_number": "**** **** **** 1111",
+  "expiry_date": "12/2025"
+}
+```
+
+### Important Notes
+
+1. **Security**: The API properly masks sensitive information like card numbers and securely hashes CVV values.
+
+2. **Required Fields**: Different payment method types have different required fields:
+   - Card payments require: cardholder_name, card_number, expiry_date, cvv, billing_address
+   - Mobile money payments require: provider, mobile_number
+
+3. **Phone Number Format**: Mobile numbers must be in E.164 format (e.g., +237671234567)
+
+4. **Authentication**: All endpoints except the OTP generation and verification require a valid JWT token.
+
+5. **Default Method**: You can set a payment method as the default by setting `default_method: true`. Only one payment method can be the default.
+
 ## Environment Variables
 
 The application uses environment variables for configuration. Key variables include:

@@ -150,3 +150,15 @@ class PaymentMethodTypeFactory(factory.django.DjangoModelFactory):
         lambda _: round(random.uniform(0.5, 5.0), 2)
     )
     country = factory.SubFactory(AvailableCountryFactory)
+
+    @classmethod
+    def create_card_payment_method_type(cls, **kwargs):
+        name = kwargs.pop("name", "Visa")
+        code = kwargs.pop("code", f"CARD_{name.upper()}")
+        return cls.create(name=name, code=code, **kwargs)
+
+    @classmethod
+    def create_mobile_money_payment_method_type(cls, **kwargs):
+        name = kwargs.pop("name", "MTN Mobile Money")
+        code = kwargs.pop("code", f'MOBILE_{name.upper().replace(" ", "_")}')
+        return cls.create(name=name, code=code, **kwargs)

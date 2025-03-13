@@ -10,11 +10,12 @@ from phonenumber_field.serializerfields import PhoneNumberField
 from rest_framework import exceptions, serializers
 
 from app.accounts.api.serializers import AccountDetailsSerializer, PINSerializerMixin
-from app.accounts.models import Account, PhoneNumber
+from app.accounts.models import Account, AvailableCountry, PhoneNumber
 from app.core.utils import AppAmountField
 from app.core.utils.hashers import make_payment_code, make_transaction_ref
 from app.transactions.models import (
     PaymentMethod,
+    PaymentMethodType,
     Transaction,
     TransactionFee,
     TransactionStatus,
@@ -199,6 +200,13 @@ class CashInTransactionSerializer(CashInCashOutBaseSerializerMixin):
 
 @extend_schema_serializer(component_name="PaymentMethod")
 class PaymentMethodSerializer(serializers.ModelSerializer):
+    payment_method_type = serializers.PrimaryKeyRelatedField(
+        queryset=PaymentMethodType.objects.all(),
+        required=False,
+        write_only=True,
+        help_text="ID of the payment method type",
+    )
+
     class Meta:
         model = PaymentMethod
         fields = [
@@ -210,6 +218,7 @@ class PaymentMethodSerializer(serializers.ModelSerializer):
             "expiry_date",
             "provider",
             "mobile_number",
+            "payment_method_type",
         ]
         read_only_fields = ["id"]
 
@@ -238,6 +247,12 @@ class CardPaymentMethodSerializer(serializers.ModelSerializer):
     cvv = serializers.CharField(
         write_only=True, required=True, help_text="Card verification value (3-4 digits)"
     )
+    payment_method_type = serializers.PrimaryKeyRelatedField(
+        queryset=PaymentMethodType.objects.filter(code__startswith="CARD"),
+        required=True,
+        write_only=True,
+        help_text="ID of the card payment method type",
+    )
 
     class Meta:
         model = PaymentMethod
@@ -251,6 +266,7 @@ class CardPaymentMethodSerializer(serializers.ModelSerializer):
             "cvv",
             "cvv_hash",
             "billing_address",
+            "payment_method_type",
         ]
         read_only_fields = ["id", "masked_card_number", "cvv_hash"]
         extra_kwargs = {
@@ -306,6 +322,7 @@ class CardPaymentMethodSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         card_number = validated_data.pop("card_number")
         cvv = validated_data.pop("cvv")
+        payment_method_type = validated_data.pop("payment_method_type")
 
         last_four = card_number[-4:]
         masked_card_number = f"**** **** **** {last_four}"
@@ -328,10 +345,22 @@ class MobileMoneyPaymentMethodSerializer(serializers.ModelSerializer):
         required=True,
         help_text="Mobile number associated with the mobile money account (E.164 format)",
     )
+    payment_method_type = serializers.PrimaryKeyRelatedField(
+        queryset=PaymentMethodType.objects.filter(code__startswith="MOBILE"),
+        required=True,
+        write_only=True,
+        help_text="ID of the mobile money payment method type",
+    )
 
     class Meta:
         model = PaymentMethod
-        fields = ["id", "default_method", "provider", "mobile_number"]
+        fields = [
+            "id",
+            "default_method",
+            "provider",
+            "mobile_number",
+            "payment_method_type",
+        ]
         read_only_fields = ["id"]
         extra_kwargs = {
             "provider": {
@@ -349,8 +378,8 @@ class MobileMoneyPaymentMethodSerializer(serializers.ModelSerializer):
         ):
             validated_data["mobile_number"] = validated_data["mobile_number"].as_e164
 
+        payment_method_type = validated_data.pop("payment_method_type")
         validated_data["type"] = "mobile_money"
-
         validated_data["user"] = self.context["request"].user
 
         return super().create(validated_data)
@@ -416,7 +445,6 @@ class AddFundsTransactionSerializer(serializers.Serializer):
         user = self.context["request"].user
         amount = validated_data["amount"]
 
-        # Create a transaction record for the add funds operation
         transaction = Transaction.objects.create(
             type=TransactionType.CashIn,
             status=TransactionStatus.INITIATED,
@@ -432,3 +460,75 @@ class AddFundsTransactionSerializer(serializers.Serializer):
         )
 
         return transaction
+
+
+@extend_schema_serializer(component_name="PaymentMethodType")
+class PaymentMethodTypeSerializer(serializers.ModelSerializer):
+    country_name = serializers.SerializerMethodField()
+    country_code = serializers.SerializerMethodField()
+    required_fields = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PaymentMethodType
+        fields = [
+            "id",
+            "name",
+            "code",
+            "cash_in_transaction_fee",
+            "cash_out_transaction_fee",
+            "country",
+            "country_name",
+            "country_code",
+            "required_fields",
+        ]
+        read_only_fields = fields
+
+    def get_country_name(self, obj):
+        return obj.country.name if obj.country else None
+
+    def get_country_code(self, obj):
+        return obj.country.iso_code if obj.country else None
+
+    def get_required_fields(self, obj):
+        if obj.code.startswith("CARD"):
+            return {
+                "cardholder_name": {
+                    "type": "string",
+                    "required": True,
+                    "help_text": "Name of the cardholder",
+                },
+                "card_number": {
+                    "type": "string",
+                    "required": True,
+                    "help_text": "Card number (will be masked in responses)",
+                },
+                "expiry_date": {
+                    "type": "string",
+                    "required": True,
+                    "help_text": "Card expiry date in MM/YYYY format",
+                },
+                "cvv": {
+                    "type": "string",
+                    "required": True,
+                    "help_text": "Card verification value (3-4 digits)",
+                },
+                "billing_address": {
+                    "type": "string",
+                    "required": True,
+                    "help_text": "Billing address associated with the card",
+                },
+            }
+        elif obj.code.startswith("MOBILE"):
+            return {
+                "provider": {
+                    "type": "string",
+                    "required": True,
+                    "help_text": f"Mobile money provider (e.g., {obj.name})",
+                },
+                "mobile_number": {
+                    "type": "string",
+                    "required": True,
+                    "help_text": "Mobile number associated with the mobile money account (E.164 format)",
+                },
+            }
+        return {}

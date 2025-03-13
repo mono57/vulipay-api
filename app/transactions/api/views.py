@@ -11,6 +11,7 @@ from rest_framework import serializers as drf_serializers
 from rest_framework import status, views
 from rest_framework.generics import (
     CreateAPIView,
+    ListAPIView,
     ListCreateAPIView,
     RetrieveAPIView,
     RetrieveUpdateDestroyAPIView,
@@ -24,6 +25,7 @@ from app.accounts.permissions import IsAuthenticatedAccount
 from app.transactions.api import serializers
 from app.transactions.models import (
     PaymentMethod,
+    PaymentMethodType,
     Transaction,
     TransactionStatus,
     TransactionType,
@@ -339,3 +341,38 @@ class AddFundsCallbackAPIView(APIView):
             return Response(
                 {"message": "Transaction marked as failed"}, status=status.HTTP_200_OK
             )
+
+
+@extend_schema(
+    tags=["Payment Method Types"],
+    description="List available payment method types",
+    responses={
+        200: serializers.PaymentMethodTypeSerializer(many=True),
+    },
+)
+class PaymentMethodTypeListAPIView(ListAPIView):
+    """
+    API endpoint for listing available payment method types.
+
+    This endpoint allows authenticated users to view all available payment method types,
+    including details about required fields for each type.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = serializers.PaymentMethodTypeSerializer
+    queryset = PaymentMethodType.objects.all()
+
+    def get_queryset(self):
+        """
+        Filter payment method types by country if provided.
+        """
+        queryset = super().get_queryset()
+        country_id = self.request.query_params.get("country_id")
+        country_code = self.request.query_params.get("country_code")
+
+        if country_id:
+            queryset = queryset.filter(country_id=country_id)
+        elif country_code:
+            queryset = queryset.filter(country__iso_code=country_code)
+
+        return queryset

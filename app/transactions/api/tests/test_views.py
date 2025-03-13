@@ -10,6 +10,7 @@ from app.accounts.models import Account
 from app.accounts.tests import factories as f
 from app.accounts.tests.factories import (
     AccountFactory,
+    AvailableCountryFactory,
     CarrierFactory,
     PhoneNumberFactory,
     UserFactory,
@@ -24,7 +25,11 @@ from app.transactions.models import (
     Wallet,
     WalletType,
 )
-from app.transactions.tests.factories import TransactionFactory, TransactionFeeFactory
+from app.transactions.tests.factories import (
+    PaymentMethodTypeFactory,
+    TransactionFactory,
+    TransactionFeeFactory,
+)
 
 
 class P2PTransactionCreateAPIViewTestCase(APIViewTestCase):
@@ -289,6 +294,18 @@ class PaymentMethodAPITestCase(APITestCase):
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
+        self.country = AvailableCountryFactory.create(name="Cameroon", iso_code="CM")
+
+        # Create payment method types
+        self.visa_type = PaymentMethodTypeFactory.create_card_payment_method_type(
+            name="Visa", country=self.country
+        )
+        self.mtn_type = (
+            PaymentMethodTypeFactory.create_mobile_money_payment_method_type(
+                name="MTN Mobile Money", country=self.country
+            )
+        )
+
         self.card_payment = PaymentMethod.objects.create(
             user=self.user,
             type="card",
@@ -338,7 +355,7 @@ class PaymentMethodAPITestCase(APITestCase):
         )
         self.assertFalse(mobile_data["default_method"])
 
-    def test_create_card_payment_method(self):
+    def test_create_card_payment_method_with_type(self):
         data = {
             "type": "card",
             "cardholder_name": "Jane Doe",
@@ -346,6 +363,7 @@ class PaymentMethodAPITestCase(APITestCase):
             "expiry_date": "12/2025",
             "cvv": "123",
             "billing_address": "456 Main St, City, Country",
+            "payment_method_type": self.visa_type.id,
         }
 
         response = self.client.post(self.list_create_url, data, format="json")
@@ -363,7 +381,7 @@ class PaymentMethodAPITestCase(APITestCase):
         self.assertEqual(payment_method.type, "card")
         self.assertFalse(payment_method.default_method)
 
-    def test_create_mobile_money_payment_method(self):
+    def test_create_mobile_money_payment_method_with_type(self):
         from phonenumber_field.phonenumber import PhoneNumber
 
         # Create a valid phone number for Cameroon
@@ -371,8 +389,9 @@ class PaymentMethodAPITestCase(APITestCase):
 
         data = {
             "type": "mobile_money",
-            "provider": "Orange Money",
+            "provider": "MTN Mobile Money",
             "mobile_number": phone_number,
+            "payment_method_type": self.mtn_type.id,
         }
 
         response = self.client.post(self.list_create_url, data, format="json")
@@ -380,11 +399,11 @@ class PaymentMethodAPITestCase(APITestCase):
         print("Response data:", response.data)  # Print response data for debugging
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["provider"], "Orange Money")
+        self.assertEqual(response.data["provider"], "MTN Mobile Money")
         self.assertEqual(response.data["mobile_number"], phone_number)
 
         payment_method = PaymentMethod.objects.get(pk=response.data["id"])
-        self.assertEqual(payment_method.provider, "Orange Money")
+        self.assertEqual(payment_method.provider, "MTN Mobile Money")
         self.assertEqual(payment_method.mobile_number, phone_number)
         self.assertEqual(payment_method.type, "mobile_money")
         self.assertFalse(payment_method.default_method)
@@ -590,3 +609,106 @@ class AddFundsTransactionAPITestCase(APITestCase):
         response = self.client.post(self.callback_url, data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class PaymentMethodTypeAPITestCase(APITestCase):
+    def setUp(self):
+        self.user = UserFactory.create()
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+        self.country = AvailableCountryFactory.create(
+            name="Cameroon", iso_code="CM", dial_code="237"
+        )
+        self.other_country = AvailableCountryFactory.create(
+            name="Nigeria", iso_code="NG", dial_code="234"  # Different dial code
+        )
+
+        # Create card payment method types
+        self.visa = PaymentMethodTypeFactory.create_card_payment_method_type(
+            name="Visa", country=self.country
+        )
+        self.mastercard = PaymentMethodTypeFactory.create_card_payment_method_type(
+            name="Mastercard", country=self.country
+        )
+
+        # Create mobile money payment method types
+        self.mtn = PaymentMethodTypeFactory.create_mobile_money_payment_method_type(
+            name="MTN Mobile Money", country=self.country
+        )
+        self.orange = PaymentMethodTypeFactory.create_mobile_money_payment_method_type(
+            name="Orange Money", country=self.country
+        )
+
+        # Create payment method type for another country
+        self.other_country_type = (
+            PaymentMethodTypeFactory.create_mobile_money_payment_method_type(
+                name="Other Country Provider", country=self.other_country
+            )
+        )
+
+        self.list_url = reverse("api:transactions:payment-method-types-list")
+
+    def test_list_payment_method_types(self):
+        """Test that authenticated users can list all payment method types"""
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 5)  # All payment method types
+
+        # Check that the response includes the expected fields
+        visa_data = next(item for item in response.data if item["name"] == "Visa")
+        self.assertEqual(visa_data["code"], "CARD_VISA")
+        self.assertEqual(visa_data["country_name"], "Cameroon")
+        self.assertEqual(visa_data["country_code"], "CM")
+        self.assertIn("required_fields", visa_data)
+
+        # Check required fields for card payment method type
+        self.assertIn("cardholder_name", visa_data["required_fields"])
+        self.assertIn("card_number", visa_data["required_fields"])
+        self.assertIn("expiry_date", visa_data["required_fields"])
+        self.assertIn("cvv", visa_data["required_fields"])
+        self.assertIn("billing_address", visa_data["required_fields"])
+
+        # Check required fields for mobile money payment method type
+        mtn_data = next(
+            item for item in response.data if item["name"] == "MTN Mobile Money"
+        )
+        self.assertIn("provider", mtn_data["required_fields"])
+        self.assertIn("mobile_number", mtn_data["required_fields"])
+
+    def test_filter_payment_method_types_by_country_id(self):
+        """Test that payment method types can be filtered by country ID"""
+        response = self.client.get(f"{self.list_url}?country_id={self.country.id}")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            len(response.data), 4
+        )  # Only payment method types for the specified country
+
+        # Check that all returned payment method types are for the specified country
+        for item in response.data:
+            self.assertEqual(item["country_name"], "Cameroon")
+
+    def test_filter_payment_method_types_by_country_code(self):
+        """Test that payment method types can be filtered by country code"""
+        response = self.client.get(
+            f"{self.list_url}?country_code={self.country.iso_code}"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            len(response.data), 4
+        )  # Only payment method types for the specified country
+
+        # Check that all returned payment method types are for the specified country
+        for item in response.data:
+            self.assertEqual(item["country_code"], "CM")
+
+    def test_authentication_required(self):
+        """Test that authentication is required to list payment method types"""
+        client = APIClient()  # Unauthenticated client
+
+        response = client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

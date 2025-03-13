@@ -9,6 +9,7 @@ from app.transactions.api.views import (
     P2PTransactionCreateAPIView,
     PaymentMethodDetailAPIView,
     PaymentMethodListCreateAPIView,
+    PaymentMethodTypeListAPIView,
     TransactionDetailsRetrieveAPIView,
     TransactionPairingUpdateAPIView,
     ValidateTransactionUpdateAPIView,
@@ -71,5 +72,10 @@ urlpatterns = [
         "payment-methods/<int:pk>/",
         PaymentMethodDetailAPIView.as_view(),
         name="payment_method_detail",
+    ),
+    path(
+        "payment-method-types/",
+        PaymentMethodTypeListAPIView.as_view(),
+        name="payment-method-types-list",
     ),
 ]
