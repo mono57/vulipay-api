@@ -559,20 +559,30 @@ class AddFundsTransactionAPITestCase(APITestCase):
             user=self.user, wallet_type=WalletType.BUSINESS, balance=0
         )
 
-        # Create a payment method for the user
+        # Create a payment method type with a specific cash-in transaction fee
+        self.payment_method_type = (
+            PaymentMethodTypeFactory.create_mobile_money_payment_method_type(
+                name="MTN Mobile Money",
+                cash_in_transaction_fee=2.5,  # 2.5% fee
+            )
+        )
+
+        # Create a payment method for the user with the payment method type
         self.payment_method = PaymentMethod.objects.create(
             user=self.user,
             type="mobile_money",
             provider="MTN Mobile Money",
             mobile_number="+237670000000",
+            payment_method_type=self.payment_method_type,
         )
 
         self.add_funds_url = reverse("api:transactions:transactions_cash_in")
         self.callback_url = reverse("api:transactions:transactions_cash_in_callback")
 
     def test_initiate_add_funds_transaction(self):
+        amount = 1000
         data = {
-            "amount": 1000,
+            "amount": amount,
             "payment_method_id": self.payment_method.id,
             "wallet_id": self.wallet.id,
         }
@@ -581,23 +591,39 @@ class AddFundsTransactionAPITestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+        # Verify the response includes the charged amount and calculated fee
+        expected_fee = (amount * self.payment_method_type.cash_in_transaction_fee) / 100
+        expected_charged_amount = amount + expected_fee
+
+        self.assertIn("calculated_fee", response.data)
+        self.assertIn("charged_amount", response.data)
+        self.assertEqual(response.data["calculated_fee"], expected_fee)
+        self.assertEqual(response.data["charged_amount"], expected_charged_amount)
+
         # Verify a transaction was created
         transaction = Transaction.objects.filter(
             type=TransactionType.CashIn,
             payment_method=self.payment_method,
             wallet=self.wallet,
-            amount=1000,
+            amount=amount,
         ).first()
 
         self.assertIsNotNone(transaction)
         self.assertEqual(transaction.status, TransactionStatus.INITIATED)
 
+        # Verify the charged amount and calculated fee
+        self.assertEqual(transaction.calculated_fee, expected_fee)
+        self.assertEqual(transaction.charged_amount, expected_charged_amount)
+
     def test_add_funds_callback_success(self):
         # First create a transaction
+        amount = 1000
         transaction = Transaction.objects.create(
             type=TransactionType.CashIn,
             status=TransactionStatus.INITIATED,
-            amount=1000,
+            amount=amount,
+            calculated_fee=25.0,  # 2.5% of 1000
+            charged_amount=1025.0,  # 1000 + 25
             payment_method=self.payment_method,
             wallet=self.wallet,
             reference=make_transaction_ref(TransactionType.CashIn),
@@ -628,8 +654,9 @@ class AddFundsTransactionAPITestCase(APITestCase):
         # Verify the transaction was completed
         self.assertEqual(transaction.status, TransactionStatus.COMPLETED)
 
-        # Verify the wallet balance was updated
-        self.assertEqual(self.wallet.balance, initial_balance + 1000)
+        # Verify the wallet balance was updated with the original amount (not the charged amount)
+        # The charged amount includes the fee which is kept by the payment processor
+        self.assertEqual(self.wallet.balance, initial_balance + amount)
 
     def test_add_funds_callback_failure(self):
         # First create a transaction

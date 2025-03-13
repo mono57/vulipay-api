@@ -245,9 +245,12 @@ class PaymentMethodDetailAPIView(RetrieveUpdateDestroyAPIView):
 
 @extend_schema(
     tags=["Transactions"],
-    description="Initiate a Cash In transaction from a payment method to a wallet",
+    description="Initiate a Cash In transaction from a payment method to a wallet. The transaction will include a calculated fee based on the payment method type's cash-in transaction fee.",
     responses={
-        201: serializers.AddFundsTransactionSerializer,
+        201: OpenApiResponse(
+            description="Transaction created successfully",
+            response=serializers.AddFundsTransactionSerializer,
+        ),
     },
     request=serializers.AddFundsTransactionSerializer,
     examples=[
@@ -318,6 +321,8 @@ class AddFundsCallbackAPIView(APIView):
             # Process successful transaction
             transaction.status = TransactionStatus.COMPLETED
             if transaction.wallet:
+                # Use the original amount for the deposit, not the charged amount
+                # The charged amount includes the fee which is kept by the payment processor
                 transaction.wallet.deposit(transaction.amount)
 
             # Add processor reference if provided
@@ -339,7 +344,8 @@ class AddFundsCallbackAPIView(APIView):
             transaction.save()
 
             return Response(
-                {"message": "Transaction marked as failed"}, status=status.HTTP_200_OK
+                {"message": "Transaction marked as failed"},
+                status=status.HTTP_200_OK,
             )
 
 

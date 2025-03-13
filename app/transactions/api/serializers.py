@@ -523,6 +523,13 @@ class AddFundsTransactionSerializer(serializers.Serializer):
     wallet_id = serializers.IntegerField(
         required=True, help_text="ID of the wallet to add funds to"
     )
+    charged_amount = serializers.FloatField(
+        read_only=True, help_text="Total amount charged including transaction fee"
+    )
+    calculated_fee = serializers.FloatField(
+        read_only=True,
+        help_text="Transaction fee calculated based on the payment method type",
+    )
 
     def validate_payment_method_id(self, value):
         user = self.context["request"].user
@@ -553,16 +560,86 @@ class AddFundsTransactionSerializer(serializers.Serializer):
             )
         return value
 
+    def to_representation(self, instance):
+        representation = {
+            "id": instance.id,
+            "reference": instance.reference,
+            "amount": instance.amount,
+            "status": instance.status,
+            "payment_method_id": instance.payment_method_id,
+            "wallet_id": instance.wallet_id,
+        }
+
+        if instance.calculated_fee is not None:
+            representation["calculated_fee"] = instance.calculated_fee
+
+        if instance.charged_amount is not None:
+            representation["charged_amount"] = instance.charged_amount
+
+        return representation
+
     def create(self, validated_data):
         payment_method = self.context["payment_method"]
         wallet = self.context["wallet"]
         user = self.context["request"].user
         amount = validated_data["amount"]
 
+        # Get the payment method type to access the cash-in transaction fee
+        payment_method_type = None
+        payment_method_type_id = getattr(payment_method, "payment_method_type_id", None)
+
+        if payment_method_type_id:
+            try:
+                payment_method_type = PaymentMethodType.objects.get(
+                    id=payment_method_type_id
+                )
+            except PaymentMethodType.DoesNotExist:
+                pass
+
+        # If payment_method_type is not directly available, try to infer it
+        if not payment_method_type:
+            if payment_method.type == "card":
+                payment_method_type = PaymentMethodType.objects.filter(
+                    code__startswith="CARD"
+                ).first()
+            elif payment_method.type == "mobile_money" and payment_method.provider:
+                # Try to match by provider name
+                provider_words = payment_method.provider.upper().split()
+                for word in provider_words:
+                    if len(word) > 2:  # Skip short words like "OF", "THE", etc.
+                        matching_type = PaymentMethodType.objects.filter(
+                            code__contains=word
+                        ).first()
+                        if matching_type:
+                            payment_method_type = matching_type
+                            break
+
+                # If no match by provider words, try a generic mobile money type
+                if not payment_method_type:
+                    payment_method_type = PaymentMethodType.objects.filter(
+                        code__startswith="MOBILE"
+                    ).first()
+
+        # Calculate the fee and charged amount if a payment method type with a fee is found
+        calculated_fee = None
+        charged_amount = amount
+
+        if (
+            payment_method_type
+            and payment_method_type.cash_in_transaction_fee is not None
+        ):
+            from app.transactions.utils import compute_inclusive_amount
+
+            calculated_fee, charged_amount = compute_inclusive_amount(
+                amount, payment_method_type.cash_in_transaction_fee
+            )
+
         transaction = Transaction.objects.create(
             type=TransactionType.CashIn,
             status=TransactionStatus.INITIATED,
             amount=amount,
+            calculated_fee=calculated_fee,
+            charged_amount=charged_amount,
             payer_account=user.account if hasattr(user, "account") else None,
             reference=make_transaction_ref(TransactionType.CashIn),
             payment_code=make_payment_code(
