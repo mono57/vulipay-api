@@ -11,25 +11,6 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 
-class AccountManager(Manager):
-    @classmethod
-    def generate_account_number(cls):
-        # Note: DEV only
-        return str(random.randint(0, 65535))
-
-    def create_master_account(self):
-        self.create(
-            intl_phone_number=settings.MASTER_INTL_PHONE_NUMBER,
-            phone_number=settings.MASTER_PHONE_NUMBER,
-            is_master=True,
-        )
-
-    def credit_master_account(self, amount):
-        self.filter(
-            Q(is_master=True) & Q(intl_phone_number=settings.MASTER_INTL_PHONE_NUMBER)
-        ).update(balance=F("balance") + amount)
-
-
 class UserManager(BaseUserManager):
     def create_user(self, phone_number=None, email=None, password=None, **extra_fields):
         if not phone_number and not email:

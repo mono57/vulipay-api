@@ -6,14 +6,8 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from app.accounts.managers import AccountManager, PhoneNumberManager, UserManager
-from app.core.utils import (
-    AppCharField,
-    AppModel,
-    check_pin,
-    make_payment_code,
-    make_pin,
-)
+from app.accounts.managers import UserManager
+from app.core.utils import AppCharField, AppModel, check_pin, make_pin
 
 
 def compute_next_attempt_time(count) -> datetime.datetime:
@@ -28,10 +22,6 @@ def compute_next_verif_attempt_time(count) -> datetime.datetime:
     time_diff = dt_now + datetime.timedelta(minutes=10)
 
     return time_diff
-
-
-def create_master_account_after_migration():
-    Account.objects.create_master_account()
 
 
 class User(AbstractBaseUser, PermissionsMixin):

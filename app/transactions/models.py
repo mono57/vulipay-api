@@ -3,14 +3,8 @@ from django.db import models, transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from app.accounts.models import Account, AvailableCountry, PhoneNumber
-from app.core.utils import (
-    AppCharField,
-    AppModel,
-    is_valid_payment_code,
-    make_payment_code,
-    make_transaction_ref,
-)
+from app.accounts.models import AvailableCountry
+from app.core.utils import AppCharField, AppModel, is_valid_payment_code
 from app.transactions import managers
 from app.transactions.managers import TransactionFeeManager
 from app.transactions.utils import compute_inclusive_amount
@@ -71,39 +65,7 @@ class Transaction(AppModel):
     calculated_fee = models.FloatField(_("Calculated Fee"), null=True)
     status = AppCharField(_("Status"), max_length=10, choices=TransactionStatus.choices)
     type = AppCharField(_("Type"), max_length=4, choices=TransactionType.choices)
-    payer_account = models.ForeignKey(
-        Account, on_delete=models.SET_NULL, null=True, related_name="debit_transactions"
-    )
-    receiver_account = models.ForeignKey(
-        Account,
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name="credit_transactions",
-    )
-    from_account = models.ForeignKey(
-        Account,
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name="cashout_transactions",
-    )
-    to_phone_number = models.ForeignKey(
-        PhoneNumber,
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name="cashout_transations",
-    )
-    from_phone_number = models.ForeignKey(
-        PhoneNumber,
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name="cashin_transations",
-    )
-    to_account = models.ForeignKey(
-        Account,
-        null=True,
-        on_delete=models.SET_NULL,
-        related_name="cashin_transactions",
-    )
+
     payment_method = models.ForeignKey(
         "PaymentMethod",
         on_delete=models.SET_NULL,
@@ -129,63 +91,6 @@ class Transaction(AppModel):
     def is_valid_payment_code(cls, payment_code):
         return is_valid_payment_code(payment_code, TransactionType.values)
 
-    @classmethod
-    def create_P2P_transaction(
-        cls, amount: float, receiver_account: Account, notes: str = None
-    ):
-        transaction = cls.objects._create(
-            type=TransactionType.P2P,
-            amount=amount,
-            receiver_account=receiver_account,
-            status=TransactionStatus.INITIATED,
-            notes=notes,
-        )
-
-        return transaction
-
-    @classmethod
-    def create_MP_transaction(
-        cls,
-        amount: float,
-        receiver_account,
-        payer_account,
-        notes: str = None,
-    ):
-        mp_transaction = cls.objects._create(
-            type=TransactionType.MP,
-            amount=amount,
-            receiver_account=receiver_account,
-            payer_account=payer_account,
-            status=TransactionStatus.PENDING,
-            notes=notes,
-        )
-
-        return mp_transaction
-
-    @classmethod
-    def create_CO_transaction(cls, amount, from_account, to_phone_number):
-        transaction = cls.objects._create(
-            type=TransactionType.CashOut,
-            amount=amount,
-            from_account=from_account,
-            to_phone_number=to_phone_number,
-            status=TransactionStatus.PENDING,
-        )
-
-        return transaction
-
-    @classmethod
-    def create_CI_transaction(cls, amount, to_account, from_phone_number):
-        transaction = cls.objects._create(
-            type=TransactionType.CashIn,
-            amount=amount,
-            to_account=to_account,
-            from_phone_number=from_phone_number,
-            status=TransactionStatus.PENDING,
-        )
-
-        return transaction
-
     def get_inclusive_amount(self, country):
         if self.charged_amount is not None and self.calculated_fee is not None:
             return self.charged_amount
@@ -210,21 +115,6 @@ class Transaction(AppModel):
     def set_as_COMPLETED(self):
         self._set_status(TransactionStatus.COMPLETED)
         self.save()
-
-    def pair(self, payer_account):
-        self.payer_account = payer_account
-        self.set_as_PENDING()
-        self.save()
-
-    def is_status_allowed(self, status):
-        return self.status == status
-
-    @transaction.atomic()
-    def perform_payment(self):
-        self.payer_account.debit(self.charged_amount)
-        self.receiver_account.credit(self.amount)
-        Account.credit_master_account(self.calculated_fee)
-        self.set_as_COMPLETED()
 
 
 class PaymentMethod(AppModel):

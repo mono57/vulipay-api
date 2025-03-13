@@ -10,7 +10,6 @@ from django.db import models
 from django.utils import timezone
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from app.accounts.models import Account
 from app.core.utils.fields import AppCharField
 from app.core.utils.models import AppModel
 from app.verify.delivery_channels import DELIVERY_CHANNELS

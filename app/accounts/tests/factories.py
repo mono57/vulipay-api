@@ -41,39 +41,3 @@ class AvailableCountryFactory(django.DjangoModelFactory):
     dial_code = "237"
     iso_code = "CM"
     phone_number_regex = "ZRESDF"
-
-
-class AccountFactory(django.DjangoModelFactory):
-    class Meta:
-        model = Account
-
-    phone_number = "698049742"
-    intl_phone_number = "+237698049742"
-    country = factory.SubFactory(AvailableCountryFactory)
-
-    @classmethod
-    def create_master_account(self, **kwargs):
-        kwargs.setdefault("is_master", True)
-        kwargs.setdefault("phone_number", settings.MASTER_PHONE_NUMBER)
-        kwargs.setdefault("intl_phone_number", settings.MASTER_INTL_PHONE_NUMBER)
-        kwargs.setdefault("balance", 0)
-
-        return self.create(**kwargs)
-
-
-class CarrierFactory(django.DjangoModelFactory):
-    class Meta:
-        model = SupportedMobileMoneyCarrier
-
-    name = "Orange"
-    country = factory.SubFactory(AvailableCountryFactory)
-    # flag = SimpleUploadedFile("face.jpg", b"file data")
-
-
-class PhoneNumberFactory(django.DjangoModelFactory):
-    class Meta:
-        model = PhoneNumber
-
-    number = "237698049741"
-    carrier = factory.SubFactory(CarrierFactory)
-    account = factory.SubFactory(AccountFactory)

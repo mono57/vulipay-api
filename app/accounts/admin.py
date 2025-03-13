@@ -55,16 +55,6 @@ class UserModelAdmin(UserAdmin):
     pass
 
 
-@admin.register(models.Account)
-class AccountModelAdmin(admin.ModelAdmin):
-    pass
-
-
-@admin.register(models.PhoneNumber)
-class PhoneNumberModelAdmin(admin.ModelAdmin):
-    pass
-
-
 @admin.register(models.AvailableCountry)
 class AvailableCountryModelAdmin(admin.ModelAdmin):
     pass
