@@ -206,6 +206,15 @@ class PaymentMethodSerializer(serializers.ModelSerializer):
         write_only=True,
         help_text="ID of the payment method type",
     )
+    cash_in_transaction_fee = serializers.SerializerMethodField(
+        help_text="Transaction fee for cash in operations"
+    )
+    cash_out_transaction_fee = serializers.SerializerMethodField(
+        help_text="Transaction fee for cash out operations"
+    )
+    payment_method_type_name = serializers.SerializerMethodField(
+        help_text="Name of the payment method type"
+    )
 
     class Meta:
         model = PaymentMethod
@@ -219,8 +228,63 @@ class PaymentMethodSerializer(serializers.ModelSerializer):
             "provider",
             "mobile_number",
             "payment_method_type",
+            "payment_method_type_name",
+            "cash_in_transaction_fee",
+            "cash_out_transaction_fee",
         ]
-        read_only_fields = ["id"]
+        read_only_fields = [
+            "id",
+            "payment_method_type_name",
+            "cash_in_transaction_fee",
+            "cash_out_transaction_fee",
+        ]
+
+    def get_payment_method_type(self, obj):
+        # First try to get the payment method type directly from the database
+        # This would work if the payment method was created with a payment_method_type
+        payment_method_type_id = getattr(obj, "payment_method_type_id", None)
+        if payment_method_type_id:
+            try:
+                return PaymentMethodType.objects.get(id=payment_method_type_id)
+            except PaymentMethodType.DoesNotExist:
+                pass
+
+        # If that doesn't work, try to infer the type based on the code pattern
+        if obj.type == "card":
+            return PaymentMethodType.objects.filter(code__startswith="CARD").first()
+        elif obj.type == "mobile_money" and obj.provider:
+            # Try to match by provider name
+            provider_words = obj.provider.upper().split()
+            for word in provider_words:
+                if len(word) > 2:  # Skip short words like "OF", "THE", etc.
+                    matching_type = PaymentMethodType.objects.filter(
+                        code__contains=word
+                    ).first()
+                    if matching_type:
+                        return matching_type
+
+            # If no match by provider words, try a generic mobile money type
+            return PaymentMethodType.objects.filter(code__startswith="MOBILE").first()
+
+        return None
+
+    def get_cash_in_transaction_fee(self, obj):
+        payment_method_type = self.get_payment_method_type(obj)
+        return (
+            payment_method_type.cash_in_transaction_fee if payment_method_type else None
+        )
+
+    def get_cash_out_transaction_fee(self, obj):
+        payment_method_type = self.get_payment_method_type(obj)
+        return (
+            payment_method_type.cash_out_transaction_fee
+            if payment_method_type
+            else None
+        )
+
+    def get_payment_method_type_name(self, obj):
+        payment_method_type = self.get_payment_method_type(obj)
+        return payment_method_type.name if payment_method_type else None
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
@@ -319,6 +383,27 @@ class CardPaymentMethodSerializer(serializers.ModelSerializer):
 
         return value
 
+    def validate(self, attrs):
+        # Check if a card with the same last 4 digits already exists for this user
+        user = self.context["request"].user
+        card_number = attrs.get("card_number")
+
+        if card_number:
+            last_four = card_number[-4:]
+            masked_card_number = f"**** **** **** {last_four}"
+
+            # Check if a card with the same last 4 digits already exists for this user
+            if PaymentMethod.objects.filter(
+                user=user, type="card", masked_card_number=masked_card_number
+            ).exists():
+                raise serializers.ValidationError(
+                    {
+                        "card_number": "A payment method with this card number already exists."
+                    }
+                )
+
+        return attrs
+
     def create(self, validated_data):
         card_number = validated_data.pop("card_number")
         cvv = validated_data.pop("cvv")
@@ -335,6 +420,7 @@ class CardPaymentMethodSerializer(serializers.ModelSerializer):
         validated_data["cvv_hash"] = cvv_hash
         validated_data["type"] = "card"
         validated_data["user"] = self.context["request"].user
+        validated_data["payment_method_type"] = payment_method_type
 
         return super().create(validated_data)
 
@@ -372,6 +458,33 @@ class MobileMoneyPaymentMethodSerializer(serializers.ModelSerializer):
             },
         }
 
+    def validate(self, attrs):
+        # Check if a mobile money payment method with the same provider and mobile number already exists
+        user = self.context["request"].user
+        provider = attrs.get("provider")
+        mobile_number = attrs.get("mobile_number")
+
+        if provider and mobile_number:
+            # Convert PhoneNumber object to string if needed
+            mobile_number_str = str(mobile_number)
+            if hasattr(mobile_number, "as_e164"):
+                mobile_number_str = mobile_number.as_e164
+
+            # Check if a mobile money payment method with the same provider and mobile number already exists
+            if PaymentMethod.objects.filter(
+                user=user,
+                type="mobile_money",
+                provider=provider,
+                mobile_number=mobile_number_str,
+            ).exists():
+                raise serializers.ValidationError(
+                    {
+                        "mobile_number": "A payment method with this provider and mobile number already exists."
+                    }
+                )
+
+        return attrs
+
     def create(self, validated_data):
         if "mobile_number" in validated_data and hasattr(
             validated_data["mobile_number"], "as_e164"
@@ -381,6 +494,7 @@ class MobileMoneyPaymentMethodSerializer(serializers.ModelSerializer):
         payment_method_type = validated_data.pop("payment_method_type")
         validated_data["type"] = "mobile_money"
         validated_data["user"] = self.context["request"].user
+        validated_data["payment_method_type"] = payment_method_type
 
         return super().create(validated_data)
 

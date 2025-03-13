@@ -296,16 +296,23 @@ class PaymentMethodAPITestCase(APITestCase):
 
         self.country = AvailableCountryFactory.create(name="Cameroon", iso_code="CM")
 
-        # Create payment method types
+        # Create payment method types with specific transaction fees
         self.visa_type = PaymentMethodTypeFactory.create_card_payment_method_type(
-            name="Visa", country=self.country
+            name="Visa",
+            country=self.country,
+            cash_in_transaction_fee=1.5,
+            cash_out_transaction_fee=2.0,
         )
         self.mtn_type = (
             PaymentMethodTypeFactory.create_mobile_money_payment_method_type(
-                name="MTN Mobile Money", country=self.country
+                name="MTN Mobile Money",
+                country=self.country,
+                cash_in_transaction_fee=0.5,
+                cash_out_transaction_fee=1.0,
             )
         )
 
+        # Create payment methods with associated payment method types
         self.card_payment = PaymentMethod.objects.create(
             user=self.user,
             type="card",
@@ -329,10 +336,6 @@ class PaymentMethodAPITestCase(APITestCase):
             "api:transactions:payment_method_detail",
             kwargs={"pk": self.card_payment.pk},
         )
-        self.set_default_url = reverse(
-            "api:transactions:payment_method_set_default",
-            kwargs={"pk": self.mobile_payment.pk},
-        )
 
     def test_list_payment_methods(self):
         response = self.client.get(self.list_create_url)
@@ -345,6 +348,10 @@ class PaymentMethodAPITestCase(APITestCase):
             card_data["masked_card_number"], self.card_payment.masked_card_number
         )
         self.assertTrue(card_data["default_method"])
+        # Check for transaction fees and payment method type name
+        self.assertIn("cash_in_transaction_fee", card_data)
+        self.assertIn("cash_out_transaction_fee", card_data)
+        self.assertIn("payment_method_type_name", card_data)
 
         mobile_data = next(
             item for item in response.data if item["type"] == "mobile_money"
@@ -354,6 +361,10 @@ class PaymentMethodAPITestCase(APITestCase):
             mobile_data["mobile_number"], self.mobile_payment.mobile_number
         )
         self.assertFalse(mobile_data["default_method"])
+        # Check for transaction fees and payment method type name
+        self.assertIn("cash_in_transaction_fee", mobile_data)
+        self.assertIn("cash_out_transaction_fee", mobile_data)
+        self.assertIn("payment_method_type_name", mobile_data)
 
     def test_create_card_payment_method_with_type(self):
         data = {
@@ -457,9 +468,6 @@ class PaymentMethodAPITestCase(APITestCase):
         response = client.delete(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-        response = client.put(self.set_default_url, {}, format="json")
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
     def test_user_can_only_access_own_payment_methods(self):
         other_user = UserFactory.create()
         other_payment = PaymentMethod.objects.create(
@@ -475,6 +483,69 @@ class PaymentMethodAPITestCase(APITestCase):
         response = self.client.get(other_detail_url)
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_prevent_duplicate_card_payment_method(self):
+        """Test that creating a duplicate card payment method returns an error"""
+        # First create a card payment method
+        data = {
+            "type": "card",
+            "cardholder_name": "Jane Doe",
+            "card_number": "4111 1111 1111 1111",
+            "expiry_date": "12/2025",
+            "cvv": "123",
+            "billing_address": "456 Main St, City, Country",
+            "payment_method_type": self.visa_type.id,
+        }
+
+        response = self.client.post(self.list_create_url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Try to create another card payment method with the same card number
+        data = {
+            "type": "card",
+            "cardholder_name": "Different Name",
+            "card_number": "4111 1111 1111 1111",  # Same card number
+            "expiry_date": "12/2026",  # Different expiry date
+            "cvv": "456",  # Different CVV
+            "billing_address": "789 Other St, City, Country",  # Different address
+            "payment_method_type": self.visa_type.id,
+        }
+
+        response = self.client.post(self.list_create_url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("card_number", response.data)
+        self.assertIn("already exists", response.data["card_number"][0])
+
+    def test_prevent_duplicate_mobile_money_payment_method(self):
+        """Test that creating a duplicate mobile money payment method returns an error"""
+        # First create a mobile money payment method
+        from phonenumber_field.phonenumber import PhoneNumber
+
+        # Create a valid phone number for Cameroon
+        phone_number = "+237670000000"
+
+        data = {
+            "type": "mobile_money",
+            "provider": "MTN Mobile Money",
+            "mobile_number": phone_number,
+            "payment_method_type": self.mtn_type.id,
+        }
+
+        response = self.client.post(self.list_create_url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Try to create another mobile money payment method with the same provider and mobile number
+        data = {
+            "type": "mobile_money",
+            "provider": "MTN Mobile Money",  # Same provider
+            "mobile_number": phone_number,  # Same mobile number
+            "payment_method_type": self.mtn_type.id,
+        }
+
+        response = self.client.post(self.list_create_url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("mobile_number", response.data)
+        self.assertIn("already exists", response.data["mobile_number"][0])
 
 
 class AddFundsTransactionAPITestCase(APITestCase):

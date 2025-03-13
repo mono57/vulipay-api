@@ -248,6 +248,16 @@ class PaymentMethod(AppModel):
         default=False,
         help_text=_("Whether this is the default payment method for the user"),
     )
+    payment_method_type = models.ForeignKey(
+        PaymentMethodType,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="payment_methods",
+        help_text=_(
+            "The specific type of payment method (e.g., Visa, Mastercard, MTN Mobile Money)"
+        ),
+    )
 
     cardholder_name = models.CharField(
         max_length=255,
