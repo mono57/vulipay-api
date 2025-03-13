@@ -151,6 +151,7 @@ class VerifyOTPSerializer(serializers.Serializer):
         """
         identifier = self.validated_data["identifier"]
         code = self.validated_data["code"]
+        country_iso_code = self.validated_data.get("country_iso_code")
 
         otp = OTP.objects.get_active_otp(identifier)
 
@@ -162,14 +163,27 @@ class VerifyOTPSerializer(serializers.Serializer):
 
         if otp.verify(code):
             user, created = User.objects.get_or_create(email=identifier)
+
+            # Set the country if country_iso_code is provided
+            if country_iso_code:
+                try:
+                    country = AvailableCountry.objects.get(iso_code=country_iso_code)
+                    user.country = country
+                    user.save()
+                except AvailableCountry.DoesNotExist:
+                    pass  # If country doesn't exist, continue without setting it
+
             refresh = RefreshToken.for_user(user)
 
             return {
+                "success": True,
+                "message": "OTP verified successfully.",
                 "created": created,
                 "user": {
                     "full_name": user.full_name,
                     "email": user.email,
                     "phone_number": user.phone_number,
+                    "country": user.country.name if user.country else None,
                 },
                 "tokens": {
                     "access": str(refresh.access_token),

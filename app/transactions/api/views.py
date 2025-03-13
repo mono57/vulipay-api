@@ -1,6 +1,4 @@
-from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
-from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
     OpenApiExample,
     OpenApiParameter,
@@ -13,7 +11,6 @@ from rest_framework import serializers as drf_serializers
 from rest_framework import status, views
 from rest_framework.generics import (
     CreateAPIView,
-    ListAPIView,
     ListCreateAPIView,
     RetrieveAPIView,
     RetrieveUpdateDestroyAPIView,
@@ -24,14 +21,12 @@ from rest_framework.views import APIView
 
 from app.accounts.api.mixins import ValidPINRequiredMixin
 from app.accounts.permissions import IsAuthenticatedAccount
-from app.core.utils import make_payment_code, make_transaction_ref
 from app.transactions.api import serializers
 from app.transactions.models import (
     PaymentMethod,
     Transaction,
     TransactionStatus,
     TransactionType,
-    Wallet,
 )
 
 
