@@ -18,6 +18,7 @@ from rest_framework.generics import (
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from app.core.utils.encryption import encrypt_data
 from app.transactions.api import serializers
 from app.transactions.models import (
     PaymentMethod,
@@ -25,6 +26,8 @@ from app.transactions.models import (
     Transaction,
     TransactionStatus,
     TransactionType,
+    Wallet,
+    WalletType,
 )
 
 
@@ -245,21 +248,11 @@ class AddFundsCallbackAPIView(APIView):
     },
 )
 class PaymentMethodTypeListAPIView(ListAPIView):
-    """
-    API endpoint for listing available payment method types.
-
-    This endpoint allows authenticated users to view all available payment method types,
-    including details about required fields for each type.
-    """
-
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = serializers.PaymentMethodTypeSerializer
     queryset = PaymentMethodType.objects.all()
 
     def get_queryset(self):
-        """
-        Filter payment method types by country if provided.
-        """
         queryset = super().get_queryset()
         country_id = self.request.query_params.get("country_id")
         country_code = self.request.query_params.get("country_code")
@@ -270,3 +263,60 @@ class PaymentMethodTypeListAPIView(ListAPIView):
             queryset = queryset.filter(country__iso_code=country_code)
 
         return queryset
+
+
+@extend_schema(
+    tags=["User Data"],
+    description="Encrypt user data including full name, email, phone number, and wallet ID. Optionally include an amount.",
+    responses={
+        200: OpenApiResponse(
+            description="Encrypted user data",
+            response=inline_serializer(
+                name="EncryptedDataResponse",
+                fields={
+                    "encrypted_data": drf_serializers.CharField(),
+                },
+            ),
+        ),
+    },
+    request=serializers.UserDataEncryptionSerializer,
+    examples=[
+        OpenApiExample(
+            "Request with amount",
+            value={
+                "amount": 1000,
+            },
+            request_only=True,
+        ),
+        OpenApiExample(
+            "Request without amount",
+            value={},
+            request_only=True,
+        ),
+    ],
+)
+class UserDataEncryptionAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = serializers.UserDataEncryptionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+
+        wallet = Wallet.objects.filter(user=user, wallet_type=WalletType.MAIN).first()
+
+        data = {
+            "full_name": user.full_name,
+            "email": user.email,
+            "phone_number": user.phone_number,
+            "wallet_id": wallet.id if wallet else None,
+        }
+
+        amount = serializer.validated_data.get("amount")
+        if amount is not None:
+            data["amount"] = float(amount)
+
+        encrypted_data = encrypt_data(data)
+
+        return Response({"encrypted_data": encrypted_data}, status=status.HTTP_200_OK)

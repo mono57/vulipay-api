@@ -543,3 +543,15 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
                 },
             }
         return {}
+
+
+class UserDataEncryptionSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        required=False,
+        help_text=_("Optional amount to include in the encrypted data"),
+    )
+
+    def to_representation(self, instance):
+        return super().to_representation(instance)

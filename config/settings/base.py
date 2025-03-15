@@ -152,6 +152,12 @@ CSRF_COOKIE_HTTPONLY = True
 SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = "DENY"
 
+# Encryption key for user data encryption
+# In production, this should be set as an environment variable
+ENCRYPTION_KEY = env(
+    "ENCRYPTION_KEY", default="Fn0oZPGHKl7D2cSV1Ysq-T9yeuO9tKGXxTOdLG2Bw-g="
+)
+
 # EMAIL
 
 EMAIL_BACKEND = env(
