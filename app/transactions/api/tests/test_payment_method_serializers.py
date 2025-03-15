@@ -134,7 +134,7 @@ class MobileMoneyPaymentMethodSerializerTestCase(TestCase):
     def test_mobile_money_payment_method_serializer_with_payment_method_type(self):
         """Test that MobileMoneyPaymentMethodSerializer correctly handles payment_method_type field."""
         # Use a string representation of a phone number instead of a PhoneNumber object
-        phone_number = "+233612345678"
+        phone_number = "+237698234567"
 
         data = {
             "name": "My MTN Mobile Money",
