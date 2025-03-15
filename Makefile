@@ -36,8 +36,22 @@ makemigrations:
 	docker compose -f local.yml exec django python manage.py makemigrations
 
 # Run tests
+# Usage:
+#   make test                  # Run all tests
+#   make test mod=app.module   # Run tests for a specific module/app
+#   make test mod=app.module.tests.test_file  # Run tests in a specific file
+#   make test mod=app.module.tests.test_file.TestClass  # Run tests in a specific class
+#   make test mod=app.module.tests.test_file.TestClass.test_method  # Run a specific test
+# Examples:
+#   make test mod=app.core.utils  # Run all tests in the core utils module
+#   make test mod=app.accounts.api.tests.test_views  # Run all tests in the accounts API views test file
+#   make test mod=app.transactions.api.tests.test_payment_method_serializers.MobileMoneyPaymentMethodSerializerTestCase.test_mobile_money_payment_method_serializer_with_payment_method_type  # Run a specific test
 test:
-	docker compose -f local.yml exec django python manage.py test
+	@if [ -z "$(mod)" ]; then \
+		docker compose -f local.yml exec django python manage.py test; \
+		exit 0; \
+	fi
+	docker compose -f local.yml exec django python manage.py test $(mod) -v 2
 
 # Run tests with coverage
 test-coverage:
