@@ -267,7 +267,7 @@ class PaymentMethodTypeListAPIView(ListAPIView):
 
 @extend_schema(
     tags=["User Data"],
-    description="Encrypt user data including full name, email, phone number, and wallet ID. Optionally include an amount.",
+    description="Encrypt user data including full name, email, phone number, and wallet ID. Optionally include an amount and transaction type.",
     responses={
         200: OpenApiResponse(
             description="Encrypted user data",
@@ -282,9 +282,10 @@ class PaymentMethodTypeListAPIView(ListAPIView):
     request=serializers.UserDataEncryptionSerializer,
     examples=[
         OpenApiExample(
-            "Request with amount",
+            "Request with amount and transaction type",
             value={
                 "amount": 1000,
+                "transaction_type": "P2P",
             },
             request_only=True,
         ),
@@ -317,6 +318,10 @@ class UserDataEncryptionAPIView(APIView):
         if amount is not None:
             data["amount"] = float(amount)
 
+        transaction_type = serializer.validated_data.get("transaction_type")
+        if transaction_type is not None:
+            data["transaction_type"] = transaction_type
+
         encrypted_data = encrypt_data(data)
 
         return Response({"encrypted_data": encrypted_data}, status=status.HTTP_200_OK)
@@ -336,6 +341,9 @@ class UserDataEncryptionAPIView(APIView):
                     "phone_number": drf_serializers.CharField(),
                     "wallet_id": drf_serializers.IntegerField(allow_null=True),
                     "amount": drf_serializers.FloatField(required=False),
+                    "transaction_type": drf_serializers.ChoiceField(
+                        choices=TransactionType.choices, required=False
+                    ),
                 },
             ),
         ),

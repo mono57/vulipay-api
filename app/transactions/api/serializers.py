@@ -552,6 +552,11 @@ class UserDataEncryptionSerializer(serializers.Serializer):
         required=False,
         help_text=_("Optional amount to include in the encrypted data"),
     )
+    transaction_type = serializers.ChoiceField(
+        choices=TransactionType.choices,
+        required=False,
+        help_text=_("Optional transaction type to include in the encrypted data"),
+    )
 
     def to_representation(self, instance):
         return super().to_representation(instance)
