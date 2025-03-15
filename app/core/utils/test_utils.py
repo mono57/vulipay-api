@@ -140,6 +140,8 @@ class OTPTestCase(SimpleTestCase):
 class MakePinCode(TestCase):
     def setUp(self) -> None:
         self.pin_to_hash = "1234"
+        # Clear the make_pin cache before each test
+        hashers.make_pin.cache_clear()
 
     def test_it_should_hash_pin_code(self, mocked_make_password: MagicMock):
         hashers.make_pin(self.pin_to_hash)
@@ -164,7 +166,7 @@ class CheckPin(TestCase):
         pin, encoded = "2324", "GHGDDFGHGFDERTYTRE"
         hashers.check_pin(pin=pin, raw_pin=encoded)
         mocked_check_password.assert_called_once_with(
-            encoded, pin, preferred="bcrypt_sha256"
+            encoded, pin, preferred="pbkdf2_sha256"
         )
 
 
