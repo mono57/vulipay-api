@@ -6,7 +6,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from app.accounts.tests.factories import UserFactory
-from app.core.utils.encryption import decrypt_data
+from app.core.utils.encryption import decrypt_data, encrypt_data
 from app.transactions.models import Wallet, WalletType
 
 
@@ -59,5 +59,89 @@ class UserDataEncryptionAPIViewTestCase(APITestCase):
     def test_authentication_required(self):
         self.client.force_authenticate(user=None)
         response = self.client.post(self.url, {}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class UserDataDecryptionAPIViewTestCase(APITestCase):
+    def setUp(self):
+        self.user = UserFactory.create(
+            email="test@example.com",
+            phone_number="+237612345678",
+            full_name="Test User",
+        )
+        self.wallet, _ = Wallet.objects.get_or_create(
+            user=self.user,
+            wallet_type=WalletType.MAIN,
+            defaults={"balance": Decimal("1000.00")},
+        )
+        self.url = reverse("api:transactions:decrypt-user-data")
+        self.client.force_authenticate(user=self.user)
+
+    def test_decrypt_user_data_without_amount(self):
+        # Create test data
+        data = {
+            "full_name": self.user.full_name,
+            "email": self.user.email,
+            "phone_number": self.user.phone_number,
+            "wallet_id": self.wallet.id,
+        }
+        encrypted_data = encrypt_data(data)
+
+        # Test decryption
+        response = self.client.post(
+            self.url, {"encrypted_data": encrypted_data}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["full_name"], self.user.full_name)
+        self.assertEqual(response.data["email"], self.user.email)
+        self.assertEqual(response.data["phone_number"], self.user.phone_number)
+        self.assertEqual(response.data["wallet_id"], self.wallet.id)
+        self.assertNotIn("amount", response.data)
+
+    def test_decrypt_user_data_with_amount(self):
+        amount = 500.50
+        data = {
+            "full_name": self.user.full_name,
+            "email": self.user.email,
+            "phone_number": self.user.phone_number,
+            "wallet_id": self.wallet.id,
+            "amount": float(amount),
+        }
+        encrypted_data = encrypt_data(data)
+
+        response = self.client.post(
+            self.url, {"encrypted_data": encrypted_data}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["full_name"], self.user.full_name)
+        self.assertEqual(response.data["email"], self.user.email)
+        self.assertEqual(response.data["phone_number"], self.user.phone_number)
+        self.assertEqual(response.data["wallet_id"], self.wallet.id)
+        self.assertEqual(response.data["amount"], float(amount))
+
+    def test_invalid_encrypted_data(self):
+        response = self.client.post(
+            self.url, {"encrypted_data": "invalid_data"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("detail", response.data)
+
+    def test_authentication_required(self):
+        data = {
+            "full_name": self.user.full_name,
+            "email": self.user.email,
+            "phone_number": self.user.phone_number,
+            "wallet_id": self.wallet.id,
+        }
+        encrypted_data = encrypt_data(data)
+
+        self.client.force_authenticate(user=None)
+        response = self.client.post(
+            self.url, {"encrypted_data": encrypted_data}, format="json"
+        )
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

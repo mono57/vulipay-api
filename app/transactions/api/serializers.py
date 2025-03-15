@@ -555,3 +555,13 @@ class UserDataEncryptionSerializer(serializers.Serializer):
 
     def to_representation(self, instance):
         return super().to_representation(instance)
+
+
+class UserDataDecryptionSerializer(serializers.Serializer):
+    encrypted_data = serializers.CharField(
+        required=True,
+        help_text=_("Encrypted data string to be decrypted"),
+    )
+
+    def to_representation(self, instance):
+        return super().to_representation(instance)

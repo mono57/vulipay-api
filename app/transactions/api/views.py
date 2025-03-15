@@ -18,7 +18,7 @@ from rest_framework.generics import (
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from app.core.utils.encryption import encrypt_data
+from app.core.utils.encryption import decrypt_data, encrypt_data
 from app.transactions.api import serializers
 from app.transactions.models import (
     PaymentMethod,
@@ -320,3 +320,54 @@ class UserDataEncryptionAPIView(APIView):
         encrypted_data = encrypt_data(data)
 
         return Response({"encrypted_data": encrypted_data}, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=["User Data"],
+    description="Decrypt user data that was previously encrypted by the encryption endpoint.",
+    responses={
+        200: OpenApiResponse(
+            description="Decrypted user data",
+            response=inline_serializer(
+                name="DecryptedDataResponse",
+                fields={
+                    "full_name": drf_serializers.CharField(),
+                    "email": drf_serializers.CharField(),
+                    "phone_number": drf_serializers.CharField(),
+                    "wallet_id": drf_serializers.IntegerField(allow_null=True),
+                    "amount": drf_serializers.FloatField(required=False),
+                },
+            ),
+        ),
+        400: OpenApiResponse(
+            description="Invalid encrypted data",
+        ),
+    },
+    request=serializers.UserDataDecryptionSerializer,
+    examples=[
+        OpenApiExample(
+            "Request with encrypted data",
+            value={
+                "encrypted_data": "base64_encoded_encrypted_string",
+            },
+            request_only=True,
+        ),
+    ],
+)
+class UserDataDecryptionAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = serializers.UserDataDecryptionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            encrypted_data = serializer.validated_data.get("encrypted_data")
+            decrypted_data = decrypt_data(encrypted_data)
+
+            return Response(decrypted_data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {"detail": "Invalid encrypted data"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
