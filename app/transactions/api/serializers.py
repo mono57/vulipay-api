@@ -545,17 +545,12 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
         return {}
 
 
-class UserDataEncryptionSerializer(serializers.Serializer):
+class ReceiveFundsPaymentCodeSerializer(serializers.Serializer):
     amount = serializers.DecimalField(
         max_digits=12,
         decimal_places=2,
         required=False,
-        help_text=_("Optional amount to include in the encrypted data"),
-    )
-    transaction_type = serializers.ChoiceField(
-        choices=TransactionType.choices,
-        required=False,
-        help_text=_("Optional transaction type to include in the encrypted data"),
+        help_text=_("Optional amount to include in the payment code"),
     )
 
     def to_representation(self, instance):

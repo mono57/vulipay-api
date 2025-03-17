@@ -6,8 +6,8 @@ from app.transactions.api.views import (
     PaymentMethodDetailAPIView,
     PaymentMethodListCreateAPIView,
     PaymentMethodTypeListAPIView,
+    ReceiveFundsPaymentCodeAPIView,
     UserDataDecryptionAPIView,
-    UserDataEncryptionAPIView,
 )
 
 app_name = "transactions"
@@ -40,8 +40,8 @@ urlpatterns = [
     ),
     path(
         "payment-code/",
-        UserDataEncryptionAPIView.as_view(),
-        name="encrypt-user-data",
+        ReceiveFundsPaymentCodeAPIView.as_view(),
+        name="receive-funds-payment-code",
     ),
     path(
         "payment-code/decrypt/",

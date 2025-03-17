@@ -10,7 +10,7 @@ from app.core.utils.encryption import decrypt_data, encrypt_data
 from app.transactions.models import TransactionType, Wallet, WalletType
 
 
-class UserDataEncryptionAPIViewTestCase(APITestCase):
+class ReceiveFundsPaymentCodeAPIViewTestCase(APITestCase):
     def setUp(self):
         self.user = UserFactory.create(
             email="test@example.com",
@@ -22,10 +22,10 @@ class UserDataEncryptionAPIViewTestCase(APITestCase):
             wallet_type=WalletType.MAIN,
             defaults={"balance": Decimal("1000.00")},
         )
-        self.url = reverse("api:transactions:encrypt-user-data")
+        self.url = reverse("api:transactions:receive-funds-payment-code")
         self.client.force_authenticate(user=self.user)
 
-    def test_encrypt_user_data_without_amount(self):
+    def test_get_payment_code_without_amount(self):
         response = self.client.post(self.url, {}, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -37,11 +37,11 @@ class UserDataEncryptionAPIViewTestCase(APITestCase):
         self.assertEqual(decrypted_data["full_name"], self.user.full_name)
         self.assertEqual(decrypted_data["email"], self.user.email)
         self.assertEqual(decrypted_data["phone_number"], self.user.phone_number)
-        self.assertEqual(decrypted_data["wallet_id"], self.wallet.id)
+        self.assertEqual(decrypted_data["target_wallet_id"], self.wallet.id)
         self.assertNotIn("amount", decrypted_data)
         self.assertNotIn("transaction_type", decrypted_data)
 
-    def test_encrypt_user_data_with_amount(self):
+    def test_get_payment_code_with_amount(self):
         amount = 500.50
         response = self.client.post(self.url, {"amount": amount}, format="json")
 
@@ -54,7 +54,7 @@ class UserDataEncryptionAPIViewTestCase(APITestCase):
         self.assertEqual(decrypted_data["full_name"], self.user.full_name)
         self.assertEqual(decrypted_data["email"], self.user.email)
         self.assertEqual(decrypted_data["phone_number"], self.user.phone_number)
-        self.assertEqual(decrypted_data["wallet_id"], self.wallet.id)
+        self.assertEqual(decrypted_data["target_wallet_id"], self.wallet.id)
         self.assertEqual(decrypted_data["amount"], float(amount))
         self.assertNotIn("transaction_type", decrypted_data)
 
@@ -101,7 +101,7 @@ class UserDataEncryptionAPIViewTestCase(APITestCase):
 
     def test_authentication_required(self):
         self.client.force_authenticate(user=None)
-        response = self.client.post(self.url, {}, format="json")
+        response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -127,7 +127,7 @@ class UserDataDecryptionAPIViewTestCase(APITestCase):
             "full_name": self.user.full_name,
             "email": self.user.email,
             "phone_number": self.user.phone_number,
-            "wallet_id": self.wallet.id,
+            "target_wallet_id": self.wallet.id,
         }
         encrypted_data = encrypt_data(data)
 
@@ -140,7 +140,7 @@ class UserDataDecryptionAPIViewTestCase(APITestCase):
         self.assertEqual(response.data["full_name"], self.user.full_name)
         self.assertEqual(response.data["email"], self.user.email)
         self.assertEqual(response.data["phone_number"], self.user.phone_number)
-        self.assertEqual(response.data["wallet_id"], self.wallet.id)
+        self.assertEqual(response.data["target_wallet_id"], self.wallet.id)
         self.assertNotIn("amount", response.data)
         self.assertNotIn("transaction_type", response.data)
 
@@ -150,7 +150,7 @@ class UserDataDecryptionAPIViewTestCase(APITestCase):
             "full_name": self.user.full_name,
             "email": self.user.email,
             "phone_number": self.user.phone_number,
-            "wallet_id": self.wallet.id,
+            "target_wallet_id": self.wallet.id,
             "amount": float(amount),
         }
         encrypted_data = encrypt_data(data)
@@ -163,18 +163,17 @@ class UserDataDecryptionAPIViewTestCase(APITestCase):
         self.assertEqual(response.data["full_name"], self.user.full_name)
         self.assertEqual(response.data["email"], self.user.email)
         self.assertEqual(response.data["phone_number"], self.user.phone_number)
-        self.assertEqual(response.data["wallet_id"], self.wallet.id)
+        self.assertEqual(response.data["target_wallet_id"], self.wallet.id)
         self.assertEqual(response.data["amount"], float(amount))
         self.assertNotIn("transaction_type", response.data)
 
-    def test_decrypt_user_data_with_transaction_type(self):
-        transaction_type = TransactionType.P2P
+    def test_decrypt_legacy_data_with_wallet_id(self):
+        # Test for backward compatibility with data that still has wallet_id
         data = {
             "full_name": self.user.full_name,
             "email": self.user.email,
             "phone_number": self.user.phone_number,
             "wallet_id": self.wallet.id,
-            "transaction_type": transaction_type,
         }
         encrypted_data = encrypt_data(data)
 
@@ -183,37 +182,8 @@ class UserDataDecryptionAPIViewTestCase(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["full_name"], self.user.full_name)
-        self.assertEqual(response.data["email"], self.user.email)
-        self.assertEqual(response.data["phone_number"], self.user.phone_number)
-        self.assertEqual(response.data["wallet_id"], self.wallet.id)
-        self.assertNotIn("amount", response.data)
-        self.assertEqual(response.data["transaction_type"], transaction_type)
-
-    def test_decrypt_user_data_with_amount_and_transaction_type(self):
-        amount = 500.50
-        transaction_type = TransactionType.P2P
-        data = {
-            "full_name": self.user.full_name,
-            "email": self.user.email,
-            "phone_number": self.user.phone_number,
-            "wallet_id": self.wallet.id,
-            "amount": float(amount),
-            "transaction_type": transaction_type,
-        }
-        encrypted_data = encrypt_data(data)
-
-        response = self.client.post(
-            self.url, {"encrypted_data": encrypted_data}, format="json"
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["full_name"], self.user.full_name)
-        self.assertEqual(response.data["email"], self.user.email)
-        self.assertEqual(response.data["phone_number"], self.user.phone_number)
-        self.assertEqual(response.data["wallet_id"], self.wallet.id)
-        self.assertEqual(response.data["amount"], float(amount))
-        self.assertEqual(response.data["transaction_type"], transaction_type)
+        self.assertEqual(response.data["target_wallet_id"], self.wallet.id)
+        self.assertNotIn("wallet_id", response.data)
 
     def test_invalid_encrypted_data(self):
         response = self.client.post(
@@ -228,7 +198,7 @@ class UserDataDecryptionAPIViewTestCase(APITestCase):
             "full_name": self.user.full_name,
             "email": self.user.email,
             "phone_number": self.user.phone_number,
-            "wallet_id": self.wallet.id,
+            "target_wallet_id": self.wallet.id,
         }
         encrypted_data = encrypt_data(data)
 

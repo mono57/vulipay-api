@@ -267,7 +267,7 @@ class PaymentMethodTypeListAPIView(ListAPIView):
 
 @extend_schema(
     tags=["User Data"],
-    description="Encrypt user data including full name, email, phone number, and wallet ID. Optionally include an amount and transaction type.",
+    description="Generate a payment code for receiving funds. Returns encrypted user data including full name, email, phone number, and target wallet ID.",
     responses={
         200: OpenApiResponse(
             description="Encrypted user data",
@@ -296,22 +296,22 @@ class PaymentMethodTypeListAPIView(ListAPIView):
         ),
     ],
 )
-class UserDataEncryptionAPIView(APIView):
+class ReceiveFundsPaymentCodeAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    transaction_type = TransactionType.P2P
 
     def post(self, request, *args, **kwargs):
         serializer = serializers.UserDataEncryptionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         user = request.user
-
         wallet = Wallet.objects.filter(user=user, wallet_type=WalletType.MAIN).first()
 
         data = {
             "full_name": user.full_name,
             "email": user.email,
             "phone_number": user.phone_number,
-            "wallet_id": wallet.id if wallet else None,
+            "target_wallet_id": wallet.id if wallet else None,
         }
 
         amount = serializer.validated_data.get("amount")
@@ -323,13 +323,12 @@ class UserDataEncryptionAPIView(APIView):
             data["transaction_type"] = transaction_type
 
         encrypted_data = encrypt_data(data)
-
         return Response({"encrypted_data": encrypted_data}, status=status.HTTP_200_OK)
 
 
 @extend_schema(
     tags=["User Data"],
-    description="Decrypt user data that was previously encrypted by the encryption endpoint.",
+    description="Decrypt user data that was previously encrypted by the payment code generation endpoint.",
     responses={
         200: OpenApiResponse(
             description="Decrypted user data",
@@ -339,7 +338,7 @@ class UserDataEncryptionAPIView(APIView):
                     "full_name": drf_serializers.CharField(),
                     "email": drf_serializers.CharField(),
                     "phone_number": drf_serializers.CharField(),
-                    "wallet_id": drf_serializers.IntegerField(allow_null=True),
+                    "target_wallet_id": drf_serializers.IntegerField(allow_null=True),
                     "amount": drf_serializers.FloatField(required=False),
                     "transaction_type": drf_serializers.ChoiceField(
                         choices=TransactionType.choices, required=False
@@ -372,6 +371,10 @@ class UserDataDecryptionAPIView(APIView):
         try:
             encrypted_data = serializer.validated_data.get("encrypted_data")
             decrypted_data = decrypt_data(encrypted_data)
+
+            # Rename wallet_id to target_wallet_id if it exists in the decrypted data
+            if "wallet_id" in decrypted_data:
+                decrypted_data["target_wallet_id"] = decrypted_data.pop("wallet_id")
 
             return Response(decrypted_data, status=status.HTTP_200_OK)
         except Exception as e:

@@ -110,7 +110,12 @@ class Currency(AppModel):
     iso_code = models.CharField(max_length=8)
     name = models.CharField(max_length=100)
     symbol = models.CharField(max_length=5)
-    country = models.ForeignKey(AvailableCountry, null=True, on_delete=models.SET_NULL)
+    country = models.ForeignKey(
+        AvailableCountry,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="currencies",
+    )
 
     def __str__(self):
         return f"{self.name} - {self.iso_code} - {self.symbol}"
