@@ -98,6 +98,13 @@ class AvailableCountry(AppModel):
     dial_code = AppCharField(max_length=5, unique=True)  # i.e 235
     iso_code = AppCharField(max_length=10, unique=True)  # i.e TD
     phone_number_regex = AppCharField(max_length=50)
+    currency = AppCharField(
+        _("Currency"),
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text=_("Default currency for this country (e.g., USD, EUR, XAF)"),
+    )
 
     class Meta:
         indexes = [models.Index(fields=["iso_code"])]

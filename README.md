@@ -480,3 +480,32 @@ The application uses environment variables for configuration. Key variables incl
 ## License
 
 [Specify the license here]
+
+## Wallet Currencies
+
+Wallets in the system now support currency assignment. This feature allows each wallet to be associated with a specific currency, which is normally determined by the user's country.
+
+### How It Works
+
+- When a new user is created, the system automatically creates a main wallet for them and assigns a currency based on the user's country.
+- When a new wallet is created, the system attempts to assign a currency to it based on the user's country.
+- The currency is stored as a simple text field (e.g., "USD", "EUR", "XAF").
+- The system determines the currency in the following priority:
+  1. If the country has a currency field set, that value is used
+  2. If not, the system uses a built-in mapping of common country codes to their currency codes:
+     - Cameroon (CM) → XAF (CFA Franc)
+     - United States (US) → USD (US Dollar)
+     - United Kingdom (GB) → GBP (British Pound)
+     - European Union (EU) → EUR (Euro)
+     - And many others
+  3. If the country code doesn't match any known currency code, the system falls back to a default format: "{COUNTRY_CODE} Currency"
+- If no country is set for the user, the wallet's currency remains null.
+- You can also explicitly set a currency when creating a wallet, which will override the automatic assignment.
+
+### Country Currency Configuration
+
+Each country in the system can have a default currency assigned to it by setting the `currency` field in the `AvailableCountry` model. This allows for fine-grained control over which currency is used for each country, without needing to rely on the built-in mappings.
+
+### API Interaction
+
+When creating or updating wallets via API, the currency field can be specified explicitly as a string. If not provided, the system will try to set it automatically based on the user's country as described above.

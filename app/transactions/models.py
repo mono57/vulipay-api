@@ -243,16 +243,24 @@ class Wallet(models.Model):
         default=0,
         help_text=_("Current wallet balance"),
     )
-    wallet_type = models.CharField(
+    wallet_type = AppCharField(
+        _("Wallet Type"),
         max_length=10,
         choices=WalletType.choices,
         default=WalletType.MAIN,
         help_text=_("Type of wallet (Main or Business)"),
     )
+    currency = AppCharField(
+        _("Currency"),
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text=_("Currency for this wallet (e.g., USD, EUR, XAF)"),
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(
-        default=True, help_text=_("Whether the wallet is active")
+        default=True, help_text=_("Whether this wallet is active")
     )
 
     class Meta:
@@ -261,7 +269,8 @@ class Wallet(models.Model):
         verbose_name_plural = _("Wallets")
 
     def __str__(self):
-        return f"{self.user.email}'s {self.get_wallet_type_display()}"
+        currency_str = f" ({self.currency})" if self.currency else ""
+        return f"{self.user.email}'s {self.get_wallet_type_display()}{currency_str}"
 
     def deposit(self, amount):
         if amount <= 0:
@@ -298,3 +307,7 @@ class Wallet(models.Model):
         destination_wallet.save()
 
         return True
+
+    def save(self, *args, **kwargs):
+        self.currency = self.user.country.currency
+        super().save(*args, **kwargs)

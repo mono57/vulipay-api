@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 from django.db import IntegrityError
 from django.test import TransactionTestCase
 
+from app.accounts.models import AvailableCountry, Currency
 from app.accounts.tests import factories as f
 from app.accounts.tests.factories import UserFactory
 from app.transactions.models import (
@@ -247,3 +248,103 @@ class PaymentMethodTypeTestCase(TransactionTestCase):
 
         self.assertEqual(self.payment_method_type.name, "Updated Credit Card")
         self.assertEqual(self.payment_method_type.cash_in_transaction_fee, 2.5)
+
+
+class WalletCurrencyTestCase(TransactionTestCase):
+    def test_wallet_currency_auto_set_from_user_country_with_currency(self):
+        # Create a country with a currency set
+        country = AvailableCountry.objects.create(
+            name="Test Country with Currency",
+            dial_code="456",
+            iso_code="TCC",
+            phone_number_regex=r"^\+456\d{8}$",
+            currency="TCC-CURRENCY",
+        )
+
+        # Create a user with the country
+        user = UserFactory.create(country=country)
+
+        # Remove any existing wallets for this user to avoid conflicts
+        Wallet.objects.filter(user=user).delete()
+
+        # Create a wallet for the user
+        wallet = Wallet.objects.create(
+            user=user,
+            wallet_type=WalletType.MAIN,
+            balance=0,
+        )
+
+        # Check that the currency was set from the country's currency field
+        self.assertEqual(wallet.currency, "TCC-CURRENCY")
+
+    def test_wallet_currency_auto_set_from_mapping(self):
+        # Create a country without setting the currency field
+        country = AvailableCountry.objects.create(
+            name="Test Country",
+            dial_code="123",
+            iso_code="TC",
+            phone_number_regex=r"^\+123\d{8}$",
+        )
+
+        # Create a user with the country
+        user = UserFactory.create(country=country)
+
+        # Remove any existing wallets for this user to avoid conflicts
+        Wallet.objects.filter(user=user).delete()
+
+        # Create a wallet for the user
+        wallet = Wallet.objects.create(
+            user=user,
+            wallet_type=WalletType.MAIN,
+            balance=0,
+        )
+
+        # Check that the currency was automatically set using the mapping
+        self.assertEqual(wallet.currency, "TC Currency")
+
+    def test_wallet_currency_not_set_without_user_country(self):
+        # Create a user without a country
+        user = UserFactory.create(country=None)
+
+        # Remove any existing wallets for this user to avoid conflicts
+        Wallet.objects.filter(user=user).delete()
+
+        # Create a wallet for the user
+        wallet = Wallet.objects.create(
+            user=user,
+            wallet_type=WalletType.MAIN,
+            balance=0,
+        )
+
+        # Check that the currency was not set
+        self.assertIsNone(wallet.currency)
+
+    def test_wallet_currency_not_overridden_if_provided(self):
+        # Create a country
+        country = AvailableCountry.objects.create(
+            name="Country 1",
+            dial_code="111",
+            iso_code="CM",  # Cameroon
+            phone_number_regex=r"^\+111\d{8}$",
+            currency="XAF",  # Set currency for the country
+        )
+
+        # Create a user with country
+        user = UserFactory.create(country=country)
+
+        # Remove any existing wallets for this user to avoid conflicts
+        Wallet.objects.filter(user=user).delete()
+
+        # Create a wallet for the user with explicit currency
+        custom_currency = "USD"
+        wallet = Wallet.objects.create(
+            user=user,
+            wallet_type=WalletType.MAIN,
+            balance=0,
+            currency=custom_currency,
+        )
+
+        # Check that the currency was not overridden by the user's country currency
+        self.assertEqual(wallet.currency, custom_currency)
+        # The auto-assigned currency would be XAF for Cameroon
+        self.assertNotEqual(wallet.currency, "XAF")
