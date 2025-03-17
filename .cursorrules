@@ -1,6 +1,8 @@
 Before attempting any code modification, suggestion, or debugging task:
 
+The project use docker. Check the makefile if needed.
 Always analyze the existing code structure to understand the architecture, patterns, and conventions used in the project.
 Always read the README file and any other documentation (style guides, etc.) to understand the project's purpose, requirements, and established guidelines.
-
+Add tests to any changes you make.
+Always run the tests.
 This preliminary analysis is mandatory for every new chat or codebase you encounter.

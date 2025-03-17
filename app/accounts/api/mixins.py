@@ -25,6 +25,5 @@ class ValidPINRequiredMixin(AppAccessMixin):
         if pin is None:
             raise exceptions.ValidationError(_("PIN is required"), code="required_pin")
 
-        account = request.user
-        if not account.verify_pin(pin):
+        if not request.user.verify_pin(pin):
             self.handle_no_permission()
