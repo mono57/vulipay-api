@@ -278,14 +278,15 @@ class PaymentMethodTypeListAPIView(ListAPIView):
                 },
             ),
         ),
+        400: OpenApiResponse(
+            description="Invalid amount format",
+        ),
     },
     request=serializers.ReceiveFundsPaymentCodeSerializer,
     examples=[
         OpenApiExample(
             "Request with amount",
-            value={
-                "amount": 1000,
-            },
+            value={"amount": 1000},
             request_only=True,
         ),
         OpenApiExample(
@@ -310,6 +311,8 @@ class ReceiveFundsPaymentCodeAPIView(APIView):
             "email": user.email,
             "phone_number": user.phone_number,
             "target_wallet_id": wallet.id if wallet else None,
+            "transaction_type": TransactionType.P2P,
+            "currency": wallet.currency if wallet else None,
         }
 
         amount = serializer.validated_data.get("amount")
@@ -337,6 +340,7 @@ class ReceiveFundsPaymentCodeAPIView(APIView):
                     "transaction_type": drf_serializers.ChoiceField(
                         choices=TransactionType.choices, required=False
                     ),
+                    "currency": drf_serializers.CharField(required=False),
                 },
             ),
         ),
