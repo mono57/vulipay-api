@@ -279,13 +279,12 @@ class PaymentMethodTypeListAPIView(ListAPIView):
             ),
         ),
     },
-    request=serializers.UserDataEncryptionSerializer,
+    request=serializers.ReceiveFundsPaymentCodeSerializer,
     examples=[
         OpenApiExample(
-            "Request with amount and transaction type",
+            "Request with amount",
             value={
                 "amount": 1000,
-                "transaction_type": "P2P",
             },
             request_only=True,
         ),
@@ -298,10 +297,9 @@ class PaymentMethodTypeListAPIView(ListAPIView):
 )
 class ReceiveFundsPaymentCodeAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    transaction_type = TransactionType.P2P
 
     def post(self, request, *args, **kwargs):
-        serializer = serializers.UserDataEncryptionSerializer(data=request.data)
+        serializer = serializers.ReceiveFundsPaymentCodeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         user = request.user
@@ -317,10 +315,6 @@ class ReceiveFundsPaymentCodeAPIView(APIView):
         amount = serializer.validated_data.get("amount")
         if amount is not None:
             data["amount"] = float(amount)
-
-        transaction_type = serializer.validated_data.get("transaction_type")
-        if transaction_type is not None:
-            data["transaction_type"] = transaction_type
 
         encrypted_data = encrypt_data(data)
         return Response({"encrypted_data": encrypted_data}, status=status.HTTP_200_OK)
