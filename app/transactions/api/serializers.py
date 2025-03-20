@@ -1,7 +1,9 @@
 import calendar
 import datetime
 import re
+from decimal import Decimal
 
+from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_serializer
 from phonenumber_field.serializerfields import PhoneNumberField
@@ -16,7 +18,11 @@ from app.transactions.models import (
     TransactionStatus,
     TransactionType,
     Wallet,
+    WalletType,
+    compute_inclusive_amount,
 )
+
+User = get_user_model()
 
 
 @extend_schema_serializer(component_name="PaymentMethod")
@@ -388,7 +394,7 @@ class AddFundsTransactionSerializer(serializers.Serializer):
             "amount": instance.amount,
             "status": instance.status,
             "payment_method_id": instance.payment_method_id,
-            "wallet_id": instance.wallet_id,
+            "wallet_id": instance.to_wallet_id,
         }
 
         if instance.calculated_fee is not None:
@@ -455,20 +461,23 @@ class AddFundsTransactionSerializer(serializers.Serializer):
                 amount, payment_method_type.cash_in_transaction_fee
             )
 
-        transaction = Transaction.objects.create(
-            type=TransactionType.CashIn,
-            status=TransactionStatus.INITIATED,
+        # Use the create_transaction classmethod instead of objects.create
+        transaction = Transaction.create_transaction(
+            transaction_type=TransactionType.CashIn,
             amount=amount,
+            target_wallet=wallet,  # Using target_wallet instead of wallet
+            payment_method=payment_method,
+            status=TransactionStatus.INITIATED,
+            notes=f"Cash in via {payment_method.type}",
             calculated_fee=calculated_fee,
             charged_amount=charged_amount,
-            reference=make_transaction_ref(TransactionType.CashIn),
-            payment_code=make_payment_code(
-                make_transaction_ref(TransactionType.CashIn),
-                TransactionType.CashIn,
-            ),
-            payment_method=payment_method,
-            wallet=wallet,
         )
+
+        # Update with fee information if available
+        if calculated_fee is not None and charged_amount is not None:
+            transaction.calculated_fee = calculated_fee
+            transaction.charged_amount = charged_amount
+            transaction.save()
 
         return transaction
 
@@ -565,3 +574,69 @@ class UserDataDecryptionSerializer(serializers.Serializer):
 
     def to_representation(self, instance):
         return super().to_representation(instance)
+
+
+class ProcessTransactionSerializer(serializers.Serializer):
+    amount = AppAmountField(required=True, help_text=_("Amount to be transferred"))
+    transaction_type = serializers.ChoiceField(
+        choices=TransactionType.choices,
+        required=True,
+        help_text=_("Type of transaction to process"),
+    )
+    target_wallet_id = serializers.IntegerField(
+        required=True, help_text=_("ID of the recipient's wallet")
+    )
+
+    full_name = serializers.CharField(
+        required=True, help_text=_("Full name of the recipient")
+    )
+    email = serializers.EmailField(
+        required=False, allow_null=True, help_text=_("Email of the recipient")
+    )
+    phone_number = serializers.CharField(
+        required=False, allow_null=True, help_text=_("Phone number of the recipient")
+    )
+
+    currency = serializers.CharField(
+        required=True, help_text=_("Currency code of the transaction")
+    )
+
+    def validate_currency(self, value):
+        user = self.context["request"].user
+        user_currency = user.country.currency
+
+        if value != user_currency:
+            raise serializers.ValidationError(
+                _(
+                    "Currency mismatch. Expected: {expected}, provided: {provided}"
+                ).format(expected=user_currency, provided=value)
+            )
+        return value
+
+    def validate_target_wallet_id(self, value):
+        try:
+            target_wallet = Wallet.objects.get(id=value)
+            self.context["target_wallet"] = target_wallet
+            return value
+        except Wallet.DoesNotExist:
+            raise serializers.ValidationError(_("Target wallet does not exist"))
+
+    def validate(self, attrs):
+        user = self.context["request"].user
+
+        source_wallet = Wallet.objects.get_user_main_wallet(user)
+        if not source_wallet:
+            raise serializers.ValidationError(
+                {"detail": _("Source wallet not found for the user")}
+            )
+
+        amount = Decimal(str(attrs.get("amount")))
+        if source_wallet.balance < amount:
+            raise serializers.ValidationError(
+                {"detail": _("Insufficient funds in your wallet")}
+            )
+
+        attrs["source_wallet"] = source_wallet
+        attrs["target_wallet"] = self.context["target_wallet"]
+
+        return attrs

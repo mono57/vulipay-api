@@ -329,7 +329,7 @@ class AddFundsTransactionAPITestCase(APITestCase):
         transaction = Transaction.objects.filter(
             type=TransactionType.CashIn,
             payment_method=self.payment_method,
-            wallet=self.wallet,
+            to_wallet=self.wallet,
             amount=amount,
         ).first()
 
@@ -343,19 +343,19 @@ class AddFundsTransactionAPITestCase(APITestCase):
     def test_add_funds_callback_success(self):
         # First create a transaction
         amount = 1000
-        transaction = Transaction.objects.create(
-            type=TransactionType.CashIn,
-            status=TransactionStatus.INITIATED,
+        calculated_fee = 25.0  # 2.5% of 1000
+        charged_amount = 1025.0  # 1000 + 25
+
+        # Use create_transaction instead of objects.create
+        transaction = Transaction.create_transaction(
+            transaction_type=TransactionType.CashIn,
             amount=amount,
-            calculated_fee=25.0,  # 2.5% of 1000
-            charged_amount=1025.0,  # 1000 + 25
+            target_wallet=self.wallet,
             payment_method=self.payment_method,
-            wallet=self.wallet,
-            reference=make_transaction_ref(TransactionType.CashIn),
-            payment_code=make_payment_code(
-                make_transaction_ref(TransactionType.CashIn),
-                TransactionType.CashIn,
-            ),
+            status=TransactionStatus.INITIATED,
+            notes="Test cash in transaction",
+            calculated_fee=calculated_fee,
+            charged_amount=charged_amount,
         )
 
         # Initial wallet balance
@@ -385,17 +385,20 @@ class AddFundsTransactionAPITestCase(APITestCase):
 
     def test_add_funds_callback_failure(self):
         # First create a transaction
-        transaction = Transaction.objects.create(
-            type=TransactionType.CashIn,
-            status=TransactionStatus.INITIATED,
-            amount=1000,
+        # Use create_transaction instead of objects.create
+        amount = 1000
+        calculated_fee = 25.0  # 2.5% of 1000
+        charged_amount = 1025.0  # 1000 + 25
+
+        transaction = Transaction.create_transaction(
+            transaction_type=TransactionType.CashIn,
+            amount=amount,
+            target_wallet=self.wallet,
             payment_method=self.payment_method,
-            wallet=self.wallet,
-            reference=make_transaction_ref(TransactionType.CashIn),
-            payment_code=make_payment_code(
-                make_transaction_ref(TransactionType.CashIn),
-                TransactionType.CashIn,
-            ),
+            status=TransactionStatus.INITIATED,
+            notes="Test cash in transaction",
+            calculated_fee=calculated_fee,
+            charged_amount=charged_amount,
         )
 
         # Initial wallet balance

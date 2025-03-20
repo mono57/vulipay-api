@@ -1,4 +1,8 @@
+import logging
+from decimal import Decimal
+
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
     OpenApiExample,
     OpenApiParameter,
@@ -6,7 +10,7 @@ from drf_spectacular.utils import (
     extend_schema,
     inline_serializer,
 )
-from rest_framework import permissions
+from rest_framework import generics, permissions
 from rest_framework import serializers as drf_serializers
 from rest_framework import status
 from rest_framework.generics import (
@@ -18,17 +22,23 @@ from rest_framework.generics import (
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from app.accounts.api.mixins import ValidPINRequiredMixin
 from app.core.utils.encryption import decrypt_data, encrypt_data
+from app.core.utils.hashers import make_transaction_ref
 from app.transactions.api import serializers
 from app.transactions.models import (
     PaymentMethod,
     PaymentMethodType,
     Transaction,
+    TransactionFee,
     TransactionStatus,
     TransactionType,
     Wallet,
     WalletType,
 )
+from app.transactions.utils import compute_inclusive_amount
+
+logger = logging.getLogger(__name__)
 
 
 @extend_schema(
@@ -211,10 +221,10 @@ class AddFundsCallbackAPIView(APIView):
         if transaction_status == "success":
             # Process successful transaction
             transaction.status = TransactionStatus.COMPLETED
-            if transaction.wallet:
+            if transaction.to_wallet:
                 # Use the original amount for the deposit, not the charged amount
                 # The charged amount includes the fee which is kept by the payment processor
-                transaction.wallet.deposit(transaction.amount)
+                transaction.to_wallet.deposit(transaction.amount)
 
             # Add processor reference if provided
             if processor_reference:
@@ -304,15 +314,19 @@ class ReceiveFundsPaymentCodeAPIView(APIView):
         serializer.is_valid(raise_exception=True)
 
         user = request.user
-        wallet = Wallet.objects.filter(user=user, wallet_type=WalletType.MAIN).first()
+        wallet = (
+            Wallet.objects.filter(user=user, wallet_type=WalletType.MAIN)
+            .values("id", "currency")
+            .first()
+        )
 
         data = {
             "full_name": user.full_name,
             "email": user.email,
             "phone_number": user.phone_number,
-            "target_wallet_id": wallet.id if wallet else None,
+            "target_wallet_id": wallet["id"] if wallet else None,
             "transaction_type": TransactionType.P2P,
-            "currency": wallet.currency if wallet else None,
+            "currency": wallet["currency"] if wallet else None,
         }
 
         amount = serializer.validated_data.get("amount")
@@ -370,13 +384,125 @@ class UserDataDecryptionAPIView(APIView):
             encrypted_data = serializer.validated_data.get("encrypted_data")
             decrypted_data = decrypt_data(encrypted_data)
 
-            # Rename wallet_id to target_wallet_id if it exists in the decrypted data
-            if "wallet_id" in decrypted_data:
-                decrypted_data["target_wallet_id"] = decrypted_data.pop("wallet_id")
+            transaction_type = decrypted_data.get("transaction_type", None)
+            source_wallet = (
+                Wallet.objects.filter(user=request.user, wallet_type=WalletType.MAIN)
+                .values("id", "balance", "currency")
+                .first()
+            )
+
+            decrypted_data["source_wallet_id"] = source_wallet["id"]
+            decrypted_data["source_wallet_balance"] = source_wallet["balance"]
+            decrypted_data["source_wallet_currency"] = source_wallet["currency"]
+
+            try:
+                transaction_fee = TransactionFee.objects.get_applicable_fee(
+                    country=request.user.country,
+                    transaction_type=transaction_type,
+                )
+                decrypted_data["transaction_fee"] = transaction_fee
+            except Exception as fee_error:
+                logging.error(f"Error getting transaction fee: {fee_error}")
+                decrypted_data["transaction_fee"] = None
 
             return Response(decrypted_data, status=status.HTTP_200_OK)
         except Exception as e:
+            logging.error(f"Error decrypting data: {e}")
             return Response(
                 {"detail": "Invalid encrypted data"},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+
+
+@extend_schema(
+    tags=["Transactions"],
+    description="Process a transaction using decrypted user data. Requires PIN verification.",
+    responses={
+        200: OpenApiResponse(
+            description="Transaction processed successfully",
+            response=inline_serializer(
+                name="ProcessTransactionResponse",
+                fields={
+                    "transaction_reference": drf_serializers.CharField(),
+                    "status": drf_serializers.CharField(),
+                    "amount": drf_serializers.FloatField(),
+                    "currency": drf_serializers.CharField(),
+                    "message": drf_serializers.CharField(),
+                },
+            ),
+        ),
+        400: OpenApiResponse(
+            description="Invalid transaction data or currency mismatch"
+        ),
+        403: OpenApiResponse(description="Invalid PIN or unauthorized access"),
+    },
+    request=serializers.ProcessTransactionSerializer,
+    examples=[
+        OpenApiExample(
+            "Process Transaction Request",
+            value={
+                "amount": 1000,
+                "transaction_type": "P2P",
+                "target_wallet_id": 1,
+                "full_name": "John Doe",
+                "email": "johndoe@example.com",
+                "phone_number": "+237612345678",
+                "currency": "XAF",
+                "pin": "1234",  # Required for PIN validation
+            },
+            request_only=True,
+        ),
+    ],
+)
+class ProcessTransactionAPIView(ValidPINRequiredMixin, APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = serializers.ProcessTransactionSerializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data
+
+        source_wallet = data["source_wallet"]
+        target_wallet = data["target_wallet"]
+        amount = Decimal(str(data["amount"]))
+
+        computed_fee, charged_amount = compute_inclusive_amount(
+            amount, data["transaction_fee"]
+        )
+
+        try:
+            transaction = Transaction.create_transaction(
+                transaction_type=data["transaction_type"],
+                amount=amount,
+                status=TransactionStatus.PENDING,
+                source_wallet=source_wallet,
+                target_wallet=target_wallet,
+                notes=f"Transfer to {data['full_name']}",
+                calculated_fee=computed_fee,
+                charged_amount=charged_amount,
+            )
+
+            source_wallet.transfer(target_wallet, charged_amount)
+
+            transaction.set_as_COMPLETED()
+
+            return Response(
+                {
+                    "transaction_reference": transaction.reference,
+                    "status": transaction.status,
+                    "amount": float(amount),
+                    "currency": data["currency"],
+                    "message": _("Transaction processed successfully"),
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.error(f"Error processing transaction: {str(e)}")
+            return Response(
+                {"detail": _("Error processing transaction")},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

@@ -24,3 +24,10 @@ class TransactionFeeManager(models.Manager):
             .first()
         )
         return t_fee["fee"]
+
+
+class WalletManager(models.Manager):
+    def get_user_main_wallet(self, user):
+        from app.transactions.models import WalletType
+
+        return self.filter(user=user, wallet_type=WalletType.MAIN).first()

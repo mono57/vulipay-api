@@ -36,6 +36,12 @@ class TransactionFee(AppModel):
 
     objects = TransactionFeeManager()
 
+    def get_inclusive_amount(cls, transaction_type, country):
+        transaction_fee = cls.objects.get(
+            transaction_type=transaction_type, country=country
+        )
+        return transaction_fee.fee
+
     def __str__(self):
         return self.fee
 
@@ -59,13 +65,11 @@ class PaymentMethodType(AppModel):
 
 class Transaction(AppModel):
     reference = AppCharField(_("Reference"), max_length=30)
-    payment_code = AppCharField(_("Payment code"), max_length=255)
     amount = models.FloatField(_("Amount"))
     charged_amount = models.FloatField(_("Charged Amount"), null=True)
     calculated_fee = models.FloatField(_("Calculated Fee"), null=True)
     status = AppCharField(_("Status"), max_length=10, choices=TransactionStatus.choices)
     type = AppCharField(_("Type"), max_length=4, choices=TransactionType.choices)
-
     payment_method = models.ForeignKey(
         "PaymentMethod",
         on_delete=models.SET_NULL,
@@ -73,12 +77,19 @@ class Transaction(AppModel):
         related_name="transactions",
         help_text=_("Payment method used for the transaction"),
     )
-    wallet = models.ForeignKey(
+    from_wallet = models.ForeignKey(
         "Wallet",
         on_delete=models.SET_NULL,
         null=True,
-        related_name="transactions",
-        help_text=_("Wallet associated with the transaction"),
+        related_name="outgoing_transactions",
+        help_text=_("Wallet that sent the transaction"),
+    )
+    to_wallet = models.ForeignKey(
+        "Wallet",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="incoming_transactions",
+        help_text=_("Wallet that received the transaction"),
     )
     notes = models.TextField(_("Notes"), null=True)
 
@@ -86,6 +97,31 @@ class Transaction(AppModel):
 
     def __str__(self):
         return self.reference
+
+    @classmethod
+    def create_transaction(
+        cls,
+        transaction_type,
+        amount,
+        status=TransactionStatus.INITIATED,
+        **kwargs,
+    ):
+        from app.core.utils.hashers import make_transaction_ref
+
+        transaction = cls.objects.create(
+            reference=make_transaction_ref(transaction_type),
+            amount=amount,
+            status=status,
+            type=transaction_type,
+            from_wallet=kwargs.get("source_wallet"),
+            to_wallet=kwargs.get("target_wallet"),
+            payment_method=kwargs.get("payment_method"),
+            notes=kwargs.get("notes"),
+            calculated_fee=kwargs.get("calculated_fee"),
+            charged_amount=kwargs.get("charged_amount"),
+        )
+
+        return transaction
 
     @classmethod
     def is_valid_payment_code(cls, payment_code):
@@ -263,6 +299,8 @@ class Wallet(models.Model):
         default=True, help_text=_("Whether this wallet is active")
     )
 
+    objects = managers.WalletManager()
+
     class Meta:
         unique_together = ["user", "wallet_type"]
         verbose_name = _("Wallet")
@@ -309,5 +347,6 @@ class Wallet(models.Model):
         return True
 
     def save(self, *args, **kwargs):
-        self.currency = self.user.country.currency
+        if self.user and self.user.country and hasattr(self.user.country, "currency"):
+            self.currency = self.user.country.currency
         super().save(*args, **kwargs)

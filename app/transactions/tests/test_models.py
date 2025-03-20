@@ -348,3 +348,57 @@ class WalletCurrencyTestCase(TransactionTestCase):
         self.assertEqual(wallet.currency, custom_currency)
         # The auto-assigned currency would be XAF for Cameroon
         self.assertNotEqual(wallet.currency, "XAF")
+
+
+class TransactionModelTestCase(TransactionTestCase):
+    def setUp(self):
+        self.country = AvailableCountryFactory()
+        self.sender = UserFactory(country=self.country)
+        self.recipient = UserFactory(country=self.country)
+
+        # Get the automatically created main wallets
+        self.sender_wallet = Wallet.objects.get_user_main_wallet(self.sender)
+        self.recipient_wallet = Wallet.objects.get_user_main_wallet(self.recipient)
+
+        # Set initial balance for sender wallet
+        self.sender_wallet.balance = 1000
+        self.sender_wallet.save()
+
+    def test_create_transaction_classmethod(self):
+        """Test the create_transaction classmethod"""
+        transaction = Transaction.create_transaction(
+            transaction_type=TransactionType.P2P,
+            amount=500,
+            source_wallet=self.sender_wallet,
+            target_wallet=self.recipient_wallet,
+            notes="Test transaction",
+        )
+
+        # Verify the transaction was created correctly
+        self.assertEqual(transaction.type, TransactionType.P2P)
+        self.assertEqual(transaction.amount, 500)
+        self.assertEqual(transaction.from_wallet, self.sender_wallet)
+        self.assertEqual(transaction.to_wallet, self.recipient_wallet)
+        self.assertEqual(transaction.notes, "Test transaction")
+        self.assertEqual(transaction.status, TransactionStatus.INITIATED)
+
+        # Verify the reference is created correctly
+        self.assertTrue(transaction.reference.startswith("P2P"))
+        self.assertEqual(len(transaction.reference), 21)  # Correct reference length
+
+    def test_create_transaction_with_minimal_parameters(self):
+        """Test the create_transaction classmethod with minimal parameters"""
+        transaction = Transaction.create_transaction(
+            transaction_type=TransactionType.MP, amount=200
+        )
+
+        # Verify the transaction was created correctly
+        self.assertEqual(transaction.type, TransactionType.MP)
+        self.assertEqual(transaction.amount, 200)
+        self.assertIsNone(transaction.from_wallet)
+        self.assertIsNone(transaction.to_wallet)
+        self.assertIsNone(transaction.notes)
+        self.assertEqual(transaction.status, TransactionStatus.INITIATED)
+
+        # Verify the reference is created correctly
+        self.assertTrue(transaction.reference.startswith("MP"))
