@@ -350,3 +350,26 @@ class Wallet(models.Model):
         if self.user and self.user.country and hasattr(self.user.country, "currency"):
             self.currency = self.user.country.currency
         super().save(*args, **kwargs)
+
+
+class PlatformWallet(AppModel):
+    balance = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text=_("Current wallet balance"),
+    )
+    currency = AppCharField(
+        _("Currency"),
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text=_("Currency for this wallet (e.g., USD, EUR, XAF)"),
+    )
+
+    country = models.ForeignKey(
+        AvailableCountry, on_delete=models.SET_NULL, null=True, blank=True
+    )
+
+    def __str__(self):
+        return f"Platform Wallet ({self.currency})"
