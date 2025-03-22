@@ -1,6 +1,7 @@
 import logging
 from decimal import Decimal
 
+from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
@@ -29,6 +30,7 @@ from app.transactions.api import serializers
 from app.transactions.models import (
     PaymentMethod,
     PaymentMethodType,
+    PlatformWallet,
     Transaction,
     TransactionFee,
     TransactionStatus,
@@ -469,40 +471,52 @@ class ProcessTransactionAPIView(ValidPINRequiredMixin, APIView):
         target_wallet = data["target_wallet"]
         amount = Decimal(str(data["amount"]))
 
-        computed_fee, charged_amount = compute_inclusive_amount(
-            amount, data["transaction_fee"]
-        )
+        transaction_fee = data.get("transaction_fee")
+        if transaction_fee is None:
+            try:
+                transaction_fee = TransactionFee.objects.get_applicable_fee(
+                    country=request.user.country,
+                    transaction_type=data["transaction_type"],
+                )
+            except Exception as e:
+                logger.error(f"Error getting transaction fee: {str(e)}")
+                transaction_fee = 0  # Default to 0 if no fee can be determined
 
-        try:
-            transaction = Transaction.create_transaction(
-                transaction_type=data["transaction_type"],
-                amount=amount,
-                status=TransactionStatus.PENDING,
-                source_wallet=source_wallet,
-                target_wallet=target_wallet,
-                notes=f"Transfer to {data['full_name']}",
-                calculated_fee=computed_fee,
-                charged_amount=charged_amount,
-            )
+        computed_fee, charged_amount = compute_inclusive_amount(amount, transaction_fee)
 
-            source_wallet.transfer(target_wallet, charged_amount)
+        with transaction.atomic():
+            try:
+                transaction_obj = Transaction.create_transaction(
+                    transaction_type=data["transaction_type"],
+                    amount=amount,
+                    status=TransactionStatus.PENDING,
+                    source_wallet=source_wallet,
+                    target_wallet=target_wallet,
+                    notes=f"Transfer to {data['full_name']}",
+                    calculated_fee=computed_fee,
+                    charged_amount=charged_amount,
+                )
 
-            transaction.set_as_COMPLETED()
+                source_wallet.transfer(target_wallet, charged_amount)
+                PlatformWallet.objects.collect_fees(
+                    country=request.user.country, amount=computed_fee
+                )
+                transaction_obj.set_as_COMPLETED()
 
-            return Response(
-                {
-                    "transaction_reference": transaction.reference,
-                    "status": transaction.status,
-                    "amount": float(amount),
-                    "currency": data["currency"],
-                    "message": _("Transaction processed successfully"),
-                },
-                status=status.HTTP_200_OK,
-            )
+                return Response(
+                    {
+                        "transaction_reference": transaction_obj.reference,
+                        "status": transaction_obj.status,
+                        "amount": float(amount),
+                        "currency": data["currency"],
+                        "message": _("Transaction processed successfully"),
+                    },
+                    status=status.HTTP_200_OK,
+                )
 
-        except Exception as e:
-            logger.error(f"Error processing transaction: {str(e)}")
-            return Response(
-                {"detail": _("Error processing transaction")},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            except Exception as e:
+                logger.error(f"Error processing transaction: {str(e)}")
+                return Response(
+                    {"detail": _("Error processing transaction")},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )

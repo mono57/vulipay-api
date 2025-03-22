@@ -371,5 +371,7 @@ class PlatformWallet(AppModel):
         AvailableCountry, on_delete=models.SET_NULL, null=True, blank=True
     )
 
+    objects = managers.PlatformWalletManager()
+
     def __str__(self):
         return f"Platform Wallet ({self.currency})"

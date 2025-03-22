@@ -31,3 +31,8 @@ class WalletManager(models.Manager):
         from app.transactions.models import WalletType
 
         return self.filter(user=user, wallet_type=WalletType.MAIN).first()
+
+
+class PlatformWalletManager(models.Manager):
+    def collect_fees(self, country, amount):
+        self.filter(country=country).update(balance=models.F("balance") + amount)
