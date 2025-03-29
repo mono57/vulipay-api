@@ -409,10 +409,23 @@ class UserDataDecryptionAPIView(APIView):
                     country=request.user.country,
                     transaction_type=transaction_type,
                 )
-                decrypted_data["transaction_fee"] = transaction_fee
+
+                # Get the fee record to determine if it's a fixed or percentage fee
+                fee_record = TransactionFee.objects.filter(
+                    country=request.user.country,
+                    transaction_type=transaction_type,
+                ).first()
+
+                if fee_record:
+                    decrypted_data["transaction_fee"] = transaction_fee
+                    decrypted_data["fee_type"] = fee_record.fee_priority
+                else:
+                    decrypted_data["transaction_fee"] = None
+                    decrypted_data["fee_type"] = None
             except Exception as fee_error:
                 logging.error(f"Error getting transaction fee: {fee_error}")
                 decrypted_data["transaction_fee"] = None
+                decrypted_data["fee_type"] = None
 
             return Response(decrypted_data, status=status.HTTP_200_OK)
         except Exception as e:
@@ -479,17 +492,31 @@ class ProcessTransactionAPIView(ValidPINRequiredMixin, APIView):
         amount = Decimal(str(data["amount"]))
 
         transaction_fee = data.get("transaction_fee")
+        fee_type = None
+
         if transaction_fee is None:
             try:
+                # Get the fee value
                 transaction_fee = TransactionFee.objects.get_applicable_fee(
                     country=request.user.country,
                     transaction_type=data["transaction_type"],
                 )
+
+                # Get the fee record to determine if it's a fixed or percentage fee
+                fee_record = TransactionFee.objects.filter(
+                    country=request.user.country,
+                    transaction_type=data["transaction_type"],
+                ).first()
+
+                if fee_record:
+                    fee_type = fee_record.fee_priority
             except Exception as e:
                 logger.error(f"Error getting transaction fee: {str(e)}")
                 transaction_fee = 0  # Default to 0 if no fee can be determined
 
-        computed_fee, charged_amount = compute_inclusive_amount(amount, transaction_fee)
+        computed_fee, charged_amount = compute_inclusive_amount(
+            amount, transaction_fee, fee_type
+        )
 
         with transaction.atomic():
             try:

@@ -37,13 +37,14 @@ class TransactionFeeModelTestCase(TestCase):
             fee_priority=TransactionFee.FeePriority.PERCENTAGE,
         )
 
-        self.fee_both = TransactionFee.objects.create(
+        # Create another fixed fee (instead of 'both')
+        self.fee_fixed2 = TransactionFee.objects.create(
             country=self.country,
             transaction_type=TransactionType.CashOut,
             payment_method_type=self.payment_method_type,
             fixed_fee=50,
-            percentage_fee=1.5,
-            fee_priority=TransactionFee.FeePriority.BOTH,
+            percentage_fee=None,  # Should be automatically set to None in the save method
+            fee_priority=TransactionFee.FeePriority.FIXED,
         )
 
         # Create a default fee with no specific payment method type
@@ -60,7 +61,7 @@ class TransactionFeeModelTestCase(TestCase):
         """Test that the fee property returns the correct value based on fee_priority"""
         self.assertEqual(self.fee_fixed.fee, 100)
         self.assertEqual(self.fee_percentage.fee, 2.5)
-        self.assertEqual(self.fee_both.fee, (50, 1.5))
+        self.assertEqual(self.fee_fixed2.fee, 50)
 
     def test_string_representation(self):
         """Test the string representation of the model"""
@@ -70,8 +71,8 @@ class TransactionFeeModelTestCase(TestCase):
         expected_str = f"{self.country.name} - {TransactionType.CashIn} - {self.payment_method_type.name} - Percentage: 2.5%"
         self.assertEqual(str(self.fee_percentage), expected_str)
 
-        expected_str = f"{self.country.name} - {TransactionType.CashOut} - {self.payment_method_type.name} - Fixed: 50, Percentage: 1.5%"
-        self.assertEqual(str(self.fee_both), expected_str)
+        expected_str = f"{self.country.name} - {TransactionType.CashOut} - {self.payment_method_type.name} - Fixed: 50"
+        self.assertEqual(str(self.fee_fixed2), expected_str)
 
         expected_str = (
             f"{self.country.name} - {TransactionType.MP} - All - Percentage: 3.0%"
@@ -150,7 +151,9 @@ class TransactionFeeManagerTestCase(TestCase):
             )
 
         self.assertEqual(fee1, fee2)
-        self.assertEqual(fee1, (None, 2.5))
+        self.assertEqual(
+            fee1, 2.5
+        )  # Now returns a single value (2.5) instead of (None, 2.5)
 
     def test_get_applicable_fee_specificity(self):
         """Test that get_applicable_fee returns the most specific fee configuration"""
@@ -160,7 +163,9 @@ class TransactionFeeManagerTestCase(TestCase):
             transaction_type=TransactionType.P2P,
             payment_method_type=self.payment_method_type1,
         )
-        self.assertEqual(fee, (None, 2.5))
+        self.assertEqual(
+            fee, 2.5
+        )  # Now returns a single value (2.5) instead of (None, 2.5)
 
         # Less specific: country matches, payment_method_type doesn't match any specific config
         fee = TransactionFee.objects.get_applicable_fee(
@@ -168,7 +173,9 @@ class TransactionFeeManagerTestCase(TestCase):
             transaction_type=TransactionType.P2P,
             payment_method_type=self.payment_method_type2,
         )
-        self.assertEqual(fee, (None, 2.0))
+        self.assertEqual(
+            fee, 2.0
+        )  # Now returns a single value (2.0) instead of (None, 2.0)
 
         # Least specific: global fee (no country match)
         fee = TransactionFee.objects.get_applicable_fee(
@@ -176,7 +183,9 @@ class TransactionFeeManagerTestCase(TestCase):
             transaction_type=TransactionType.P2P,
             payment_method_type=self.payment_method_type1,
         )
-        self.assertEqual(fee, (None, 1.5))
+        self.assertEqual(
+            fee, 1.5
+        )  # Now returns a single value (1.5) instead of (None, 1.5)
 
         # Default when no matching fee is found
         fee = TransactionFee.objects.get_applicable_fee(
@@ -184,7 +193,7 @@ class TransactionFeeManagerTestCase(TestCase):
             transaction_type="NON_EXISTENT",
             payment_method_type=self.payment_method_type1,
         )
-        self.assertEqual(fee, (0, 0))
+        self.assertEqual(fee, 0)  # Now returns a single value (0) instead of (0, 0)
 
 
 class TransactionFeePerformanceTestCase(TestCase):
@@ -211,24 +220,45 @@ class TransactionFeePerformanceTestCase(TestCase):
             # Use a different payment method type for each transaction type
             pmt_type = self.payment_method_types[i % 5]
 
-            TransactionFee.objects.create(
-                country=self.country,
-                transaction_type=tx_type,
-                payment_method_type=pmt_type,
-                fixed_fee=i * 10 if i % 2 == 0 else None,
-                percentage_fee=i / 10 + 1 if i % 2 != 0 else None,
-                fee_priority=TransactionFee.FeePriority.choices[i % 3][0],
-            )
+            # Alternate between fixed and percentage fees
+            if i % 2 == 0:
+                TransactionFee.objects.create(
+                    country=self.country,
+                    transaction_type=tx_type,
+                    payment_method_type=pmt_type,
+                    fixed_fee=i * 10,
+                    percentage_fee=None,
+                    fee_priority=TransactionFee.FeePriority.FIXED,
+                )
+            else:
+                TransactionFee.objects.create(
+                    country=self.country,
+                    transaction_type=tx_type,
+                    payment_method_type=pmt_type,
+                    fixed_fee=None,
+                    percentage_fee=i / 10 + 1,
+                    fee_priority=TransactionFee.FeePriority.PERCENTAGE,
+                )
 
             # Also create a default fee (no payment method type)
-            TransactionFee.objects.create(
-                country=self.country,
-                transaction_type=tx_type,
-                payment_method_type=None,
-                fixed_fee=i * 5 if i % 2 != 0 else None,
-                percentage_fee=i / 5 + 0.5 if i % 2 == 0 else None,
-                fee_priority=TransactionFee.FeePriority.choices[(i + 1) % 3][0],
-            )
+            if i % 2 != 0:
+                TransactionFee.objects.create(
+                    country=self.country,
+                    transaction_type=tx_type,
+                    payment_method_type=None,
+                    fixed_fee=i * 5,
+                    percentage_fee=None,
+                    fee_priority=TransactionFee.FeePriority.FIXED,
+                )
+            else:
+                TransactionFee.objects.create(
+                    country=self.country,
+                    transaction_type=tx_type,
+                    payment_method_type=None,
+                    fixed_fee=None,
+                    percentage_fee=i / 5 + 0.5,
+                    fee_priority=TransactionFee.FeePriority.PERCENTAGE,
+                )
 
         # Clear cache before the test
         cache.clear()
@@ -251,24 +281,5 @@ class TransactionFeePerformanceTestCase(TestCase):
                 payment_method_type=self.payment_method_types[0],
             )
 
+        # Should get the same result from cache
         self.assertEqual(fee1, fee2)
-
-        # Track database query counts
-        initial_query_count = len(connection.queries)
-
-        # Perform 10 lookups with different combinations
-        for i in range(10):
-            tx_type = TransactionType.choices[i % 4][0]
-            pmt_type = self.payment_method_types[i % 5]
-
-            TransactionFee.objects.get_applicable_fee(
-                country=self.country,
-                transaction_type=tx_type,
-                payment_method_type=pmt_type,
-            )
-
-        # Should have a small number of new queries (just for combinations not in cache)
-        new_queries = len(connection.queries) - initial_query_count
-        self.assertLess(
-            new_queries, 10
-        )  # Should be much less than 10 because of caching

@@ -44,7 +44,6 @@ class TransactionFee(AppModel):
     class FeePriority(models.TextChoices):
         FIXED = "fixed", _("Fixed Fee")
         PERCENTAGE = "percentage", _("Percentage Fee")
-        BOTH = "both", _("Both")
 
     fixed_fee = models.FloatField(null=True, db_index=True)  # i.e: 100
     percentage_fee = models.FloatField(null=True, db_index=True)  # i.e: 5
@@ -95,13 +94,19 @@ class TransactionFee(AppModel):
 
     @property
     def fee(self):
-        if self.fee_priority == self.FeePriority.FIXED:
-            return self.fixed_fee or 0
-        elif self.fee_priority == self.FeePriority.PERCENTAGE:
-            return self.percentage_fee or 0
-        elif self.fee_priority == self.FeePriority.BOTH:
-            return (self.fixed_fee or 0, self.percentage_fee or 0)
+        if self.fixed_fee is not None:
+            return self.fixed_fee
+        elif self.percentage_fee is not None:
+            return self.percentage_fee
         return 0
+
+    def save(self, *args, **kwargs):
+        if self.fixed_fee is not None:
+            self.fee_priority = self.FeePriority.FIXED
+            self.percentage_fee = None
+        elif self.percentage_fee is not None:
+            self.fee_priority = self.FeePriority.PERCENTAGE
+        super().save(*args, **kwargs)
 
     def __str__(self):
         country_name = self.country.name if self.country else "Global"
@@ -111,10 +116,8 @@ class TransactionFee(AppModel):
 
         if self.fee_priority == self.FeePriority.FIXED:
             fee_info = f"Fixed: {self.fixed_fee}"
-        elif self.fee_priority == self.FeePriority.PERCENTAGE:
-            fee_info = f"Percentage: {self.percentage_fee}%"
         else:
-            fee_info = f"Fixed: {self.fixed_fee}, Percentage: {self.percentage_fee}%"
+            fee_info = f"Percentage: {self.percentage_fee}%"
 
         return f"{country_name} - {self.transaction_type} - {payment_type} - {fee_info}"
 
@@ -191,23 +194,29 @@ class Transaction(AppModel):
         if self.payment_method and hasattr(self.payment_method, "payment_method_type"):
             payment_method_type = self.payment_method.payment_method_type
 
-        fixed_fee, percentage_fee = TransactionFee.objects.get_applicable_fee(
+        fee = TransactionFee.objects.get_applicable_fee(
             country=country,
             transaction_type=self.type,
             payment_method_type=payment_method_type,
         )
 
-        if fixed_fee is not None and percentage_fee is not None:
-            percentage_amount = (self.amount * percentage_fee) / 100
-            self.calculated_fee = fixed_fee + percentage_amount
-            self.charged_amount = self.amount + self.calculated_fee
-        elif fixed_fee is not None:
-            self.calculated_fee = fixed_fee
-            self.charged_amount = self.amount + fixed_fee
-        elif percentage_fee is not None:
-            self.calculated_fee = (self.amount * percentage_fee) / 100
+        fee_record = TransactionFee.objects.filter(
+            country=country,
+            transaction_type=self.type,
+            payment_method_type=payment_method_type,
+        ).first()
+
+        if fee_record and fee_record.fee_priority == TransactionFee.FeePriority.FIXED:
+            self.calculated_fee = fee
+            self.charged_amount = self.amount + fee
+        elif (
+            fee_record
+            and fee_record.fee_priority == TransactionFee.FeePriority.PERCENTAGE
+        ):
+            self.calculated_fee = (self.amount * fee) / 100
             self.charged_amount = self.amount + self.calculated_fee
         else:
+            # No fee or unknown fee type
             self.calculated_fee = 0
             self.charged_amount = self.amount
 

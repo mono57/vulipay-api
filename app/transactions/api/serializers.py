@@ -485,22 +485,28 @@ class AddFundsTransactionSerializer(serializers.Serializer):
         if payment_method_type:
             # Get fee from TransactionFee model
             country = user.country if hasattr(user, "country") else None
-            fixed_fee, percentage_fee = TransactionFee.objects.get_applicable_fee(
+            fee = TransactionFee.objects.get_applicable_fee(
                 country=country,
                 transaction_type=TransactionType.CashIn,
                 payment_method_type=payment_method_type,
             )
 
-            if fixed_fee is not None and percentage_fee is not None:
-                percentage_amount = (amount * percentage_fee) / 100
-                calculated_fee = fixed_fee + percentage_amount
-                charged_amount = amount + calculated_fee
-            elif fixed_fee is not None:
-                calculated_fee = fixed_fee
-                charged_amount = amount + fixed_fee
-            elif percentage_fee is not None:
-                calculated_fee = (amount * percentage_fee) / 100
-                charged_amount = amount + calculated_fee
+            # Get the fee record to determine if it's a fixed or percentage fee
+            fee_record = TransactionFee.objects.filter(
+                country=country,
+                transaction_type=TransactionType.CashIn,
+                payment_method_type=payment_method_type,
+            ).first()
+
+            if fee_record:
+                if fee_record.fee_priority == TransactionFee.FeePriority.FIXED:
+                    # Fixed fee
+                    calculated_fee = fee
+                    charged_amount = amount + calculated_fee
+                elif fee_record.fee_priority == TransactionFee.FeePriority.PERCENTAGE:
+                    # Percentage fee
+                    calculated_fee = (amount * fee) / 100
+                    charged_amount = amount + calculated_fee
 
         # Use the create_transaction classmethod instead of objects.create
         transaction = Transaction.create_transaction(
@@ -574,17 +580,29 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
         for tx_type, tx_name in TransactionType.choices:
             try:
                 if obj.country:
-                    fee = TransactionFee.objects.get_applicable_fee(
+                    fee_value = TransactionFee.objects.get_applicable_fee(
                         country=obj.country,
                         transaction_type=tx_type,
                         payment_method_type=obj,
                     )
 
-                    fixed_fee, percentage_fee = fee
-                    fees[tx_type] = {
-                        "fixed_fee": fixed_fee,
-                        "percentage_fee": percentage_fee,
-                    }
+                    # Get the fee record to determine if it's a fixed or percentage fee
+                    fee_record = (
+                        TransactionFee.objects.filter(
+                            country=obj.country,
+                            transaction_type=tx_type,
+                            payment_method_type=obj,
+                        )
+                        .order_by("-specificity")
+                        .first()
+                    )
+
+                    if fee_record:
+                        # Include the fee type information
+                        fees[tx_type] = {
+                            "fee_value": fee_value,
+                            "fee_type": fee_record.fee_priority,
+                        }
             except Exception:
                 fees[tx_type] = None
 
@@ -593,12 +611,11 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
     def get_cash_in_fee(self, obj):
         try:
             if obj.country:
-                fee = TransactionFee.objects.get_applicable_fee(
+                return TransactionFee.objects.get_applicable_fee(
                     country=obj.country,
                     transaction_type=TransactionType.CashIn,
                     payment_method_type=obj,
                 )
-                return fee
         except Exception:
             pass
         return None
@@ -606,12 +623,11 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
     def get_cash_out_fee(self, obj):
         try:
             if obj.country:
-                fee = TransactionFee.objects.get_applicable_fee(
+                return TransactionFee.objects.get_applicable_fee(
                     country=obj.country,
                     transaction_type=TransactionType.CashOut,
                     payment_method_type=obj,
                 )
-                return fee
         except Exception:
             pass
         return None
@@ -619,12 +635,11 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
     def get_p2p_fee(self, obj):
         try:
             if obj.country:
-                fee = TransactionFee.objects.get_applicable_fee(
+                return TransactionFee.objects.get_applicable_fee(
                     country=obj.country,
                     transaction_type=TransactionType.P2P,
                     payment_method_type=obj,
                 )
-                return fee
         except Exception:
             pass
         return None
@@ -632,12 +647,11 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
     def get_merchant_payment_fee(self, obj):
         try:
             if obj.country:
-                fee = TransactionFee.objects.get_applicable_fee(
+                return TransactionFee.objects.get_applicable_fee(
                     country=obj.country,
                     transaction_type=TransactionType.MP,
                     payment_method_type=obj,
                 )
-                return fee
         except Exception:
             pass
         return None

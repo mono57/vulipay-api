@@ -50,6 +50,7 @@ class TransactionFeeManager(models.Manager):
         # Both country and payment_method_type specified is most specific
         # Only one specified is less specific
         # Neither specified is least specific
+        # Also prioritize fixed fees over percentage fees
         fee = (
             self.filter(query)
             .extra(
@@ -65,18 +66,18 @@ class TransactionFeeManager(models.Manager):
                 },
                 order_by=["-specificity"],
             )
-            .values("fixed_fee", "percentage_fee")
             .first()
         )
 
         if fee:
-            fees = (fee["fixed_fee"], fee["percentage_fee"])
+            # Return a single fee value, with fixed fee taking priority
+            fee_value = fee.fee
         else:
-            fees = (0, 0)
+            fee_value = 0
 
-        cache.set(cache_key, fees, 3600)
+        cache.set(cache_key, fee_value, 3600)
 
-        return fees
+        return fee_value
 
 
 class WalletManager(models.Manager):
