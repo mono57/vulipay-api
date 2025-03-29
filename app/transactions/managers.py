@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 
 from app.core.utils import make_payment_code, make_transaction_ref
 
@@ -17,13 +18,25 @@ class TransactionManager(models.Manager):
 
 
 class TransactionFeeManager(models.Manager):
-    def get_applicable_fee(self, country, transaction_type):
-        t_fee = (
-            self.filter(country=country, transaction_type=transaction_type)
-            .values("fee")
+    def get_applicable_fee(self, country, transaction_type, payment_method_type):
+        fee = (
+            (
+                self.filter(
+                    Q(country=country)
+                    & Q(transaction_type=transaction_type)
+                    & (
+                        Q(payment_method_type=payment_method_type)
+                        | Q(payment_method_type__isnull=True)
+                    )
+                )
+            )
+            .values("fixed_fee", "percentage_fee")
             .first()
         )
-        return t_fee["fee"]
+
+        if fee:
+            return fee["fixed_fee"], fee["percentage_fee"]
+        return 0, 0
 
 
 class WalletManager(models.Manager):

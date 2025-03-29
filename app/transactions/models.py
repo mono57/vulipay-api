@@ -27,25 +27,6 @@ class TransactionType(models.TextChoices):
     CashIn = "CI", _("Cash In")
 
 
-class TransactionFee(AppModel):
-    fee = models.FloatField()
-    country = models.ForeignKey(AvailableCountry, null=True, on_delete=models.SET_NULL)
-    transaction_type = AppCharField(
-        _("Transaction Type"), max_length=10, choices=TransactionType.choices
-    )
-
-    objects = TransactionFeeManager()
-
-    def get_inclusive_amount(cls, transaction_type, country):
-        transaction_fee = cls.objects.get(
-            transaction_type=transaction_type, country=country
-        )
-        return transaction_fee.fee
-
-    def __str__(self):
-        return self.fee
-
-
 class PaymentMethodType(AppModel):
     name = AppCharField(_("Name"), max_length=255)
     code = AppCharField(_("Code"), max_length=255)
@@ -61,6 +42,41 @@ class PaymentMethodType(AppModel):
 
     def __str__(self):
         return self.name
+
+
+class TransactionFee(AppModel):
+    class FeePriority(models.TextChoices):
+        FIXED = "fixed", _("Fixed Fee")
+        PERCENTAGE = "percentage", _("Percentage Fee")
+        BOTH = "both", _("Both")
+
+    fixed_fee = models.FloatField(null=True)  # i.e: 100
+    percentage_fee = models.FloatField(null=True)  # i.e: 5
+    fee_priority = models.CharField(
+        max_length=20, choices=FeePriority.choices, default=FeePriority.PERCENTAGE
+    )
+    country = models.ForeignKey(AvailableCountry, null=True, on_delete=models.SET_NULL)
+    payment_method_type = models.ForeignKey(
+        PaymentMethodType,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="transaction_fees",
+        help_text=_("Payment method type associated with this fee"),
+    )
+    transaction_type = AppCharField(
+        _("Transaction Type"), max_length=10, choices=TransactionType.choices
+    )
+
+    objects = TransactionFeeManager()
+
+    def get_inclusive_amount(cls, transaction_type, country):
+        transaction_fee = cls.objects.get(
+            transaction_type=transaction_type, country=country
+        )
+        return transaction_fee.fee
+
+    def __str__(self):
+        return f"{self.transaction_type} - {self.country} - {self.payment_method_type}"
 
 
 class Transaction(AppModel):
