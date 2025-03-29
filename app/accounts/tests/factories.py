@@ -37,7 +37,8 @@ class AvailableCountryFactory(django.DjangoModelFactory):
     class Meta:
         model = AvailableCountry
 
-    name = "Cameroun"
-    dial_code = "237"
-    iso_code = "CM"
-    phone_number_regex = "ZRESDF"
+    name = factory.Sequence(lambda n: f"Country {n}")
+    dial_code = factory.Sequence(lambda n: f"{237 + n}")
+    iso_code = factory.Sequence(lambda n: f"C{n}")
+    phone_number_regex = "^\\+\\d{3}\\d{8}$"
+    currency = factory.Sequence(lambda n: f"CUR{n}")

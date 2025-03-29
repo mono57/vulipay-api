@@ -1,5 +1,7 @@
+from django.core.cache import cache
 from django.db import models
 from django.db.models import Q
+from django.utils.translation import gettext_lazy as _
 
 from app.core.utils import make_payment_code, make_transaction_ref
 
@@ -18,25 +20,63 @@ class TransactionManager(models.Manager):
 
 
 class TransactionFeeManager(models.Manager):
-    def get_applicable_fee(self, country, transaction_type, payment_method_type):
+    def get_applicable_fee(self, country, transaction_type, payment_method_type=None):
+        country_id = getattr(country, "id", country)
+        payment_method_type_id = getattr(payment_method_type, "id", payment_method_type)
+
+        cache_key = (
+            f"transaction_fee:{country_id}:{transaction_type}:{payment_method_type_id}"
+        )
+        cached_fee = cache.get(cache_key)
+
+        if cached_fee is not None:
+            return cached_fee
+
+        query = Q(transaction_type=transaction_type)
+
+        if country:
+            query &= Q(country_id=country_id) | Q(country__isnull=True)
+        else:
+            query &= Q(country__isnull=True)
+
+        if payment_method_type:
+            query &= Q(payment_method_type_id=payment_method_type_id) | Q(
+                payment_method_type__isnull=True
+            )
+        else:
+            query &= Q(payment_method_type__isnull=True)
+
+        # Order by specificity (most specific first)
+        # Both country and payment_method_type specified is most specific
+        # Only one specified is less specific
+        # Neither specified is least specific
         fee = (
-            (
-                self.filter(
-                    Q(country=country)
-                    & Q(transaction_type=transaction_type)
-                    & (
-                        Q(payment_method_type=payment_method_type)
-                        | Q(payment_method_type__isnull=True)
-                    )
-                )
+            self.filter(query)
+            .extra(
+                select={
+                    "specificity": """
+                    CASE
+                        WHEN country_id IS NOT NULL AND payment_method_type_id IS NOT NULL THEN 3
+                        WHEN country_id IS NOT NULL THEN 2
+                        WHEN payment_method_type_id IS NOT NULL THEN 1
+                        ELSE 0
+                    END
+                    """
+                },
+                order_by=["-specificity"],
             )
             .values("fixed_fee", "percentage_fee")
             .first()
         )
 
         if fee:
-            return fee["fixed_fee"], fee["percentage_fee"]
-        return 0, 0
+            fees = (fee["fixed_fee"], fee["percentage_fee"])
+        else:
+            fees = (0, 0)
+
+        cache.set(cache_key, fees, 3600)
+
+        return fees
 
 
 class WalletManager(models.Manager):

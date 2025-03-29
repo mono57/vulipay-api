@@ -87,18 +87,14 @@ class WalletFactory(factory.django.DjangoModelFactory):
         return cls.create(wallet_type=WalletType.BUSINESS, **kwargs)
 
 
-class PaymentMethodTypeFactory(factory.django.DjangoModelFactory):
+class PaymentMethodTypeFactory(django.DjangoModelFactory):
     class Meta:
         model = PaymentMethodType
 
-    name = factory.Faker("word")
-    code = factory.LazyAttribute(lambda o: o.name.upper())
-    cash_in_transaction_fee = factory.LazyAttribute(
-        lambda _: round(random.uniform(0.5, 5.0), 2)
-    )
-    cash_out_transaction_fee = factory.LazyAttribute(
-        lambda _: round(random.uniform(0.5, 5.0), 2)
-    )
+    name = factory.Sequence(lambda n: f"Payment Method Type {n}")
+    code = factory.Sequence(lambda n: f"PMT_{n}")
+    cash_in_transaction_fee = 2.5
+    cash_out_transaction_fee = 3.0
     country = factory.SubFactory(AvailableCountryFactory)
 
     @classmethod
@@ -112,3 +108,15 @@ class PaymentMethodTypeFactory(factory.django.DjangoModelFactory):
         name = kwargs.pop("name", "MTN Mobile Money")
         code = kwargs.pop("code", f'MOBILE_{name.upper().replace(" ", "_")}')
         return cls.create(name=name, code=code, **kwargs)
+
+
+class TransactionFeeFactory(django.DjangoModelFactory):
+    class Meta:
+        model = TransactionFee
+
+    fixed_fee = None
+    percentage_fee = 2.5
+    fee_priority = TransactionFee.FeePriority.PERCENTAGE
+    country = factory.SubFactory(AvailableCountryFactory)
+    payment_method_type = factory.SubFactory(PaymentMethodTypeFactory)
+    transaction_type = TransactionType.P2P

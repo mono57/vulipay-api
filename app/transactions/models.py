@@ -50,33 +50,77 @@ class TransactionFee(AppModel):
         PERCENTAGE = "percentage", _("Percentage Fee")
         BOTH = "both", _("Both")
 
-    fixed_fee = models.FloatField(null=True)  # i.e: 100
-    percentage_fee = models.FloatField(null=True)  # i.e: 5
+    fixed_fee = models.FloatField(null=True, db_index=True)  # i.e: 100
+    percentage_fee = models.FloatField(null=True, db_index=True)  # i.e: 5
     fee_priority = models.CharField(
         max_length=20, choices=FeePriority.choices, default=FeePriority.PERCENTAGE
     )
-    country = models.ForeignKey(AvailableCountry, null=True, on_delete=models.SET_NULL)
+    country = models.ForeignKey(
+        AvailableCountry, null=True, on_delete=models.SET_NULL, db_index=True
+    )
     payment_method_type = models.ForeignKey(
         PaymentMethodType,
         on_delete=models.SET_NULL,
         null=True,
         related_name="transaction_fees",
         help_text=_("Payment method type associated with this fee"),
+        db_index=True,
     )
     transaction_type = AppCharField(
-        _("Transaction Type"), max_length=10, choices=TransactionType.choices
+        _("Transaction Type"),
+        max_length=10,
+        choices=TransactionType.choices,
+        db_index=True,
     )
 
     objects = TransactionFeeManager()
 
+    class Meta:
+        verbose_name = _("Transaction Fee")
+        verbose_name_plural = _("Transaction Fees")
+        indexes = [
+            models.Index(
+                fields=["country", "transaction_type", "payment_method_type"],
+                name="tx_fee_lookup_idx",
+            ),
+            models.Index(fields=["transaction_type"], name="tx_fee_type_idx"),
+        ]
+        unique_together = [["country", "transaction_type", "payment_method_type"]]
+
+    @classmethod
     def get_inclusive_amount(cls, transaction_type, country):
-        transaction_fee = cls.objects.get(
-            transaction_type=transaction_type, country=country
-        )
-        return transaction_fee.fee
+        try:
+            transaction_fee = cls.objects.select_related(
+                "country", "payment_method_type"
+            ).get(transaction_type=transaction_type, country=country)
+            return transaction_fee.fee
+        except cls.DoesNotExist:
+            return 0
+
+    @property
+    def fee(self):
+        if self.fee_priority == self.FeePriority.FIXED:
+            return self.fixed_fee or 0
+        elif self.fee_priority == self.FeePriority.PERCENTAGE:
+            return self.percentage_fee or 0
+        elif self.fee_priority == self.FeePriority.BOTH:
+            return (self.fixed_fee or 0, self.percentage_fee or 0)
+        return 0
 
     def __str__(self):
-        return f"{self.transaction_type} - {self.country} - {self.payment_method_type}"
+        country_name = self.country.name if self.country else "Global"
+        payment_type = (
+            self.payment_method_type.name if self.payment_method_type else "All"
+        )
+
+        if self.fee_priority == self.FeePriority.FIXED:
+            fee_info = f"Fixed: {self.fixed_fee}"
+        elif self.fee_priority == self.FeePriority.PERCENTAGE:
+            fee_info = f"Percentage: {self.percentage_fee}%"
+        else:
+            fee_info = f"Fixed: {self.fixed_fee}, Percentage: {self.percentage_fee}%"
+
+        return f"{country_name} - {self.transaction_type} - {payment_type} - {fee_info}"
 
 
 class Transaction(AppModel):
@@ -147,14 +191,31 @@ class Transaction(AppModel):
         if self.charged_amount is not None and self.calculated_fee is not None:
             return self.charged_amount
 
-        fee = TransactionFee.objects.get_applicable_fee(
-            country=country, transaction_type=self.type
-        )
-        self.calculated_fee, self.charged_amount = compute_inclusive_amount(
-            self.amount, fee
+        payment_method_type = None
+        if self.payment_method and hasattr(self.payment_method, "payment_method_type"):
+            payment_method_type = self.payment_method.payment_method_type
+
+        fixed_fee, percentage_fee = TransactionFee.objects.get_applicable_fee(
+            country=country,
+            transaction_type=self.type,
+            payment_method_type=payment_method_type,
         )
 
-        self.save()
+        if fixed_fee is not None and percentage_fee is not None:
+            percentage_amount = (self.amount * percentage_fee) / 100
+            self.calculated_fee = fixed_fee + percentage_amount
+            self.charged_amount = self.amount + self.calculated_fee
+        elif fixed_fee is not None:
+            self.calculated_fee = fixed_fee
+            self.charged_amount = self.amount + fixed_fee
+        elif percentage_fee is not None:
+            self.calculated_fee = (self.amount * percentage_fee) / 100
+            self.charged_amount = self.amount + self.calculated_fee
+        else:
+            self.calculated_fee = 0
+            self.charged_amount = self.amount
+
+        self.save(update_fields=["calculated_fee", "charged_amount"])
 
         return self.charged_amount
 
