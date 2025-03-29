@@ -203,16 +203,12 @@ class PaymentMethodTypeTestCase(TransactionTestCase):
         self.payment_method_type = PaymentMethodType.objects.create(
             name="Credit Card",
             code="CREDIT_CARD",
-            cash_in_transaction_fee=1.5,
-            cash_out_transaction_fee=2.0,
             country=self.country,
         )
 
     def test_payment_method_type_creation(self):
         self.assertEqual(self.payment_method_type.name, "Credit Card")
         self.assertEqual(self.payment_method_type.code, "CREDIT_CARD")
-        self.assertEqual(self.payment_method_type.cash_in_transaction_fee, 1.5)
-        self.assertEqual(self.payment_method_type.cash_out_transaction_fee, 2.0)
         self.assertEqual(self.payment_method_type.country, self.country)
 
     def test_string_representation(self):
@@ -222,32 +218,17 @@ class PaymentMethodTypeTestCase(TransactionTestCase):
         payment_method_type = PaymentMethodType.objects.create(
             name="Mobile Money",
             code="MOBILE_MONEY",
-            cash_in_transaction_fee=1.0,
-            cash_out_transaction_fee=1.5,
             country=None,
         )
         self.assertIsNone(payment_method_type.country)
 
-    def test_payment_method_type_with_null_fees(self):
-        payment_method_type = PaymentMethodType.objects.create(
-            name="Bank Transfer",
-            code="BANK_TRANSFER",
-            cash_in_transaction_fee=None,
-            cash_out_transaction_fee=None,
-            country=self.country,
-        )
-        self.assertIsNone(payment_method_type.cash_in_transaction_fee)
-        self.assertIsNone(payment_method_type.cash_out_transaction_fee)
-
     def test_payment_method_type_update(self):
         self.payment_method_type.name = "Updated Credit Card"
-        self.payment_method_type.cash_in_transaction_fee = 2.5
         self.payment_method_type.save()
 
         self.payment_method_type.refresh_from_db()
 
         self.assertEqual(self.payment_method_type.name, "Updated Credit Card")
-        self.assertEqual(self.payment_method_type.cash_in_transaction_fee, 2.5)
 
 
 class WalletCurrencyTestCase(TransactionTestCase):

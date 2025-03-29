@@ -11,6 +11,7 @@ from app.core.utils import make_payment_code, make_transaction_ref
 from app.transactions.models import (
     PaymentMethod,
     Transaction,
+    TransactionFee,
     TransactionStatus,
     TransactionType,
     Wallet,
@@ -27,20 +28,53 @@ class PaymentMethodAPITestCase(APITestCase):
 
         self.country = AvailableCountryFactory.create(name="Cameroon", iso_code="CM")
 
-        # Create payment method types with specific transaction fees
+        # Create payment method types
         self.visa_type = PaymentMethodTypeFactory.create_card_payment_method_type(
             name="Visa",
             country=self.country,
-            cash_in_transaction_fee=1.5,
-            cash_out_transaction_fee=2.0,
         )
         self.mtn_type = (
             PaymentMethodTypeFactory.create_mobile_money_payment_method_type(
                 name="MTN Mobile Money",
                 country=self.country,
-                cash_in_transaction_fee=0.5,
-                cash_out_transaction_fee=1.0,
             )
+        )
+
+        # Create transaction fees for these payment method types
+        TransactionFee.objects.create(
+            country=self.country,
+            transaction_type=TransactionType.CashIn,
+            payment_method_type=self.visa_type,
+            fixed_fee=None,
+            percentage_fee=1.5,
+            fee_priority=TransactionFee.FeePriority.PERCENTAGE,
+        )
+
+        TransactionFee.objects.create(
+            country=self.country,
+            transaction_type=TransactionType.CashOut,
+            payment_method_type=self.visa_type,
+            fixed_fee=None,
+            percentage_fee=2.0,
+            fee_priority=TransactionFee.FeePriority.PERCENTAGE,
+        )
+
+        TransactionFee.objects.create(
+            country=self.country,
+            transaction_type=TransactionType.CashIn,
+            payment_method_type=self.mtn_type,
+            fixed_fee=None,
+            percentage_fee=0.5,
+            fee_priority=TransactionFee.FeePriority.PERCENTAGE,
+        )
+
+        TransactionFee.objects.create(
+            country=self.country,
+            transaction_type=TransactionType.CashOut,
+            payment_method_type=self.mtn_type,
+            fixed_fee=None,
+            percentage_fee=1.0,
+            fee_priority=TransactionFee.FeePriority.PERCENTAGE,
         )
 
         # Create payment methods with associated payment method types
@@ -53,6 +87,7 @@ class PaymentMethodAPITestCase(APITestCase):
             cvv_hash="hashed_cvv",
             billing_address="123 Main St, City, Country",
             default_method=True,
+            payment_method_type=self.visa_type,
         )
 
         self.mobile_payment = PaymentMethod.objects.create(
@@ -60,6 +95,7 @@ class PaymentMethodAPITestCase(APITestCase):
             type="mobile_money",
             provider="MTN Mobile Money",
             mobile_number="1234567890",
+            payment_method_type=self.mtn_type,
         )
 
         self.list_create_url = reverse("api:transactions:payment_methods_list_create")
@@ -284,12 +320,22 @@ class AddFundsTransactionAPITestCase(APITestCase):
             user=self.user, wallet_type=WalletType.BUSINESS, balance=0
         )
 
-        # Create a payment method type with a specific cash-in transaction fee
+        # Create a payment method type without transaction fee
         self.payment_method_type = (
             PaymentMethodTypeFactory.create_mobile_money_payment_method_type(
                 name="MTN Mobile Money",
-                cash_in_transaction_fee=2.5,  # 2.5% fee
             )
+        )
+
+        # Create transaction fee for this payment method type
+        self.percentage_fee = 2.5  # 2.5% fee
+        self.transaction_fee = TransactionFee.objects.create(
+            country=self.user.country,
+            transaction_type=TransactionType.CashIn,
+            payment_method_type=self.payment_method_type,
+            fixed_fee=None,
+            percentage_fee=self.percentage_fee,
+            fee_priority=TransactionFee.FeePriority.PERCENTAGE,
         )
 
         # Create a payment method for the user with the payment method type
@@ -317,7 +363,7 @@ class AddFundsTransactionAPITestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         # Verify the response includes the charged amount and calculated fee
-        expected_fee = (amount * self.payment_method_type.cash_in_transaction_fee) / 100
+        expected_fee = (amount * self.percentage_fee) / 100
         expected_charged_amount = amount + expected_fee
 
         self.assertIn("calculated_fee", response.data)

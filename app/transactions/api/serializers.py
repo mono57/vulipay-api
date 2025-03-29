@@ -15,6 +15,7 @@ from app.transactions.models import (
     PaymentMethod,
     PaymentMethodType,
     Transaction,
+    TransactionFee,
     TransactionStatus,
     TransactionType,
     Wallet,
@@ -97,17 +98,47 @@ class PaymentMethodSerializer(serializers.ModelSerializer):
 
     def get_cash_in_transaction_fee(self, obj):
         payment_method_type = self.get_payment_method_type(obj)
-        return (
-            payment_method_type.cash_in_transaction_fee if payment_method_type else None
-        )
+        if not payment_method_type:
+            return None
+
+        # Get fee from TransactionFee model
+        try:
+            # Get user's country from the payment method's user
+            country = obj.user.country if hasattr(obj.user, "country") else None
+            transaction_fee = TransactionFee.objects.filter(
+                payment_method_type=payment_method_type,
+                transaction_type=TransactionType.CashIn,
+                country=country,
+            ).first()
+
+            if transaction_fee:
+                return transaction_fee.fee
+        except Exception:
+            pass
+
+        return None
 
     def get_cash_out_transaction_fee(self, obj):
         payment_method_type = self.get_payment_method_type(obj)
-        return (
-            payment_method_type.cash_out_transaction_fee
-            if payment_method_type
-            else None
-        )
+        if not payment_method_type:
+            return None
+
+        # Get fee from TransactionFee model
+        try:
+            # Get user's country from the payment method's user
+            country = obj.user.country if hasattr(obj.user, "country") else None
+            transaction_fee = TransactionFee.objects.filter(
+                payment_method_type=payment_method_type,
+                transaction_type=TransactionType.CashOut,
+                country=country,
+            ).first()
+
+            if transaction_fee:
+                return transaction_fee.fee
+        except Exception:
+            pass
+
+        return None
 
     def get_payment_method_type_name(self, obj):
         payment_method_type = self.get_payment_method_type(obj)
@@ -411,7 +442,7 @@ class AddFundsTransactionSerializer(serializers.Serializer):
         user = self.context["request"].user
         amount = validated_data["amount"]
 
-        # Get the payment method type to access the cash-in transaction fee
+        # Get the payment method type to access the transaction fee
         payment_method_type = None
         payment_method_type_id = getattr(payment_method, "payment_method_type_id", None)
 
@@ -451,15 +482,25 @@ class AddFundsTransactionSerializer(serializers.Serializer):
         calculated_fee = None
         charged_amount = amount
 
-        if (
-            payment_method_type
-            and payment_method_type.cash_in_transaction_fee is not None
-        ):
-            from app.transactions.utils import compute_inclusive_amount
-
-            calculated_fee, charged_amount = compute_inclusive_amount(
-                amount, payment_method_type.cash_in_transaction_fee
+        if payment_method_type:
+            # Get fee from TransactionFee model
+            country = user.country if hasattr(user, "country") else None
+            fixed_fee, percentage_fee = TransactionFee.objects.get_applicable_fee(
+                country=country,
+                transaction_type=TransactionType.CashIn,
+                payment_method_type=payment_method_type,
             )
+
+            if fixed_fee is not None and percentage_fee is not None:
+                percentage_amount = (amount * percentage_fee) / 100
+                calculated_fee = fixed_fee + percentage_amount
+                charged_amount = amount + calculated_fee
+            elif fixed_fee is not None:
+                calculated_fee = fixed_fee
+                charged_amount = amount + fixed_fee
+            elif percentage_fee is not None:
+                calculated_fee = (amount * percentage_fee) / 100
+                charged_amount = amount + calculated_fee
 
         # Use the create_transaction classmethod instead of objects.create
         transaction = Transaction.create_transaction(
@@ -494,8 +535,6 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "code",
-            "cash_in_transaction_fee",
-            "cash_out_transaction_fee",
             "country",
             "country_name",
             "country_code",

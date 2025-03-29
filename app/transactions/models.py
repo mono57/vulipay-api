@@ -30,10 +30,6 @@ class TransactionType(models.TextChoices):
 class PaymentMethodType(AppModel):
     name = AppCharField(_("Name"), max_length=255)
     code = AppCharField(_("Code"), max_length=255)
-    cash_in_transaction_fee = models.FloatField(_("Cash In Transaction Fee"), null=True)
-    cash_out_transaction_fee = models.FloatField(
-        _("Cash Out Transaction Fee"), null=True
-    )
     country = models.ForeignKey(AvailableCountry, null=True, on_delete=models.SET_NULL)
 
     class Meta:

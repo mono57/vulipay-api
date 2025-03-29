@@ -93,20 +93,22 @@ class PaymentMethodTypeFactory(django.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: f"Payment Method Type {n}")
     code = factory.Sequence(lambda n: f"PMT_{n}")
-    cash_in_transaction_fee = 2.5
-    cash_out_transaction_fee = 3.0
     country = factory.SubFactory(AvailableCountryFactory)
 
     @classmethod
     def create_card_payment_method_type(cls, **kwargs):
         name = kwargs.pop("name", "Visa")
         code = kwargs.pop("code", f"CARD_{name.upper()}")
+        kwargs.pop("cash_in_transaction_fee", None)
+        kwargs.pop("cash_out_transaction_fee", None)
         return cls.create(name=name, code=code, **kwargs)
 
     @classmethod
     def create_mobile_money_payment_method_type(cls, **kwargs):
         name = kwargs.pop("name", "MTN Mobile Money")
         code = kwargs.pop("code", f'MOBILE_{name.upper().replace(" ", "_")}')
+        kwargs.pop("cash_in_transaction_fee", None)
+        kwargs.pop("cash_out_transaction_fee", None)
         return cls.create(name=name, code=code, **kwargs)
 
 
