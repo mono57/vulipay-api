@@ -537,18 +537,6 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
     transaction_fees = serializers.SerializerMethodField(
         help_text="Transaction fees for different transaction types"
     )
-    cash_in_fee = serializers.SerializerMethodField(
-        help_text="Transaction fee for cash in operations"
-    )
-    cash_out_fee = serializers.SerializerMethodField(
-        help_text="Transaction fee for cash out operations"
-    )
-    p2p_fee = serializers.SerializerMethodField(
-        help_text="Transaction fee for peer to peer transfers"
-    )
-    merchant_payment_fee = serializers.SerializerMethodField(
-        help_text="Transaction fee for merchant payments"
-    )
 
     class Meta:
         model = PaymentMethodType
@@ -561,10 +549,6 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
             "country_code",
             "required_fields",
             "transaction_fees",
-            "cash_in_fee",
-            "cash_out_fee",
-            "p2p_fee",
-            "merchant_payment_fee",
         ]
         read_only_fields = fields
 
@@ -580,81 +564,34 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
         for tx_type, tx_name in TransactionType.choices:
             try:
                 if obj.country:
-                    fee_value = TransactionFee.objects.get_applicable_fee(
+                    # Get the fee record to determine the fee value based on priority
+                    fee_record = TransactionFee.objects.filter(
                         country=obj.country,
                         transaction_type=tx_type,
                         payment_method_type=obj,
-                    )
-
-                    # Get the fee record to determine if it's a fixed or percentage fee
-                    fee_record = (
-                        TransactionFee.objects.filter(
-                            country=obj.country,
-                            transaction_type=tx_type,
-                            payment_method_type=obj,
-                        )
-                        .order_by("-specificity")
-                        .first()
-                    )
+                    ).first()
 
                     if fee_record:
-                        # Include the fee type information
-                        fees[tx_type] = {
-                            "fee_value": fee_value,
-                            "fee_type": fee_record.fee_priority,
-                        }
+                        # Return the fee value and its type
+                        fee_value = None
+                        fee_type = None
+
+                        if fee_record.fee_priority == TransactionFee.FeePriority.FIXED:
+                            fee_value = fee_record.fixed_fee
+                            fee_type = "fixed"
+                        elif (
+                            fee_record.fee_priority
+                            == TransactionFee.FeePriority.PERCENTAGE
+                        ):
+                            fee_value = fee_record.percentage_fee
+                            fee_type = "percentage"
+
+                        if fee_value is not None:
+                            fees[tx_type] = {"value": fee_value, "type": fee_type}
             except Exception:
                 fees[tx_type] = None
 
         return fees
-
-    def get_cash_in_fee(self, obj):
-        try:
-            if obj.country:
-                return TransactionFee.objects.get_applicable_fee(
-                    country=obj.country,
-                    transaction_type=TransactionType.CashIn,
-                    payment_method_type=obj,
-                )
-        except Exception:
-            pass
-        return None
-
-    def get_cash_out_fee(self, obj):
-        try:
-            if obj.country:
-                return TransactionFee.objects.get_applicable_fee(
-                    country=obj.country,
-                    transaction_type=TransactionType.CashOut,
-                    payment_method_type=obj,
-                )
-        except Exception:
-            pass
-        return None
-
-    def get_p2p_fee(self, obj):
-        try:
-            if obj.country:
-                return TransactionFee.objects.get_applicable_fee(
-                    country=obj.country,
-                    transaction_type=TransactionType.P2P,
-                    payment_method_type=obj,
-                )
-        except Exception:
-            pass
-        return None
-
-    def get_merchant_payment_fee(self, obj):
-        try:
-            if obj.country:
-                return TransactionFee.objects.get_applicable_fee(
-                    country=obj.country,
-                    transaction_type=TransactionType.MP,
-                    payment_method_type=obj,
-                )
-        except Exception:
-            pass
-        return None
 
     def get_required_fields(self, obj):
         if obj.code.startswith("CARD"):
