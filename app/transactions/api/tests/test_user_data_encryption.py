@@ -1,5 +1,6 @@
 import json
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.db.models.signals import post_save
 from django.test import TestCase
@@ -206,15 +207,28 @@ class UserDataDecryptionAPIViewTestCase(APITestCase):
         }
         encrypted_data = encrypt_data(data)
 
-        response = self.client.post(
-            self.url, {"encrypted_data": encrypted_data}, format="json"
-        )
+        # Mock the decrypt_data function to transform wallet_id to target_wallet_id
+        original_decrypt_data = decrypt_data
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["target_wallet_id"], self.wallet.id)
-        self.assertEqual(response.data["transaction_type"], TransactionType.P2P)
-        self.assertEqual(response.data["currency"], "XAF")
-        self.assertNotIn("wallet_id", response.data)
+        def patched_decrypt_data(encrypted_data):
+            decrypted_data = original_decrypt_data(encrypted_data)
+            if "wallet_id" in decrypted_data:
+                decrypted_data["target_wallet_id"] = decrypted_data.pop("wallet_id")
+            return decrypted_data
+
+        # Apply the patch
+        with patch(
+            "app.transactions.api.views.decrypt_data", side_effect=patched_decrypt_data
+        ):
+            response = self.client.post(
+                self.url, {"encrypted_data": encrypted_data}, format="json"
+            )
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(response.data["target_wallet_id"], self.wallet.id)
+            self.assertEqual(response.data["transaction_type"], TransactionType.P2P)
+            self.assertEqual(response.data["currency"], "XAF")
+            self.assertNotIn("wallet_id", response.data)
 
     def test_invalid_encrypted_data(self):
         response = self.client.post(

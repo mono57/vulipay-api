@@ -386,6 +386,13 @@ class UserDataDecryptionAPIView(APIView):
             encrypted_data = serializer.validated_data.get("encrypted_data")
             decrypted_data = decrypt_data(encrypted_data)
 
+            # Handle legacy data that uses wallet_id instead of target_wallet_id
+            if (
+                "wallet_id" in decrypted_data
+                and "target_wallet_id" not in decrypted_data
+            ):
+                decrypted_data["target_wallet_id"] = decrypted_data.pop("wallet_id")
+
             transaction_type = decrypted_data.get("transaction_type", None)
             source_wallet = (
                 Wallet.objects.filter(user=request.user, wallet_type=WalletType.MAIN)
