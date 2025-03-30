@@ -547,11 +547,6 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
     transaction_fees = serializers.SerializerMethodField(
         help_text="Transaction fees for different transaction types"
     )
-    allowed_transactions = serializers.ListField(
-        child=serializers.ChoiceField(choices=TransactionType.choices),
-        required=False,
-        help_text="List of transaction types allowed for this payment method type",
-    )
 
     class Meta:
         model = PaymentMethodType
@@ -564,7 +559,6 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
             "country_code",
             "required_fields",
             "transaction_fees",
-            "allowed_transactions",
         ]
         read_only_fields = fields
 
@@ -652,16 +646,6 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
                 },
             }
         return {}
-
-    def validate_allowed_transactions(self, value):
-        if value:
-            valid_types = set(TransactionType.values)
-            for tx_type in value:
-                if tx_type not in valid_types:
-                    raise serializers.ValidationError(
-                        _(f"'{tx_type}' is not a valid transaction type.")
-                    )
-        return value
 
 
 class ReceiveFundsPaymentCodeSerializer(serializers.Serializer):

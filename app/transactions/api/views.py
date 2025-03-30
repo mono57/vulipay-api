@@ -258,6 +258,15 @@ class AddFundsCallbackAPIView(APIView):
     responses={
         200: serializers.PaymentMethodTypeSerializer(many=True),
     },
+    parameters=[
+        OpenApiParameter(
+            name="transaction_type",
+            description="Filter by allowed transaction type",
+            required=False,
+            type=str,
+            enum=TransactionType.values,
+        ),
+    ],
 )
 class PaymentMethodTypeListAPIView(ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -266,13 +275,16 @@ class PaymentMethodTypeListAPIView(ListAPIView):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        country_id = self.request.query_params.get("country_id")
-        country_code = self.request.query_params.get("country_code")
+        transaction_type = self.request.query_params.get("transaction_type")
 
-        if country_id:
-            queryset = queryset.filter(country_id=country_id)
-        elif country_code:
-            queryset = queryset.filter(country__iso_code=country_code)
+        user_country = getattr(self.request.user, "country", None)
+        if user_country:
+            queryset = queryset.filter(country=user_country)
+
+        if transaction_type and transaction_type in TransactionType.values:
+            queryset = queryset.filter(
+                allowed_transactions__contains=[transaction_type]
+            )
 
         return queryset
 

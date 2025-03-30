@@ -42,10 +42,9 @@ class PaymentMethodTypeSerializerTestCase(TestCase):
         self.assertEqual(data["country_name"], "Cameroon")
         self.assertEqual(data["country_code"], "CM")
         self.assertIn("required_fields", data)
-        self.assertIn("allowed_transactions", data)
-        self.assertEqual(len(data["allowed_transactions"]), 2)
-        self.assertIn(TransactionType.CashIn, data["allowed_transactions"])
-        self.assertIn(TransactionType.CashOut, data["allowed_transactions"])
+
+        # Check that allowed_transactions is not in the serialized data
+        self.assertNotIn("allowed_transactions", data)
 
         # Check required fields for card payment method type
         required_fields = data["required_fields"]

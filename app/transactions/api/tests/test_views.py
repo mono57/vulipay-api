@@ -549,33 +549,94 @@ class PaymentMethodTypeAPITestCase(APITestCase):
         self.assertIn("provider", mtn_data["required_fields"])
         self.assertIn("mobile_number", mtn_data["required_fields"])
 
-    def test_filter_payment_method_types_by_country_id(self):
-        """Test that payment method types can be filtered by country ID"""
-        response = self.client.get(f"{self.list_url}?country_id={self.country.id}")
+    def test_filter_by_user_country(self):
+        """Test that payment method types are filtered by the user's country"""
+        # Set the user's country
+        self.user.country = self.country
+        self.user.save()
+
+        # Get payment method types
+        response = self.client.get(self.list_url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(
-            len(response.data), 4
-        )  # Only payment method types for the specified country
 
-        # Check that all returned payment method types are for the specified country
+        # Should only include payment methods for the user's country
+        # Count how many are from the user's country
+        user_country_count = 0
         for item in response.data:
-            self.assertEqual(item["country_name"], "Cameroon")
+            if item["country_name"] == "Cameroon":
+                user_country_count += 1
 
-    def test_filter_payment_method_types_by_country_code(self):
-        """Test that payment method types can be filtered by country code"""
-        response = self.client.get(
-            f"{self.list_url}?country_code={self.country.iso_code}"
+        # There should be 4 payment method types for Cameroon
+        self.assertEqual(user_country_count, 4)
+
+        # There should be no payment method types for other countries
+        other_country_count = 0
+        for item in response.data:
+            if item["country_name"] == "Nigeria":
+                other_country_count += 1
+
+        self.assertEqual(other_country_count, 0)
+
+    def test_filter_payment_method_types_by_transaction_type(self):
+        """Test that payment method types can be filtered by allowed transaction type"""
+        # Create payment method types with specific allowed transactions
+        card_payment_type = PaymentMethodTypeFactory.create_card_payment_method_type(
+            name="Card with CashIn only",
+            code="CARD_CASHIN_ONLY",
+            country=self.country,
+            allowed_transactions=[TransactionType.CashIn],
         )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(
-            len(response.data), 4
-        )  # Only payment method types for the specified country
+        mobile_payment_type = (
+            PaymentMethodTypeFactory.create_mobile_money_payment_method_type(
+                name="Mobile with P2P only",
+                code="MOBILE_P2P_ONLY",
+                country=self.country,
+                allowed_transactions=[TransactionType.P2P],
+            )
+        )
 
-        # Check that all returned payment method types are for the specified country
+        # Test filtering by CashIn transaction type
+        response = self.client.get(
+            f"{self.list_url}?transaction_type={TransactionType.CashIn}"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check that the results include payment methods that allow CashIn
+        cashin_method_found = False
         for item in response.data:
-            self.assertEqual(item["country_code"], "CM")
+            if item["code"] == card_payment_type.code:
+                cashin_method_found = True
+                break
+        self.assertTrue(
+            cashin_method_found, "CashIn payment method should be in results"
+        )
+
+        # Check that P2P-only methods are not included when filtering for CashIn
+        p2p_only_method_in_cashin_results = False
+        for item in response.data:
+            if item["code"] == mobile_payment_type.code:
+                p2p_only_method_in_cashin_results = True
+                break
+        self.assertFalse(
+            p2p_only_method_in_cashin_results,
+            "P2P-only payment method should not be in CashIn results",
+        )
+
+        # Test filtering by P2P transaction type
+        response = self.client.get(
+            f"{self.list_url}?transaction_type={TransactionType.P2P}"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check that the results include payment methods that allow P2P
+        p2p_method_found = False
+        for item in response.data:
+            if item["code"] == mobile_payment_type.code:
+                p2p_method_found = True
+                break
+        self.assertTrue(p2p_method_found, "P2P payment method should be in results")
 
     def test_authentication_required(self):
         """Test that authentication is required to list payment method types"""
