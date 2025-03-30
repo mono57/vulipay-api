@@ -94,6 +94,12 @@ class PaymentMethodTypeFactory(django.DjangoModelFactory):
     name = factory.Sequence(lambda n: f"Payment Method Type {n}")
     code = factory.Sequence(lambda n: f"PMT_{n}")
     country = factory.SubFactory(AvailableCountryFactory)
+    allowed_transactions = [
+        TransactionType.CashIn,
+        TransactionType.CashOut,
+        TransactionType.P2P,
+        TransactionType.MP,
+    ]
 
     @classmethod
     def create_card_payment_method_type(cls, **kwargs):
@@ -101,6 +107,11 @@ class PaymentMethodTypeFactory(django.DjangoModelFactory):
         code = kwargs.pop("code", f"CARD_{name.upper()}")
         kwargs.pop("cash_in_transaction_fee", None)
         kwargs.pop("cash_out_transaction_fee", None)
+        if "allowed_transactions" not in kwargs:
+            kwargs["allowed_transactions"] = [
+                TransactionType.CashIn,
+                TransactionType.CashOut,
+            ]
         return cls.create(name=name, code=code, **kwargs)
 
     @classmethod
@@ -109,6 +120,12 @@ class PaymentMethodTypeFactory(django.DjangoModelFactory):
         code = kwargs.pop("code", f'MOBILE_{name.upper().replace(" ", "_")}')
         kwargs.pop("cash_in_transaction_fee", None)
         kwargs.pop("cash_out_transaction_fee", None)
+        if "allowed_transactions" not in kwargs:
+            kwargs["allowed_transactions"] = [
+                TransactionType.CashIn,
+                TransactionType.CashOut,
+                TransactionType.P2P,
+            ]
         return cls.create(name=name, code=code, **kwargs)
 
 

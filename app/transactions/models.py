@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -31,6 +32,12 @@ class PaymentMethodType(AppModel):
     name = AppCharField(_("Name"), max_length=255)
     code = AppCharField(_("Code"), max_length=255)
     country = models.ForeignKey(AvailableCountry, null=True, on_delete=models.SET_NULL)
+    allowed_transactions = models.JSONField(
+        _("Allowed Transactions"),
+        null=True,
+        blank=True,
+        help_text=_("List of transaction types allowed for this payment method"),
+    )
 
     class Meta:
         verbose_name = _("Payment Method Type")
@@ -38,6 +45,21 @@ class PaymentMethodType(AppModel):
 
     def __str__(self):
         return self.name
+
+    def clean(self):
+        super().clean()
+        if self.allowed_transactions:
+            # Ensure that all values in allowed_transactions are valid TransactionType choices
+            valid_types = set(TransactionType.values)
+            for tx_type in self.allowed_transactions:
+                if tx_type not in valid_types:
+                    raise ValidationError(
+                        {
+                            "allowed_transactions": _(
+                                f"'{tx_type}' is not a valid transaction type."
+                            )
+                        }
+                    )
 
 
 class TransactionFee(AppModel):

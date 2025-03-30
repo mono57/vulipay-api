@@ -230,6 +230,21 @@ class PaymentMethodTypeTestCase(TransactionTestCase):
 
         self.assertEqual(self.payment_method_type.name, "Updated Credit Card")
 
+    def test_payment_method_type_with_allowed_transactions(self):
+        payment_method_type = PaymentMethodType.objects.create(
+            name="Specific Transaction Type",
+            code="SPECIFIC_TX_TYPE",
+            country=self.country,
+            allowed_transactions=[TransactionType.CashIn, TransactionType.P2P],
+        )
+        self.assertEqual(len(payment_method_type.allowed_transactions), 2)
+        self.assertIn(TransactionType.CashIn, payment_method_type.allowed_transactions)
+        self.assertIn(TransactionType.P2P, payment_method_type.allowed_transactions)
+        self.assertNotIn(
+            TransactionType.CashOut, payment_method_type.allowed_transactions
+        )
+        self.assertNotIn(TransactionType.MP, payment_method_type.allowed_transactions)
+
 
 class WalletCurrencyTestCase(TransactionTestCase):
     def test_wallet_currency_auto_set_from_user_country_with_currency(self):

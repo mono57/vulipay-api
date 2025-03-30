@@ -5,6 +5,7 @@ from django.test import TestCase
 from app.accounts.tests.factories import *
 from app.accounts.tests.factories import AvailableCountryFactory
 from app.transactions.api import serializers
+from app.transactions.models import TransactionType
 from app.transactions.tests.factories import PaymentMethodTypeFactory
 
 
@@ -26,6 +27,13 @@ class PaymentMethodTypeSerializerTestCase(TestCase):
 
     def test_payment_method_type_serialization(self):
         """Test that PaymentMethodTypeSerializer correctly serializes a PaymentMethodType"""
+        # Set specific allowed transactions
+        self.visa_type.allowed_transactions = [
+            TransactionType.CashIn,
+            TransactionType.CashOut,
+        ]
+        self.visa_type.save()
+
         serializer = serializers.PaymentMethodTypeSerializer(self.visa_type)
         data = serializer.data
 
@@ -34,6 +42,10 @@ class PaymentMethodTypeSerializerTestCase(TestCase):
         self.assertEqual(data["country_name"], "Cameroon")
         self.assertEqual(data["country_code"], "CM")
         self.assertIn("required_fields", data)
+        self.assertIn("allowed_transactions", data)
+        self.assertEqual(len(data["allowed_transactions"]), 2)
+        self.assertIn(TransactionType.CashIn, data["allowed_transactions"])
+        self.assertIn(TransactionType.CashOut, data["allowed_transactions"])
 
         # Check required fields for card payment method type
         required_fields = data["required_fields"]

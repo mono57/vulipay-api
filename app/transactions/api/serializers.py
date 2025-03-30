@@ -478,6 +478,16 @@ class AddFundsTransactionSerializer(serializers.Serializer):
                         code__startswith="MOBILE"
                     ).first()
 
+        # Check if transaction type is allowed for this payment method type
+        if payment_method_type and payment_method_type.allowed_transactions:
+            transaction_type = TransactionType.CashIn
+            if transaction_type not in payment_method_type.allowed_transactions:
+                raise serializers.ValidationError(
+                    _(
+                        f"Transaction type '{transaction_type}' is not allowed for this payment method type."
+                    )
+                )
+
         # Calculate the fee and charged amount if a payment method type with a fee is found
         calculated_fee = None
         charged_amount = amount
@@ -537,6 +547,11 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
     transaction_fees = serializers.SerializerMethodField(
         help_text="Transaction fees for different transaction types"
     )
+    allowed_transactions = serializers.ListField(
+        child=serializers.ChoiceField(choices=TransactionType.choices),
+        required=False,
+        help_text="List of transaction types allowed for this payment method type",
+    )
 
     class Meta:
         model = PaymentMethodType
@@ -549,6 +564,7 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
             "country_code",
             "required_fields",
             "transaction_fees",
+            "allowed_transactions",
         ]
         read_only_fields = fields
 
@@ -637,6 +653,16 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
             }
         return {}
 
+    def validate_allowed_transactions(self, value):
+        if value:
+            valid_types = set(TransactionType.values)
+            for tx_type in value:
+                if tx_type not in valid_types:
+                    raise serializers.ValidationError(
+                        _(f"'{tx_type}' is not a valid transaction type.")
+                    )
+        return value
+
 
 class ReceiveFundsPaymentCodeSerializer(serializers.Serializer):
     amount = serializers.DecimalField(
@@ -722,5 +748,30 @@ class ProcessTransactionSerializer(serializers.Serializer):
 
         attrs["source_wallet"] = source_wallet
         attrs["target_wallet"] = self.context["target_wallet"]
+
+        # Check if the transaction type is allowed
+        if "payment_method_id" in attrs:
+            try:
+                payment_method = PaymentMethod.objects.get(
+                    id=attrs["payment_method_id"]
+                )
+                if (
+                    payment_method.payment_method_type
+                    and payment_method.payment_method_type.allowed_transactions
+                ):
+                    transaction_type = attrs.get("transaction_type")
+                    if (
+                        transaction_type
+                        not in payment_method.payment_method_type.allowed_transactions
+                    ):
+                        raise serializers.ValidationError(
+                            {
+                                "transaction_type": _(
+                                    f"Transaction type '{transaction_type}' is not allowed for this payment method."
+                                )
+                            }
+                        )
+            except PaymentMethod.DoesNotExist:
+                pass  # The payment method validation will handle this
 
         return attrs
