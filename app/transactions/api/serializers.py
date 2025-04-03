@@ -26,7 +26,34 @@ from app.transactions.models import (
 User = get_user_model()
 
 
-@extend_schema_serializer(component_name="PaymentMethod")
+@extend_schema_serializer(
+    component_name="PaymentMethod",
+    examples=[
+        {
+            "id": 1,
+            "type": "card",
+            "default_method": True,
+            "cardholder_name": "John Doe",
+            "masked_card_number": "**** **** **** 1234",
+            "expiry_date": "12/2025",
+            "payment_method_type_name": "Visa Card",
+            "transactions_fees": [
+                {
+                    "transaction_type": "CI",
+                    "transaction_type_display": "Cash In",
+                    "fee": 100,
+                    "fee_type": "fixed",
+                },
+                {
+                    "transaction_type": "CO",
+                    "transaction_type_display": "Cash Out",
+                    "fee": 2.5,
+                    "fee_type": "percentage",
+                },
+            ],
+        }
+    ],
+)
 class PaymentMethodSerializer(serializers.ModelSerializer):
     payment_method_type = serializers.PrimaryKeyRelatedField(
         queryset=PaymentMethodType.objects.all(),
@@ -34,11 +61,8 @@ class PaymentMethodSerializer(serializers.ModelSerializer):
         write_only=True,
         help_text="ID of the payment method type",
     )
-    cash_in_transaction_fee = serializers.SerializerMethodField(
-        help_text="Transaction fee for cash in operations"
-    )
-    cash_out_transaction_fee = serializers.SerializerMethodField(
-        help_text="Transaction fee for cash out operations"
+    transactions_fees = serializers.SerializerMethodField(
+        help_text="List of transaction fees for different transaction types"
     )
     payment_method_type_name = serializers.SerializerMethodField(
         help_text="Name of the payment method type"
@@ -57,14 +81,12 @@ class PaymentMethodSerializer(serializers.ModelSerializer):
             "mobile_number",
             "payment_method_type",
             "payment_method_type_name",
-            "cash_in_transaction_fee",
-            "cash_out_transaction_fee",
+            "transactions_fees",
         ]
         read_only_fields = [
             "id",
             "payment_method_type_name",
-            "cash_in_transaction_fee",
-            "cash_out_transaction_fee",
+            "transactions_fees",
         ]
 
     def get_payment_method_type(self, obj):
@@ -96,45 +118,44 @@ class PaymentMethodSerializer(serializers.ModelSerializer):
 
         return None
 
-    def get_cash_in_transaction_fee(self, obj):
+    def get_transactions_fees(self, obj):
         payment_method_type = self.get_payment_method_type(obj)
         if not payment_method_type:
             return None
 
-        # Get fee from TransactionFee model
         try:
-            # Get user's country from the payment method's user
-            country = obj.user.country if hasattr(obj.user, "country") else None
-            transaction_fee = TransactionFee.objects.filter(
+            fee_objs = TransactionFee.objects.filter(
                 payment_method_type=payment_method_type,
-                transaction_type=TransactionType.CashIn,
-                country=country,
-            ).first()
+                country=obj.user.country,
+            ).select_related("country")
 
-            if transaction_fee:
-                return transaction_fee.fee
-        except Exception:
-            pass
+            if not fee_objs:
+                return None
 
-        return None
+            transaction_fees = []
+            for fee_obj in fee_objs:
+                fee_type = None
+                fee_value = None
 
-    def get_cash_out_transaction_fee(self, obj):
-        payment_method_type = self.get_payment_method_type(obj)
-        if not payment_method_type:
-            return None
+                if fee_obj.fee_priority == TransactionFee.FeePriority.FIXED:
+                    fee_value = fee_obj.fixed_fee
+                    fee_type = "fixed"
+                elif fee_obj.fee_priority == TransactionFee.FeePriority.PERCENTAGE:
+                    fee_value = fee_obj.percentage_fee
+                    fee_type = "percentage"
 
-        # Get fee from TransactionFee model
-        try:
-            # Get user's country from the payment method's user
-            country = obj.user.country if hasattr(obj.user, "country") else None
-            transaction_fee = TransactionFee.objects.filter(
-                payment_method_type=payment_method_type,
-                transaction_type=TransactionType.CashOut,
-                country=country,
-            ).first()
+                if fee_value is not None:
+                    fee_data = {
+                        "transaction_type": fee_obj.transaction_type,
+                        "transaction_type_display": dict(TransactionType.choices).get(
+                            fee_obj.transaction_type
+                        ),
+                        "fee": fee_value,
+                        "fee_type": fee_type,
+                    }
+                    transaction_fees.append(fee_data)
 
-            if transaction_fee:
-                return transaction_fee.fee
+            return transaction_fees if transaction_fees else None
         except Exception:
             pass
 
@@ -488,15 +509,7 @@ class AddFundsTransactionSerializer(serializers.Serializer):
         charged_amount = amount
 
         if payment_method_type:
-            # Get fee from TransactionFee model
             country = user.country if hasattr(user, "country") else None
-            fee = TransactionFee.objects.get_applicable_fee(
-                country=country,
-                transaction_type=TransactionType.CashIn,
-                payment_method_type=payment_method_type,
-            )
-
-            # Get the fee record to determine if it's a fixed or percentage fee
             fee_record = TransactionFee.objects.filter(
                 country=country,
                 transaction_type=TransactionType.CashIn,
@@ -505,19 +518,16 @@ class AddFundsTransactionSerializer(serializers.Serializer):
 
             if fee_record:
                 if fee_record.fee_priority == TransactionFee.FeePriority.FIXED:
-                    # Fixed fee
-                    calculated_fee = fee
+                    calculated_fee = fee_record.fixed_fee
                     charged_amount = amount + calculated_fee
                 elif fee_record.fee_priority == TransactionFee.FeePriority.PERCENTAGE:
-                    # Percentage fee
-                    calculated_fee = (amount * fee) / 100
+                    calculated_fee = (amount * fee_record.percentage_fee) / 100
                     charged_amount = amount + calculated_fee
 
-        # Use the create_transaction classmethod instead of objects.create
         transaction = Transaction.create_transaction(
             transaction_type=TransactionType.CashIn,
             amount=amount,
-            target_wallet=wallet,  # Using target_wallet instead of wallet
+            target_wallet=wallet,
             payment_method=payment_method,
             status=TransactionStatus.INITIATED,
             notes=f"Cash in via {payment_method.type}",
@@ -525,7 +535,6 @@ class AddFundsTransactionSerializer(serializers.Serializer):
             charged_amount=charged_amount,
         )
 
-        # Update with fee information if available
         if calculated_fee is not None and charged_amount is not None:
             transaction.calculated_fee = calculated_fee
             transaction.charged_amount = charged_amount
@@ -534,13 +543,52 @@ class AddFundsTransactionSerializer(serializers.Serializer):
         return transaction
 
 
-@extend_schema_serializer(component_name="PaymentMethodType")
+@extend_schema_serializer(
+    component_name="PaymentMethodType",
+    examples=[
+        {
+            "id": 1,
+            "name": "Visa Card",
+            "code": "CARD_VISA",
+            "country": 1,
+            "country_name": "Cameroon",
+            "country_code": "CM",
+            "transactions_fees": [
+                {
+                    "transaction_type": "CI",
+                    "transaction_type_display": "Cash In",
+                    "fee": 100,
+                    "fee_type": "fixed",
+                },
+                {
+                    "transaction_type": "CO",
+                    "transaction_type_display": "Cash Out",
+                    "fee": 2.5,
+                    "fee_type": "percentage",
+                },
+            ],
+            "required_fields": {
+                "cardholder_name": {
+                    "type": "string",
+                    "required": True,
+                    "help_text": "Name of the cardholder",
+                },
+                "card_number": {
+                    "type": "string",
+                    "required": True,
+                    "help_text": "Card number (will be masked in responses)",
+                },
+                # Additional fields omitted for brevity
+            },
+        }
+    ],
+)
 class PaymentMethodTypeSerializer(serializers.ModelSerializer):
     country_name = serializers.SerializerMethodField()
     country_code = serializers.SerializerMethodField()
     required_fields = serializers.SerializerMethodField()
-    transaction_fee = serializers.SerializerMethodField(
-        help_text="Single transaction fee for the payment method type"
+    transactions_fees = serializers.SerializerMethodField(
+        help_text="List of transaction fees for different transaction types"
     )
 
     class Meta:
@@ -553,7 +601,7 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
             "country_name",
             "country_code",
             "required_fields",
-            "transaction_fee",
+            "transactions_fees",
         ]
         read_only_fields = fields
 
@@ -563,18 +611,22 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
     def get_country_code(self, obj):
         return obj.country.iso_code if obj.country else None
 
-    def get_transaction_fee(self, obj):
-        request = self.context.get("request")
+    def get_transactions_fees(self, obj):
+        """Return a list of transaction fees for all transaction types."""
+        if not obj.country:
+            return None
 
-        transaction_type = request.query_params.get("transaction_type")
-
-        fee_record = TransactionFee.objects.filter(
+        # Get all transaction fees in a single query for optimization
+        fee_records = TransactionFee.objects.filter(
             country=obj.country,
-            transaction_type=transaction_type,
             payment_method_type=obj,
-        ).first()
+        ).select_related("country")
 
-        if fee_record:
+        if not fee_records:
+            return None
+
+        transaction_fees = []
+        for fee_record in fee_records:
             fee_value = None
             fee_type = None
 
@@ -586,9 +638,17 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
                 fee_type = "percentage"
 
             if fee_value is not None:
-                return {"value": fee_value, "type": fee_type}
+                fee_data = {
+                    "transaction_type": fee_record.transaction_type,
+                    "transaction_type_display": dict(TransactionType.choices).get(
+                        fee_record.transaction_type
+                    ),
+                    "fee": fee_value,
+                    "fee_type": fee_type,
+                }
+                transaction_fees.append(fee_data)
 
-        return None
+        return transaction_fees if transaction_fees else None
 
     def get_required_fields(self, obj):
         if obj.code.startswith("CARD"):

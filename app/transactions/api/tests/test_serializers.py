@@ -54,10 +54,15 @@ class PaymentMethodTypeSerializerTestCase(TestCase):
 
         self.assertNotIn("allowed_transactions", data)
 
-        self.assertIn("transaction_fee", data)
-        self.assertIsNotNone(data["transaction_fee"])
-        self.assertEqual(data["transaction_fee"]["value"], 2.5)
-        self.assertEqual(data["transaction_fee"]["type"], "fixed")
+        # Check transactions_fees
+        self.assertIn("transactions_fees", data)
+        self.assertIsNotNone(data["transactions_fees"])
+        self.assertEqual(len(data["transactions_fees"]), 1)
+        self.assertEqual(
+            data["transactions_fees"][0]["transaction_type"], TransactionType.CashIn
+        )
+        self.assertEqual(data["transactions_fees"][0]["fee"], 2.5)
+        self.assertEqual(data["transactions_fees"][0]["fee_type"], "fixed")
 
         required_fields = data["required_fields"]
         self.assertIn("cardholder_name", required_fields)
@@ -111,29 +116,24 @@ class PaymentMethodTypeSerializerTestCase(TestCase):
             fee_priority=TransactionFee.FeePriority.PERCENTAGE,
         )
 
-        mock_request = Mock()
-        mock_request.query_params = {"transaction_type": TransactionType.CashIn}
-        serializer = serializers.PaymentMethodTypeSerializer(
-            self.visa_type, context={"request": mock_request}
-        )
+        # Now we should get all transaction fees as a list
+        serializer = serializers.PaymentMethodTypeSerializer(self.visa_type)
         data = serializer.data
 
-        self.assertIn("transaction_fee", data)
-        self.assertIsNotNone(data["transaction_fee"])
-        self.assertEqual(data["transaction_fee"]["value"], 2.5)
-        self.assertEqual(data["transaction_fee"]["type"], "fixed")
+        self.assertIn("transactions_fees", data)
+        self.assertIsNotNone(data["transactions_fees"])
+        self.assertEqual(len(data["transactions_fees"]), 2)
 
-        mock_request = Mock()
-        mock_request.query_params = {"transaction_type": TransactionType.P2P}
-        serializer = serializers.PaymentMethodTypeSerializer(
-            self.visa_type, context={"request": mock_request}
-        )
-        data = serializer.data
+        # Check that both transaction fees are present
+        fee_types = {fee["transaction_type"]: fee for fee in data["transactions_fees"]}
 
-        self.assertIn("transaction_fee", data)
-        self.assertIsNotNone(data["transaction_fee"])
-        self.assertEqual(data["transaction_fee"]["value"], 1.5)
-        self.assertEqual(data["transaction_fee"]["type"], "percentage")
+        self.assertIn(TransactionType.CashIn, fee_types)
+        self.assertEqual(fee_types[TransactionType.CashIn]["fee"], 2.5)
+        self.assertEqual(fee_types[TransactionType.CashIn]["fee_type"], "fixed")
+
+        self.assertIn(TransactionType.P2P, fee_types)
+        self.assertEqual(fee_types[TransactionType.P2P]["fee"], 1.5)
+        self.assertEqual(fee_types[TransactionType.P2P]["fee_type"], "percentage")
 
 
 class PaymentMethodSerializerTestCase(TestCase):

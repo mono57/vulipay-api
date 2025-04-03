@@ -254,7 +254,7 @@ class AddFundsCallbackAPIView(APIView):
 
 @extend_schema(
     tags=["Payment Method Types"],
-    description="List available payment method types",
+    description="List available payment method types with transaction fees for all transaction types",
     responses={
         200: serializers.PaymentMethodTypeSerializer(many=True),
     },
