@@ -291,14 +291,16 @@ class PaymentMethodTypeListAPIView(ListAPIView):
 
 @extend_schema(
     tags=["User Data"],
-    description="Generate a payment code for receiving funds. Returns encrypted user data including full name, email, phone number, and target wallet ID.",
+    description="Generate a payment code for receiving funds. Returns encrypted user data including full name, email, phone number, target wallet ID, and currency.",
     responses={
         200: OpenApiResponse(
             description="Encrypted user data",
             response=inline_serializer(
                 name="EncryptedDataResponse",
                 fields={
-                    "encrypted_data": drf_serializers.CharField(),
+                    "encrypted_data": drf_serializers.CharField(
+                        help_text="Encrypted data including user details, wallet info, and currency"
+                    ),
                 },
             ),
         ),
@@ -368,7 +370,15 @@ class ReceiveFundsPaymentCodeAPIView(APIView):
                     "transaction_type": drf_serializers.ChoiceField(
                         choices=TransactionType.choices, required=False
                     ),
-                    "currency": drf_serializers.CharField(required=False),
+                    "currency": drf_serializers.CharField(
+                        required=False,
+                        help_text="Currency code of the transaction (e.g., USD, EUR, XAF)",
+                    ),
+                    "source_wallet_id": drf_serializers.IntegerField(required=False),
+                    "source_wallet_balance": drf_serializers.FloatField(required=False),
+                    "source_wallet_currency": drf_serializers.CharField(
+                        required=False, help_text="Currency code of the source wallet"
+                    ),
                 },
             ),
         ),
@@ -460,7 +470,9 @@ class UserDataDecryptionAPIView(APIView):
                     "transaction_reference": drf_serializers.CharField(),
                     "status": drf_serializers.CharField(),
                     "amount": drf_serializers.FloatField(),
-                    "currency": drf_serializers.CharField(),
+                    "currency": drf_serializers.CharField(
+                        help_text="Currency code of the transaction (e.g., USD, EUR, XAF)"
+                    ),
                     "message": drf_serializers.CharField(),
                 },
             ),

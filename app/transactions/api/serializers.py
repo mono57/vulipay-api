@@ -365,6 +365,7 @@ class WalletSerializer(serializers.ModelSerializer):
             "id",
             "balance",
             "wallet_type",
+            "currency",
             "created_at",
             "last_updated",
             "is_active",
@@ -678,7 +679,8 @@ class ProcessTransactionSerializer(serializers.Serializer):
     )
 
     currency = serializers.CharField(
-        required=True, help_text=_("Currency code of the transaction")
+        required=True,
+        help_text=_("Currency code of the transaction (e.g., USD, EUR, XAF)"),
     )
 
     def validate_currency(self, value):
