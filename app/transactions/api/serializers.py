@@ -442,7 +442,6 @@ class AddFundsTransactionSerializer(serializers.Serializer):
         user = self.context["request"].user
         amount = validated_data["amount"]
 
-        # Get the payment method type to access the transaction fee
         payment_method_type = None
         payment_method_type_id = getattr(payment_method, "payment_method_type_id", None)
 
@@ -454,17 +453,15 @@ class AddFundsTransactionSerializer(serializers.Serializer):
             except PaymentMethodType.DoesNotExist:
                 pass
 
-        # If payment_method_type is not directly available, try to infer it
         if not payment_method_type:
             if payment_method.type == "card":
                 payment_method_type = PaymentMethodType.objects.filter(
                     code__startswith="CARD"
                 ).first()
             elif payment_method.type == "mobile_money" and payment_method.provider:
-                # Try to match by provider name
                 provider_words = payment_method.provider.upper().split()
                 for word in provider_words:
-                    if len(word) > 2:  # Skip short words like "OF", "THE", etc.
+                    if len(word) > 2:
                         matching_type = PaymentMethodType.objects.filter(
                             code__contains=word
                         ).first()
@@ -472,13 +469,11 @@ class AddFundsTransactionSerializer(serializers.Serializer):
                             payment_method_type = matching_type
                             break
 
-                # If no match by provider words, try a generic mobile money type
                 if not payment_method_type:
                     payment_method_type = PaymentMethodType.objects.filter(
                         code__startswith="MOBILE"
                     ).first()
 
-        # Check if transaction type is allowed for this payment method type
         if payment_method_type and payment_method_type.allowed_transactions:
             transaction_type = TransactionType.CashIn
             if transaction_type not in payment_method_type.allowed_transactions:
@@ -488,7 +483,6 @@ class AddFundsTransactionSerializer(serializers.Serializer):
                     )
                 )
 
-        # Calculate the fee and charged amount if a payment method type with a fee is found
         calculated_fee = None
         charged_amount = amount
 
