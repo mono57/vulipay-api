@@ -544,8 +544,8 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
     country_name = serializers.SerializerMethodField()
     country_code = serializers.SerializerMethodField()
     required_fields = serializers.SerializerMethodField()
-    transaction_fees = serializers.SerializerMethodField(
-        help_text="Transaction fees for different transaction types"
+    transaction_fee = serializers.SerializerMethodField(
+        help_text="Single transaction fee for the payment method type"
     )
 
     class Meta:
@@ -558,7 +558,7 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
             "country_name",
             "country_code",
             "required_fields",
-            "transaction_fees",
+            "transaction_fee",
         ]
         read_only_fields = fields
 
@@ -568,40 +568,32 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
     def get_country_code(self, obj):
         return obj.country.iso_code if obj.country else None
 
-    def get_transaction_fees(self, obj):
-        fees = {}
+    def get_transaction_fee(self, obj):
+        request = self.context.get("request")
 
-        for tx_type, tx_name in TransactionType.choices:
-            try:
-                if obj.country:
-                    # Get the fee record to determine the fee value based on priority
-                    fee_record = TransactionFee.objects.filter(
-                        country=obj.country,
-                        transaction_type=tx_type,
-                        payment_method_type=obj,
-                    ).first()
+        transaction_type = request.query_params.get("transaction_type")
 
-                    if fee_record:
-                        # Return the fee value and its type
-                        fee_value = None
-                        fee_type = None
+        fee_record = TransactionFee.objects.filter(
+            country=obj.country,
+            transaction_type=transaction_type,
+            payment_method_type=obj,
+        ).first()
 
-                        if fee_record.fee_priority == TransactionFee.FeePriority.FIXED:
-                            fee_value = fee_record.fixed_fee
-                            fee_type = "fixed"
-                        elif (
-                            fee_record.fee_priority
-                            == TransactionFee.FeePriority.PERCENTAGE
-                        ):
-                            fee_value = fee_record.percentage_fee
-                            fee_type = "percentage"
+        if fee_record:
+            fee_value = None
+            fee_type = None
 
-                        if fee_value is not None:
-                            fees[tx_type] = {"value": fee_value, "type": fee_type}
-            except Exception:
-                fees[tx_type] = None
+            if fee_record.fee_priority == TransactionFee.FeePriority.FIXED:
+                fee_value = fee_record.fixed_fee
+                fee_type = "fixed"
+            elif fee_record.fee_priority == TransactionFee.FeePriority.PERCENTAGE:
+                fee_value = fee_record.percentage_fee
+                fee_type = "percentage"
 
-        return fees
+            if fee_value is not None:
+                return {"value": fee_value, "type": fee_type}
+
+        return None
 
     def get_required_fields(self, obj):
         if obj.code.startswith("CARD"):

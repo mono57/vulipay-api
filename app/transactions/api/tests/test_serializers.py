@@ -26,13 +26,22 @@ class PaymentMethodTypeSerializerTestCase(TestCase):
         )
 
     def test_payment_method_type_serialization(self):
-        """Test that PaymentMethodTypeSerializer correctly serializes a PaymentMethodType"""
-        # Set specific allowed transactions
         self.visa_type.allowed_transactions = [
             TransactionType.CashIn,
             TransactionType.CashOut,
         ]
         self.visa_type.save()
+
+        from app.transactions.models import TransactionFee
+
+        TransactionFee.objects.create(
+            country=self.country,
+            payment_method_type=self.visa_type,
+            transaction_type=TransactionType.CashIn,
+            fixed_fee=2.5,
+            percentage_fee=None,
+            fee_priority=TransactionFee.FeePriority.FIXED,
+        )
 
         serializer = serializers.PaymentMethodTypeSerializer(self.visa_type)
         data = serializer.data
@@ -43,10 +52,13 @@ class PaymentMethodTypeSerializerTestCase(TestCase):
         self.assertEqual(data["country_code"], "CM")
         self.assertIn("required_fields", data)
 
-        # Check that allowed_transactions is not in the serialized data
         self.assertNotIn("allowed_transactions", data)
 
-        # Check required fields for card payment method type
+        self.assertIn("transaction_fee", data)
+        self.assertIsNotNone(data["transaction_fee"])
+        self.assertEqual(data["transaction_fee"]["value"], 2.5)
+        self.assertEqual(data["transaction_fee"]["type"], "fixed")
+
         required_fields = data["required_fields"]
         self.assertIn("cardholder_name", required_fields)
         self.assertIn("card_number", required_fields)
@@ -55,7 +67,6 @@ class PaymentMethodTypeSerializerTestCase(TestCase):
         self.assertIn("billing_address", required_fields)
 
     def test_mobile_money_payment_method_type_serialization(self):
-        """Test that PaymentMethodTypeSerializer correctly serializes a mobile money PaymentMethodType"""
         serializer = serializers.PaymentMethodTypeSerializer(self.mtn_type)
         data = serializer.data
 
@@ -65,13 +76,64 @@ class PaymentMethodTypeSerializerTestCase(TestCase):
         self.assertEqual(data["country_code"], "CM")
         self.assertIn("required_fields", data)
 
-        # Check required fields for mobile money payment method type
         required_fields = data["required_fields"]
         self.assertIn("provider", required_fields)
         self.assertIn("mobile_number", required_fields)
 
         # Check that the provider help text includes the name of the payment method type
         self.assertIn("MTN Mobile Money", required_fields["provider"]["help_text"])
+
+    def test_payment_method_type_serialization_with_transaction_type(self):
+        self.visa_type.allowed_transactions = [
+            TransactionType.CashIn,
+            TransactionType.CashOut,
+            TransactionType.P2P,
+        ]
+        self.visa_type.save()
+
+        from app.transactions.models import TransactionFee
+
+        TransactionFee.objects.create(
+            country=self.country,
+            payment_method_type=self.visa_type,
+            transaction_type=TransactionType.CashIn,
+            fixed_fee=2.5,
+            percentage_fee=None,
+            fee_priority=TransactionFee.FeePriority.FIXED,
+        )
+
+        TransactionFee.objects.create(
+            country=self.country,
+            payment_method_type=self.visa_type,
+            transaction_type=TransactionType.P2P,
+            fixed_fee=None,
+            percentage_fee=1.5,
+            fee_priority=TransactionFee.FeePriority.PERCENTAGE,
+        )
+
+        mock_request = Mock()
+        mock_request.query_params = {"transaction_type": TransactionType.CashIn}
+        serializer = serializers.PaymentMethodTypeSerializer(
+            self.visa_type, context={"request": mock_request}
+        )
+        data = serializer.data
+
+        self.assertIn("transaction_fee", data)
+        self.assertIsNotNone(data["transaction_fee"])
+        self.assertEqual(data["transaction_fee"]["value"], 2.5)
+        self.assertEqual(data["transaction_fee"]["type"], "fixed")
+
+        mock_request = Mock()
+        mock_request.query_params = {"transaction_type": TransactionType.P2P}
+        serializer = serializers.PaymentMethodTypeSerializer(
+            self.visa_type, context={"request": mock_request}
+        )
+        data = serializer.data
+
+        self.assertIn("transaction_fee", data)
+        self.assertIsNotNone(data["transaction_fee"])
+        self.assertEqual(data["transaction_fee"]["value"], 1.5)
+        self.assertEqual(data["transaction_fee"]["type"], "percentage")
 
 
 class PaymentMethodSerializerTestCase(TestCase):
