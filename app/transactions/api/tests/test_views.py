@@ -116,8 +116,7 @@ class PaymentMethodAPITestCase(APITestCase):
         )
         self.assertTrue(card_data["default_method"])
         # Check for transaction fees and payment method type name
-        self.assertIn("cash_in_transaction_fee", card_data)
-        self.assertIn("cash_out_transaction_fee", card_data)
+        self.assertIn("transactions_fees", card_data)
         self.assertIn("payment_method_type_name", card_data)
 
         mobile_data = next(
@@ -129,8 +128,7 @@ class PaymentMethodAPITestCase(APITestCase):
         )
         self.assertFalse(mobile_data["default_method"])
         # Check for transaction fees and payment method type name
-        self.assertIn("cash_in_transaction_fee", mobile_data)
-        self.assertIn("cash_out_transaction_fee", mobile_data)
+        self.assertIn("transactions_fees", mobile_data)
         self.assertIn("payment_method_type_name", mobile_data)
 
     def test_create_card_payment_method_with_type(self):
