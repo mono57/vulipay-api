@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
-from drf_spectacular.utils import extend_schema_serializer
+from drf_spectacular.utils import OpenApiExample, extend_schema_serializer
 from phonenumber_field.serializerfields import PhoneNumberField
 from rest_framework import exceptions, serializers
 
@@ -29,29 +29,33 @@ User = get_user_model()
 @extend_schema_serializer(
     component_name="PaymentMethod",
     examples=[
-        {
-            "id": 1,
-            "type": "card",
-            "default_method": True,
-            "cardholder_name": "John Doe",
-            "masked_card_number": "**** **** **** 1234",
-            "expiry_date": "12/2025",
-            "payment_method_type_name": "Visa Card",
-            "transactions_fees": [
-                {
-                    "transaction_type": "CI",
-                    "transaction_type_display": "Cash In",
-                    "fee": 100,
-                    "fee_type": "fixed",
-                },
-                {
-                    "transaction_type": "CO",
-                    "transaction_type_display": "Cash Out",
-                    "fee": 2.5,
-                    "fee_type": "percentage",
-                },
-            ],
-        }
+        OpenApiExample(
+            name="Example Payment Method",
+            value={
+                "id": 1,
+                "type": "card",
+                "default_method": True,
+                "cardholder_name": "John Doe",
+                "masked_card_number": "**** **** **** 1234",
+                "expiry_date": "12/2025",
+                "payment_method_type_name": "Visa Card",
+                "transactions_fees": [
+                    {
+                        "transaction_type": "CI",
+                        "transaction_type_display": "Cash In",
+                        "fee": 100,
+                        "fee_type": "fixed",
+                    },
+                    {
+                        "transaction_type": "CO",
+                        "transaction_type_display": "Cash Out",
+                        "fee": 2.5,
+                        "fee_type": "percentage",
+                    },
+                ],
+            },
+            summary="Example of a payment method",
+        )
     ],
 )
 class PaymentMethodSerializer(serializers.ModelSerializer):
@@ -546,41 +550,45 @@ class AddFundsTransactionSerializer(serializers.Serializer):
 @extend_schema_serializer(
     component_name="PaymentMethodType",
     examples=[
-        {
-            "id": 1,
-            "name": "Visa Card",
-            "code": "CARD_VISA",
-            "country": 1,
-            "country_name": "Cameroon",
-            "country_code": "CM",
-            "transactions_fees": [
-                {
-                    "transaction_type": "CI",
-                    "transaction_type_display": "Cash In",
-                    "fee": 100,
-                    "fee_type": "fixed",
+        OpenApiExample(
+            name="Example PaymentMethodType",
+            value={
+                "id": 1,
+                "name": "Visa Card",
+                "code": "CARD_VISA",
+                "country": 1,
+                "country_name": "Cameroon",
+                "country_code": "CM",
+                "transactions_fees": [
+                    {
+                        "transaction_type": "CI",
+                        "transaction_type_display": "Cash In",
+                        "fee": 100,
+                        "fee_type": "fixed",
+                    },
+                    {
+                        "transaction_type": "CO",
+                        "transaction_type_display": "Cash Out",
+                        "fee": 2.5,
+                        "fee_type": "percentage",
+                    },
+                ],
+                "required_fields": {
+                    "cardholder_name": {
+                        "type": "string",
+                        "required": True,
+                        "help_text": "Name of the cardholder",
+                    },
+                    "card_number": {
+                        "type": "string",
+                        "required": True,
+                        "help_text": "Card number (will be masked in responses)",
+                    },
+                    # Additional fields omitted for brevity
                 },
-                {
-                    "transaction_type": "CO",
-                    "transaction_type_display": "Cash Out",
-                    "fee": 2.5,
-                    "fee_type": "percentage",
-                },
-            ],
-            "required_fields": {
-                "cardholder_name": {
-                    "type": "string",
-                    "required": True,
-                    "help_text": "Name of the cardholder",
-                },
-                "card_number": {
-                    "type": "string",
-                    "required": True,
-                    "help_text": "Card number (will be masked in responses)",
-                },
-                # Additional fields omitted for brevity
             },
-        }
+            summary="Example of a payment method type",
+        )
     ],
 )
 class PaymentMethodTypeSerializer(serializers.ModelSerializer):
