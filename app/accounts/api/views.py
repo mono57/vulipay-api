@@ -1,3 +1,4 @@
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 
@@ -7,6 +8,15 @@ from app.accounts.api.serializers import (
 )
 
 
+@extend_schema(
+    tags=["Accounts"],
+    description="Update the user's full name",
+    responses={
+        200: UserFullNameUpdateSerializer,
+        400: OpenApiResponse(description="Validation error"),
+    },
+    request=UserFullNameUpdateSerializer,
+)
 class UserFullNameUpdateView(generics.UpdateAPIView):
     serializer_class = UserFullNameUpdateSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -15,6 +25,23 @@ class UserFullNameUpdateView(generics.UpdateAPIView):
         return self.request.user
 
 
+@extend_schema(
+    tags=["Accounts"],
+    description="Set up a 4-digit PIN for transaction authorization",
+    responses={
+        200: OpenApiResponse(
+            description="PIN set successfully",
+            response={
+                "type": "object",
+                "properties": {
+                    "detail": {"type": "string", "example": "PIN set successfully"}
+                },
+            },
+        ),
+        400: OpenApiResponse(description="Invalid PIN format or PINs do not match"),
+    },
+    request=UserPINSetupSerializer,
+)
 class UserPINSetupView(generics.UpdateAPIView):
     serializer_class = UserPINSetupSerializer
     permission_classes = [permissions.IsAuthenticated]
