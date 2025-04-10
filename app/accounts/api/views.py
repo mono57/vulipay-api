@@ -12,6 +12,7 @@ from app.accounts.api.serializers import (
 
 @extend_schema(
     tags=["Accounts"],
+    operation_id="update_user_full_name",
     description="Update the user's full name",
     responses={
         200: UserFullNameUpdateSerializer,
@@ -29,6 +30,7 @@ class UserFullNameUpdateView(generics.UpdateAPIView):
 
 @extend_schema(
     tags=["Accounts"],
+    operation_id="setup_user_pin",
     description="Set up a 4-digit PIN for transaction authorization",
     responses={
         200: OpenApiResponse(
@@ -61,6 +63,7 @@ class UserPINSetupView(generics.UpdateAPIView):
 class AppTokenRefreshView(TokenRefreshView):
     @extend_schema(
         tags=["Accounts"],
+        operation_id="refresh_jwt_token",
         description="Refresh a JWT token",
         responses={
             200: TokenRefreshSerializer,

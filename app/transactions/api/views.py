@@ -45,6 +45,7 @@ logger = logging.getLogger(__name__)
 
 @extend_schema(
     tags=["Transactions"],
+    operation_id="list_create_payment_methods",
     description="List and create payment methods",
     responses={
         200: serializers.PaymentMethodSerializer(many=True),
@@ -95,6 +96,7 @@ class PaymentMethodListCreateAPIView(ListCreateAPIView):
 
 @extend_schema(
     tags=["Transactions"],
+    operation_id="retrieve_update_delete_payment_method",
     description="Retrieve, update, and delete payment methods",
     responses={
         200: serializers.PaymentMethodSerializer,
@@ -148,6 +150,7 @@ class PaymentMethodDetailAPIView(RetrieveUpdateDestroyAPIView):
 
 @extend_schema(
     tags=["Transactions"],
+    operation_id="create_add_funds_transaction",
     description="Initiate a Cash In transaction from a payment method to a wallet. The transaction will include a calculated fee based on the payment method type's cash-in transaction fee.",
     responses={
         201: OpenApiResponse(
@@ -181,6 +184,7 @@ class AddFundsTransactionCreateAPIView(CreateAPIView):
 
 @extend_schema(
     tags=["Transactions"],
+    operation_id="add_funds_callback",
     description="Callback endpoint for external payment processor to complete a Cash In transaction",
     responses={
         200: OpenApiResponse(description="Transaction successfully processed"),
@@ -254,6 +258,7 @@ class AddFundsCallbackAPIView(APIView):
 
 @extend_schema(
     tags=["Transactions"],
+    operation_id="list_payment_method_types",
     description="List available payment method types with transaction fees for all transaction types",
     responses={
         200: serializers.PaymentMethodTypeSerializer(many=True),
@@ -291,6 +296,7 @@ class PaymentMethodTypeListAPIView(ListAPIView):
 
 @extend_schema(
     tags=["Transactions"],
+    operation_id="generate_payment_code",
     description="Generate a payment code for receiving funds. Returns encrypted user data including full name, email, phone number, target wallet ID, and currency.",
     responses={
         200: OpenApiResponse(
@@ -355,6 +361,7 @@ class ReceiveFundsPaymentCodeAPIView(APIView):
 
 @extend_schema(
     tags=["Transactions"],
+    operation_id="decrypt_user_data",
     description="Decrypt user data that was previously encrypted by the payment code generation endpoint.",
     responses={
         200: OpenApiResponse(
@@ -460,6 +467,7 @@ class UserDataDecryptionAPIView(APIView):
 
 @extend_schema(
     tags=["Transactions"],
+    operation_id="process_transaction",
     description="Process a transaction using decrypted user data. Requires PIN verification.",
     responses={
         200: OpenApiResponse(
