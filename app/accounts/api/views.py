@@ -1,6 +1,8 @@
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from app.accounts.api.serializers import (
     UserFullNameUpdateSerializer,
@@ -54,3 +56,15 @@ class UserPINSetupView(generics.UpdateAPIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response({"detail": "PIN set successfully"}, status=status.HTTP_200_OK)
+
+
+class AppTokenRefreshView(TokenRefreshView):
+    @extend_schema(
+        tags=["Accounts"],
+        description="Refresh a JWT token",
+        responses={
+            200: TokenRefreshSerializer,
+        },
+    )
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
