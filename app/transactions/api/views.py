@@ -261,7 +261,7 @@ class AddFundsCallbackAPIView(APIView):
     parameters=[
         OpenApiParameter(
             name="transaction_type",
-            description="Filter by allowed transaction type",
+            description="Filter by allowed transaction type (P2P, MP, CO, CI)",
             required=False,
             type=str,
             enum=TransactionType.values,
