@@ -11,6 +11,7 @@ class GenerateOTPView(APIView):
     permission_classes = [AllowAny]
 
     @extend_schema(
+        tags=["Verify"],
         request=GenerateOTPSerializer,
         operation_id="generate_otp",
         description="Generate a new OTP for a phone number or email address",
@@ -89,6 +90,7 @@ class VerifyOTPView(APIView):
     permission_classes = [AllowAny]
 
     @extend_schema(
+        tags=["Verify"],
         request=VerifyOTPSerializer,
         operation_id="verify_otp",
         description="Verify an OTP for a phone number or email address",

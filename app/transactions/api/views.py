@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 
 @extend_schema(
-    tags=["Payment Methods"],
+    tags=["Transactions"],
     description="List and create payment methods",
     responses={
         200: serializers.PaymentMethodSerializer(many=True),
@@ -94,7 +94,7 @@ class PaymentMethodListCreateAPIView(ListCreateAPIView):
 
 
 @extend_schema(
-    tags=["Payment Methods"],
+    tags=["Transactions"],
     description="Retrieve, update, and delete payment methods",
     responses={
         200: serializers.PaymentMethodSerializer,
@@ -253,7 +253,7 @@ class AddFundsCallbackAPIView(APIView):
 
 
 @extend_schema(
-    tags=["Payment Method Types"],
+    tags=["Transactions"],
     description="List available payment method types with transaction fees for all transaction types",
     responses={
         200: serializers.PaymentMethodTypeSerializer(many=True),
@@ -290,7 +290,7 @@ class PaymentMethodTypeListAPIView(ListAPIView):
 
 
 @extend_schema(
-    tags=["User Data"],
+    tags=["Transactions"],
     description="Generate a payment code for receiving funds. Returns encrypted user data including full name, email, phone number, target wallet ID, and currency.",
     responses={
         200: OpenApiResponse(
@@ -354,7 +354,7 @@ class ReceiveFundsPaymentCodeAPIView(APIView):
 
 
 @extend_schema(
-    tags=["User Data"],
+    tags=["Transactions"],
     description="Decrypt user data that was previously encrypted by the payment code generation endpoint.",
     responses={
         200: OpenApiResponse(
