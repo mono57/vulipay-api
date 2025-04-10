@@ -8,13 +8,6 @@ from app.verify.api.serializers import GenerateOTPSerializer, VerifyOTPSerialize
 
 
 class GenerateOTPView(APIView):
-    """
-    API endpoint for generating One-Time Passwords (OTPs).
-
-    This endpoint allows clients to request an OTP to be sent to a phone number or email address.
-    The OTP can then be used for verification purposes.
-    """
-
     permission_classes = [AllowAny]
 
     @extend_schema(
@@ -49,11 +42,6 @@ class GenerateOTPView(APIView):
         },
     )
     def post(self, request, *args, **kwargs):
-        """
-        Generate a new OTP for a phone number or email address.
-
-        The OTP will be sent to the provided phone number or email address.
-        """
         serializer = GenerateOTPSerializer(data=request.data)
 
         if serializer.is_valid():
@@ -98,13 +86,6 @@ class GenerateOTPView(APIView):
 
 
 class VerifyOTPView(APIView):
-    """
-    API endpoint for verifying One-Time Passwords (OTPs).
-
-    This endpoint allows clients to verify an OTP that was sent to a phone number or email address.
-    If the verification is successful, authentication tokens will be returned.
-    """
-
     permission_classes = [AllowAny]
 
     @extend_schema(
@@ -157,11 +138,6 @@ class VerifyOTPView(APIView):
         },
     )
     def post(self, request, *args, **kwargs):
-        """
-        Verify an OTP for a phone number or email address.
-
-        If the verification is successful, authentication tokens will be returned.
-        """
         serializer = VerifyOTPSerializer(data=request.data)
 
         if serializer.is_valid():
