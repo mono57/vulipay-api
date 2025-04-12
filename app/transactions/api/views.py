@@ -52,6 +52,16 @@ logger = logging.getLogger(__name__)
         201: serializers.PaymentMethodSerializer,
     },
     request=serializers.PaymentMethodSerializer,
+    parameters=[
+        OpenApiParameter(
+            name="transaction_type",
+            description="Filter payment methods by transaction type (P2P, MP, CO, CI)",
+            required=False,
+            type=str,
+            enum=TransactionType.values,
+            location=OpenApiParameter.QUERY,
+        ),
+    ],
     examples=[
         OpenApiExample(
             "Card Payment Method",
@@ -81,7 +91,15 @@ class PaymentMethodListCreateAPIView(ListCreateAPIView):
     serializer_class = serializers.PaymentMethodSerializer
 
     def get_queryset(self):
-        return PaymentMethod.objects.filter(user=self.request.user)
+        queryset = PaymentMethod.objects.filter(user=self.request.user)
+
+        transaction_type = self.request.query_params.get("transaction_type")
+        if transaction_type and transaction_type in TransactionType.values:
+            queryset = queryset.filter(
+                payment_method_type__allowed_transactions__contains=[transaction_type]
+            )
+
+        return queryset
 
     def get_serializer_class(self):
         if self.request.method == "POST":
@@ -202,7 +220,7 @@ class AddFundsTransactionCreateAPIView(CreateAPIView):
     ),
 )
 class AddFundsCallbackAPIView(APIView):
-    permission_classes = [permissions.AllowAny]  # External service needs access
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request, *args, **kwargs):
         transaction_reference = request.data.get("transaction_reference")
@@ -225,14 +243,10 @@ class AddFundsCallbackAPIView(APIView):
             )
 
         if transaction_status == "success":
-            # Process successful transaction
             transaction.status = TransactionStatus.COMPLETED
             if transaction.to_wallet:
-                # Use the original amount for the deposit, not the charged amount
-                # The charged amount includes the fee which is kept by the payment processor
                 transaction.to_wallet.deposit(transaction.amount)
 
-            # Add processor reference if provided
             if processor_reference:
                 transaction.notes = f"Processor reference: {processor_reference}"
 
@@ -243,7 +257,6 @@ class AddFundsCallbackAPIView(APIView):
                 status=status.HTTP_200_OK,
             )
         else:
-            # Process failed transaction
             transaction.status = TransactionStatus.FAILED
             if failure_reason:
                 transaction.notes = f"Failure reason: {failure_reason}"
@@ -348,7 +361,7 @@ class ReceiveFundsPaymentCodeAPIView(APIView):
             "phone_number": user.phone_number,
             "target_wallet_id": wallet["id"] if wallet else None,
             "transaction_type": TransactionType.P2P,
-            "currency": wallet["currency"] if wallet else None,
+            "target_wallet_currency": wallet["currency"] if wallet else None,
         }
 
         amount = serializer.validated_data.get("amount")
@@ -377,14 +390,9 @@ class ReceiveFundsPaymentCodeAPIView(APIView):
                     "transaction_type": drf_serializers.ChoiceField(
                         choices=TransactionType.choices, required=False
                     ),
-                    "currency": drf_serializers.CharField(
+                    "target_wallet_currency": drf_serializers.CharField(
                         required=False,
-                        help_text="Currency code of the transaction (e.g., USD, EUR, XAF)",
-                    ),
-                    "source_wallet_id": drf_serializers.IntegerField(required=False),
-                    "source_wallet_balance": drf_serializers.FloatField(required=False),
-                    "source_wallet_currency": drf_serializers.CharField(
-                        required=False, help_text="Currency code of the source wallet"
+                        help_text="Currency code of the target wallet (e.g., USD, EUR, XAF)",
                     ),
                 },
             ),
@@ -415,47 +423,6 @@ class UserDataDecryptionAPIView(APIView):
             encrypted_data = serializer.validated_data.get("encrypted_data")
             decrypted_data = decrypt_data(encrypted_data)
 
-            # Handle legacy data that uses wallet_id instead of target_wallet_id
-            if (
-                "wallet_id" in decrypted_data
-                and "target_wallet_id" not in decrypted_data
-            ):
-                decrypted_data["target_wallet_id"] = decrypted_data.pop("wallet_id")
-
-            transaction_type = decrypted_data.get("transaction_type", None)
-            source_wallet = (
-                Wallet.objects.filter(user=request.user, wallet_type=WalletType.MAIN)
-                .values("id", "balance", "currency")
-                .first()
-            )
-
-            decrypted_data["source_wallet_id"] = source_wallet["id"]
-            decrypted_data["source_wallet_balance"] = source_wallet["balance"]
-            decrypted_data["source_wallet_currency"] = source_wallet["currency"]
-
-            try:
-                transaction_fee = TransactionFee.objects.get_applicable_fee(
-                    country=request.user.country,
-                    transaction_type=transaction_type,
-                )
-
-                # Get the fee record to determine if it's a fixed or percentage fee
-                fee_record = TransactionFee.objects.filter(
-                    country=request.user.country,
-                    transaction_type=transaction_type,
-                ).first()
-
-                if fee_record:
-                    decrypted_data["transaction_fee"] = transaction_fee
-                    decrypted_data["fee_type"] = fee_record.fee_priority
-                else:
-                    decrypted_data["transaction_fee"] = None
-                    decrypted_data["fee_type"] = None
-            except Exception as fee_error:
-                logging.error(f"Error getting transaction fee: {fee_error}")
-                decrypted_data["transaction_fee"] = None
-                decrypted_data["fee_type"] = None
-
             return Response(decrypted_data, status=status.HTTP_200_OK)
         except Exception as e:
             logging.error(f"Error decrypting data: {e}")
@@ -479,7 +446,7 @@ class UserDataDecryptionAPIView(APIView):
                     "status": drf_serializers.CharField(),
                     "amount": drf_serializers.FloatField(),
                     "currency": drf_serializers.CharField(
-                        help_text="Currency code of the transaction (e.g., USD, EUR, XAF)"
+                        help_text="Currency code of the transaction, same as provided in the request (e.g., USD, EUR, XAF)"
                     ),
                     "message": drf_serializers.CharField(),
                 },
@@ -528,13 +495,11 @@ class ProcessTransactionAPIView(ValidPINRequiredMixin, APIView):
 
         if transaction_fee is None:
             try:
-                # Get the fee value
                 transaction_fee = TransactionFee.objects.get_applicable_fee(
                     country=request.user.country,
                     transaction_type=data["transaction_type"],
                 )
 
-                # Get the fee record to determine if it's a fixed or percentage fee
                 fee_record = TransactionFee.objects.filter(
                     country=request.user.country,
                     transaction_type=data["transaction_type"],
@@ -544,7 +509,7 @@ class ProcessTransactionAPIView(ValidPINRequiredMixin, APIView):
                     fee_type = fee_record.fee_priority
             except Exception as e:
                 logger.error(f"Error getting transaction fee: {str(e)}")
-                transaction_fee = 0  # Default to 0 if no fee can be determined
+                transaction_fee = 0
 
         computed_fee, charged_amount = compute_inclusive_amount(
             amount, transaction_fee, fee_type

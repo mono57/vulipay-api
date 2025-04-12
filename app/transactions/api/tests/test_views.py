@@ -205,6 +205,49 @@ class PaymentMethodAPITestCase(APITestCase):
         self.assertEqual(self.card_payment.cardholder_name, "Updated Name")
         self.assertEqual(self.card_payment.billing_address, "Updated Address")
 
+    def test_filter_payment_methods_by_transaction_type(self):
+        """Test that payment methods can be filtered by transaction type"""
+        # Update the allowed_transactions for our payment method types
+        self.visa_type.allowed_transactions = [
+            TransactionType.CashIn,
+            TransactionType.CashOut,
+        ]
+        self.visa_type.save()
+
+        self.mtn_type.allowed_transactions = [
+            TransactionType.P2P,
+            TransactionType.CashOut,
+        ]
+        self.mtn_type.save()
+
+        # Test filtering by CashIn (only Visa card should be returned)
+        response = self.client.get(
+            f"{self.list_create_url}?transaction_type={TransactionType.CashIn}"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["type"], "card")
+
+        # Test filtering by P2P (only MTN mobile money should be returned)
+        response = self.client.get(
+            f"{self.list_create_url}?transaction_type={TransactionType.P2P}"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["type"], "mobile_money")
+
+        # Test filtering by CashOut (both payment methods should be returned)
+        response = self.client.get(
+            f"{self.list_create_url}?transaction_type={TransactionType.CashOut}"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        # Test with invalid transaction type
+        response = self.client.get(f"{self.list_create_url}?transaction_type=INVALID")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)  # Should return all payment methods
+
     def test_delete_payment_method(self):
         response = self.client.delete(self.detail_url)
 
