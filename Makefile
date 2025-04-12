@@ -49,9 +49,9 @@ makemigrations:
 test:
 	@if [ -z "$(mod)" ]; then \
 		docker compose -f local.yml exec django python manage.py test; \
-		exit 0; \
+	else \
+		docker compose -f local.yml exec django python manage.py test $(mod) -v 2; \
 	fi
-	docker compose -f local.yml exec django python manage.py test $(mod) -v 2
 
 # Run tests with coverage
 test-coverage:
