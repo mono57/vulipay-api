@@ -1,12 +1,16 @@
+import logging
+
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from app.accounts.models import AvailableCountry
+from app.transactions.models import Wallet, WalletType
 from app.verify.models import OTP
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 class GenerateOTPSerializer(serializers.Serializer):
@@ -126,6 +130,20 @@ class VerifyOTPSerializer(serializers.Serializer):
                     user.save()
                 except AvailableCountry.DoesNotExist:
                     pass  # If country doesn't exist, continue without setting it
+
+            try:
+                _, created = Wallet.objects.get_or_create(
+                    user=user,
+                    wallet_type=WalletType.MAIN,
+                    defaults={
+                        "balance": 0,
+                        "is_active": True,
+                    },
+                )
+                if created:
+                    logger.info(f"Created main wallet for user {user.id}")
+            except Exception as e:
+                logger.error(f"Failed to create wallet for user {user.id}: {str(e)}")
 
             refresh = RefreshToken.for_user(user)
 
