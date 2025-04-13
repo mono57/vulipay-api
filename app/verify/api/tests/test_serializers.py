@@ -78,12 +78,15 @@ class VerifyOTPSerializerTestCase(TestCase):
 
         self.valid_phone_data = {
             "phone_number": "698765432",
-            "country_iso_code": "CM",
+            "country_id": self.country.id,
+            "country_dial_code": "237",
             "code": "123456",
         }
 
         self.valid_email_data = {
             "email": "test@example.com",
+            "country_id": self.country.id,
+            "country_dial_code": "237",
             "code": "123456",
         }
 
@@ -98,26 +101,54 @@ class VerifyOTPSerializerTestCase(TestCase):
         self.assertEqual(serializer.validated_data["identifier"], "test@example.com")
 
     def test_validate_with_missing_fields(self):
-        # Missing both phone_number and email
-        serializer = VerifyOTPSerializer(data={"code": "123456"})
+        serializer = VerifyOTPSerializer(
+            data={
+                "code": "123456",
+                "country_id": self.country.id,
+                "country_dial_code": "237",
+            }
+        )
         self.assertFalse(serializer.is_valid())
 
-        # Missing country_iso_code when phone_number is provided
         serializer = VerifyOTPSerializer(
-            data={"phone_number": "698765432", "code": "123456"}
+            data={
+                "phone_number": "698765432",
+                "country_dial_code": "237",
+                "code": "123456",
+            }
+        )
+        self.assertFalse(serializer.is_valid())
+
+        serializer = VerifyOTPSerializer(
+            data={
+                "phone_number": "698765432",
+                "country_id": self.country.id,
+                "code": "123456",
+            }
+        )
+        self.assertFalse(serializer.is_valid())
+
+        # Missing both country_id and country_dial_code
+        serializer = VerifyOTPSerializer(
+            data={"email": "test@example.com", "code": "123456"}
         )
         self.assertFalse(serializer.is_valid())
 
         # Missing code
         serializer = VerifyOTPSerializer(
-            data={"phone_number": "698765432", "country_iso_code": "CM"}
+            data={
+                "phone_number": "698765432",
+                "country_id": self.country.id,
+                "country_dial_code": "237",
+            }
         )
         self.assertFalse(serializer.is_valid())
 
     def test_validate_with_invalid_country(self):
         data = {
             "phone_number": "698765432",
-            "country_iso_code": "XX",  # Invalid country code
+            "country_id": "ERER",
+            "country_dial_code": "237",
             "code": "123456",
         }
         serializer = VerifyOTPSerializer(data=data)
@@ -126,7 +157,8 @@ class VerifyOTPSerializerTestCase(TestCase):
     def test_validate_with_non_digit_code(self):
         data = {
             "phone_number": "698765432",
-            "country_iso_code": "CM",
+            "country_id": self.country.id,
+            "country_dial_code": "237",
             "code": "12345A",  # Contains a non-digit character
         }
         serializer = VerifyOTPSerializer(data=data)
@@ -190,9 +222,14 @@ class VerifyOTPSerializerTestCase(TestCase):
 
     @patch("app.verify.models.OTP.objects.get_active_otp")
     @patch("app.accounts.models.User.objects.get_or_create")
+    @patch("app.transactions.models.Wallet.objects.get_or_create")
     @patch("rest_framework_simplejwt.tokens.RefreshToken.for_user")
     def test_verify_otp_successful_verification(
-        self, mock_refresh_token, mock_get_or_create, mock_get_active_otp
+        self,
+        mock_refresh_token,
+        mock_wallet_get_or_create,
+        mock_get_or_create,
+        mock_get_active_otp,
     ):
         # Test successful OTP verification
         mock_otp = Mock()
@@ -207,6 +244,10 @@ class VerifyOTPSerializerTestCase(TestCase):
 
         # Mock get_or_create to return a tuple (user, created)
         mock_get_or_create.return_value = (mock_user, False)
+
+        # Mock wallet_get_or_create
+        mock_wallet = Mock()
+        mock_wallet_get_or_create.return_value = (mock_wallet, False)
 
         # Create a mock token with a string representation
         mock_token = Mock()
@@ -234,12 +275,12 @@ class VerifyOTPSerializerTestCase(TestCase):
 
     @patch("app.verify.models.OTP.objects.get_active_otp")
     @patch("app.accounts.models.User.objects.get_or_create")
+    @patch("app.transactions.models.Wallet.objects.get_or_create")
     @patch("rest_framework_simplejwt.tokens.RefreshToken.for_user")
-    @patch("app.accounts.models.AvailableCountry.objects.get")
     def test_verify_otp_sets_country(
         self,
-        mock_country_get,
         mock_refresh_token,
+        mock_wallet_get_or_create,
         mock_get_or_create,
         mock_get_active_otp,
     ):
@@ -253,15 +294,15 @@ class VerifyOTPSerializerTestCase(TestCase):
         mock_user.full_name = "Test User"
         mock_user.email = "test@example.com"
         mock_user.phone_number = "+237698765432"
-        mock_user.country = None
+        mock_user.country = Mock()
+        mock_user.country.name = "Cameroon"
 
         # Mock get_or_create to return a tuple (user, created)
         mock_get_or_create.return_value = (mock_user, False)
 
-        # Create a mock country
-        mock_country = Mock()
-        mock_country.name = "Cameroon"
-        mock_country_get.return_value = mock_country
+        # Mock wallet_get_or_create
+        mock_wallet = Mock()
+        mock_wallet_get_or_create.return_value = (mock_wallet, False)
 
         # Create a mock token with a string representation
         mock_token = Mock()
@@ -269,9 +310,8 @@ class VerifyOTPSerializerTestCase(TestCase):
         type(mock_token).__str__ = lambda self: "refresh_token_value"
         mock_refresh_token.return_value = mock_token
 
-        # Add country_iso_code to the valid data
+        # Add country_id to the valid data
         data = self.valid_phone_data.copy()
-        data["country_iso_code"] = "CM"
 
         serializer = VerifyOTPSerializer(data=data)
         self.assertTrue(serializer.is_valid())
@@ -279,8 +319,7 @@ class VerifyOTPSerializerTestCase(TestCase):
         result = serializer.verify_otp()
 
         # Check that the country was set on the user
-        mock_country_get.assert_called_with(iso_code="CM")
-        self.assertEqual(mock_user.country, mock_country)
+        self.assertEqual(mock_user.country_id, self.country.id)
         mock_user.save.assert_called_once()
 
         # Check that the country is included in the response
@@ -288,9 +327,14 @@ class VerifyOTPSerializerTestCase(TestCase):
 
     @patch("app.verify.models.OTP.objects.get_active_otp")
     @patch("app.accounts.models.User.objects.get_or_create")
+    @patch("app.transactions.models.Wallet.objects.get_or_create")
     @patch("rest_framework_simplejwt.tokens.RefreshToken.for_user")
     def test_verify_otp_with_email(
-        self, mock_refresh_token, mock_get_or_create, mock_get_active_otp
+        self,
+        mock_refresh_token,
+        mock_wallet_get_or_create,
+        mock_get_or_create,
+        mock_get_active_otp,
     ):
         # Test OTP verification with email
         mock_otp = Mock()
@@ -302,12 +346,18 @@ class VerifyOTPSerializerTestCase(TestCase):
         mock_user.full_name = "Email User"
         mock_user.email = "test@example.com"
         mock_user.phone_number = None
+        mock_user.country = Mock()
+        mock_user.country.name = "Cameroon"
 
         # Mock get_or_create to return a tuple (user, created)
         mock_get_or_create.return_value = (
             mock_user,
             True,
         )  # True indicates a new user was created
+
+        # Mock wallet_get_or_create
+        mock_wallet = Mock()
+        mock_wallet_get_or_create.return_value = (mock_wallet, True)
 
         # Create a mock token with a string representation
         mock_token = Mock()
@@ -327,6 +377,10 @@ class VerifyOTPSerializerTestCase(TestCase):
         self.assertEqual(result["tokens"]["access"], "email_access_token")
         self.assertEqual(result["tokens"]["refresh"], "email_refresh_token")
         self.assertEqual(result["created"], True)
+
+        # Ensure the country_id was set
+        self.assertEqual(mock_user.country_id, self.country.id)
+        mock_user.save.assert_called_once()
 
         mock_get_active_otp.assert_called_once_with("test@example.com")
         mock_otp.verify.assert_called_once_with("123456")

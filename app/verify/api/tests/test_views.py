@@ -139,12 +139,15 @@ class VerifyOTPViewTestCase(APITestCase):
 
         self.valid_phone_data = {
             "phone_number": "698765432",
-            "country_iso_code": "CM",
+            "country_id": self.country.id,
+            "country_dial_code": "237",
             "code": "123456",
         }
 
         self.valid_email_data = {
             "email": "test@example.com",
+            "country_id": self.country.id,
+            "country_dial_code": "237",
             "code": "123456",
         }
 
@@ -190,7 +193,37 @@ class VerifyOTPViewTestCase(APITestCase):
         mock_verify_otp.assert_called_once()
 
     def test_verify_otp_invalid_data(self):
-        response = self.client.post(self.url, {"code": "123456"}, format="json")
+        # Missing email and phone number
+        response = self.client.post(
+            self.url,
+            {
+                "code": "123456",
+                "country_id": self.country.id,
+                "country_dial_code": "237",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.data["success"])
 
+        # Missing country_id
+        response = self.client.post(
+            self.url,
+            {"email": "test@example.com", "country_dial_code": "237", "code": "123456"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.data["success"])
+
+        # Missing country_dial_code
+        response = self.client.post(
+            self.url,
+            {
+                "email": "test@example.com",
+                "country_id": self.country.id,
+                "code": "123456",
+            },
+            format="json",
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(response.data["success"])

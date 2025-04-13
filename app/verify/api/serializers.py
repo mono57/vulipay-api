@@ -71,45 +71,45 @@ class VerifyOTPSerializer(serializers.Serializer):
     email = serializers.EmailField(
         required=False, help_text="Email address the OTP was sent to"
     )
-    country_iso_code = serializers.CharField(
-        required=False, help_text="ISO code of the country (e.g., 'CM' for Cameroon)"
+    country_id = serializers.IntegerField(
+        required=True,
+        help_text="ID of the country (required for all authentication methods)",
+    )
+    country_dial_code = serializers.CharField(
+        required=True, help_text="Dial code of the country"
     )
     code = serializers.CharField(required=True, help_text="OTP code to verify")
 
     def validate(self, attrs):
+        if not attrs["code"].isdigit():
+            raise serializers.ValidationError(
+                {"code": _("Code must contain only digits.")}
+            )
+
         if not attrs.get("phone_number") and not attrs.get("email"):
             raise serializers.ValidationError(
                 _("Either phone_number or email must be provided.")
             )
 
-        if attrs.get("phone_number") and not attrs.get("country_iso_code"):
-            raise serializers.ValidationError(
-                _("country_iso_code is required when phone_number is provided.")
+        if not attrs.get("country_id"):
+            raise serializers.ValidationError(_("country_id is required."))
+
+        if not attrs.get("country_dial_code"):
+            raise serializers.ValidationError(_("country_dial_code is required."))
+
+        if attrs.get("phone_number"):
+            attrs["identifier"] = (
+                f"+{attrs['country_dial_code']}{attrs['phone_number']}"
             )
-
-        if attrs.get("phone_number") and attrs.get("country_iso_code"):
-            try:
-                country = AvailableCountry.objects.get(
-                    iso_code=attrs["country_iso_code"]
-                )
-                attrs["identifier"] = f"+{country.dial_code}{attrs['phone_number']}"
-            except AvailableCountry.DoesNotExist:
-                raise serializers.ValidationError(_("Invalid country_iso_code."))
-
-        if attrs.get("email"):
+        else:
             attrs["identifier"] = attrs["email"]
-
-        if not attrs["code"].isdigit():
-            raise serializers.ValidationError(
-                {"code": _("Code must contain only digits.")}
-            )
 
         return attrs
 
     def verify_otp(self):
         identifier = self.validated_data["identifier"]
         code = self.validated_data["code"]
-        country_iso_code = self.validated_data.get("country_iso_code")
+        country_id = self.validated_data.get("country_id")
 
         otp = OTP.objects.get_active_otp(identifier)
 
@@ -122,17 +122,14 @@ class VerifyOTPSerializer(serializers.Serializer):
         if otp.verify(code):
             user, created = User.objects.get_or_create(email=identifier)
 
-            # Set the country if country_iso_code is provided
-            if country_iso_code:
-                try:
-                    country = AvailableCountry.objects.get(iso_code=country_iso_code)
-                    user.country = country
-                    user.save()
-                except AvailableCountry.DoesNotExist:
-                    pass  # If country doesn't exist, continue without setting it
+            try:
+                user.country_id = country_id
+                user.save()
+            except Exception:
+                logger.error(f"Failed to set country for user {user.id}")
 
             try:
-                _, created = Wallet.objects.get_or_create(
+                wallet, created_wallet = Wallet.objects.get_or_create(
                     user=user,
                     wallet_type=WalletType.MAIN,
                     defaults={
@@ -140,7 +137,7 @@ class VerifyOTPSerializer(serializers.Serializer):
                         "is_active": True,
                     },
                 )
-                if created:
+                if created_wallet:
                     logger.info(f"Created main wallet for user {user.id}")
             except Exception as e:
                 logger.error(f"Failed to create wallet for user {user.id}: {str(e)}")
