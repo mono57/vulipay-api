@@ -120,8 +120,30 @@ class GenerateOTPViewTestCase(APITestCase):
         mock_generate.assert_called_once()
 
     def test_generate_otp_invalid_data(self):
-        response = self.client.post(self.url, {"channel": "sms"}, format="json")
+        # Missing both phone_number and email
+        response = self.client.post(
+            self.url,
+            {"country_iso_code": "CM"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.data["success"])
 
+        # Missing country_iso_code with phone_number
+        response = self.client.post(
+            self.url,
+            {"phone_number": "698765432"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.data["success"])
+
+        # Invalid country_iso_code
+        response = self.client.post(
+            self.url,
+            {"phone_number": "698765432", "country_iso_code": "XX"},
+            format="json",
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(response.data["success"])
 
@@ -156,12 +178,32 @@ class VerifyOTPViewTestCase(APITestCase):
         mock_verify_otp.return_value = {
             "success": True,
             "message": "OTP verified successfully.",
+            "user": {
+                "full_name": "Test User",
+                "email": "test@example.com",
+                "phone_number": "+237698765432",
+                "country": "Cameroon",
+            },
+            "wallet": {
+                "id": 1,
+                "balance": "0.00",
+                "wallet_type": "MAIN",
+                "currency": "XAF",
+                "is_active": True,
+            },
+            "tokens": {
+                "access": "access_token_value",
+                "refresh": "refresh_token_value",
+            },
         }
 
         response = self.client.post(self.url, self.valid_phone_data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data["success"])
+        self.assertIn("user", response.data)
+        self.assertIn("wallet", response.data)
+        self.assertIn("tokens", response.data)
         mock_verify_otp.assert_called_once()
 
     @patch("app.verify.api.serializers.VerifyOTPSerializer.verify_otp")
@@ -176,6 +218,7 @@ class VerifyOTPViewTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data["success"])
         self.assertNotIn("user", response.data)
+        self.assertNotIn("wallet", response.data)
         self.assertNotIn("tokens", response.data)
         mock_verify_otp.assert_called_once()
 

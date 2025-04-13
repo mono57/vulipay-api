@@ -116,7 +116,39 @@ class VerifyOTPView(APIView):
                                     "description": "User phone number",
                                     "nullable": True,
                                 },
+                                "country": {
+                                    "type": "string",
+                                    "description": "User country name",
+                                    "nullable": True,
+                                },
                             },
+                        },
+                        "wallet": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer",
+                                    "description": "Wallet ID",
+                                },
+                                "balance": {
+                                    "type": "string",
+                                    "description": "Current wallet balance",
+                                },
+                                "wallet_type": {
+                                    "type": "string",
+                                    "description": "Type of wallet (MAIN, BUSINESS)",
+                                },
+                                "currency": {
+                                    "type": "string",
+                                    "description": "Wallet currency",
+                                    "nullable": True,
+                                },
+                                "is_active": {
+                                    "type": "boolean",
+                                    "description": "Whether the wallet is active",
+                                },
+                            },
+                            "nullable": True,
                         },
                         "tokens": {
                             "type": "object",
@@ -141,21 +173,13 @@ class VerifyOTPView(APIView):
         serializer = VerifyOTPSerializer(data=request.data)
 
         if serializer.is_valid():
-            result = serializer.verify_otp()
+            response = serializer.verify_otp()
 
-            if result["success"]:
-                response_data = {"success": True, "message": result["message"]}
-
-                if "user" in result:
-                    response_data["user"] = result["user"]
-
-                if "tokens" in result:
-                    response_data["tokens"] = result["tokens"]
-
-                return Response(response_data, status=status.HTTP_200_OK)
+            if response["success"]:
+                return Response(response, status=status.HTTP_200_OK)
             else:
                 return Response(
-                    {"success": False, "message": result["message"]},
+                    {"success": False, "message": response["message"]},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 

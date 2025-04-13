@@ -139,26 +139,34 @@ class VerifyOTPSerializer(serializers.Serializer):
                 )
                 if created_wallet:
                     logger.info(f"Created main wallet for user {user.id}")
+
+                refresh = RefreshToken.for_user(user)
+
+                return {
+                    "success": True,
+                    "message": "OTP verified successfully.",
+                    "created": created,
+                    "user": {
+                        "full_name": user.full_name,
+                        "email": user.email,
+                        "phone_number": user.phone_number,
+                        "country": user.country.name if user.country else None,
+                    },
+                    "wallet": {
+                        "id": wallet.id,
+                        "balance": str(wallet.balance),
+                        "wallet_type": wallet.wallet_type,
+                        "currency": wallet.currency,
+                        "is_active": wallet.is_active,
+                    },
+                    "tokens": {
+                        "access": str(refresh.access_token),
+                        "refresh": str(refresh),
+                    },
+                }
             except Exception as e:
                 logger.error(f"Failed to create wallet for user {user.id}: {str(e)}")
 
-            refresh = RefreshToken.for_user(user)
-
-            return {
-                "success": True,
-                "message": "OTP verified successfully.",
-                "created": created,
-                "user": {
-                    "full_name": user.full_name,
-                    "email": user.email,
-                    "phone_number": user.phone_number,
-                    "country": user.country.name if user.country else None,
-                },
-                "tokens": {
-                    "access": str(refresh.access_token),
-                    "refresh": str(refresh),
-                },
-            }
         else:
             from django.conf import settings
 

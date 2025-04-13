@@ -101,6 +101,7 @@ class VerifyOTPSerializerTestCase(TestCase):
         self.assertEqual(serializer.validated_data["identifier"], "test@example.com")
 
     def test_validate_with_missing_fields(self):
+        # Missing both phone_number and email
         serializer = VerifyOTPSerializer(
             data={
                 "code": "123456",
@@ -110,6 +111,7 @@ class VerifyOTPSerializerTestCase(TestCase):
         )
         self.assertFalse(serializer.is_valid())
 
+        # Missing country_id
         serializer = VerifyOTPSerializer(
             data={
                 "phone_number": "698765432",
@@ -119,6 +121,7 @@ class VerifyOTPSerializerTestCase(TestCase):
         )
         self.assertFalse(serializer.is_valid())
 
+        # Missing country_dial_code
         serializer = VerifyOTPSerializer(
             data={
                 "phone_number": "698765432",
@@ -147,7 +150,7 @@ class VerifyOTPSerializerTestCase(TestCase):
     def test_validate_with_invalid_country(self):
         data = {
             "phone_number": "698765432",
-            "country_id": "ERER",
+            "country_id": "9999",  # Invalid country ID
             "country_dial_code": "237",
             "code": "123456",
         }
@@ -247,6 +250,11 @@ class VerifyOTPSerializerTestCase(TestCase):
 
         # Mock wallet_get_or_create
         mock_wallet = Mock()
+        mock_wallet.id = 1
+        mock_wallet.balance = 1000.0
+        mock_wallet.wallet_type = "MAIN"
+        mock_wallet.currency = "XAF"
+        mock_wallet.is_active = True
         mock_wallet_get_or_create.return_value = (mock_wallet, False)
 
         # Create a mock token with a string representation
@@ -267,6 +275,14 @@ class VerifyOTPSerializerTestCase(TestCase):
         self.assertEqual(result["tokens"]["access"], "access_token_value")
         self.assertEqual(result["tokens"]["refresh"], "refresh_token_value")
         self.assertEqual(result["created"], False)
+
+        # Assert wallet data
+        self.assertIn("wallet", result)
+        self.assertEqual(result["wallet"]["id"], 1)
+        self.assertEqual(result["wallet"]["balance"], str(1000.0))
+        self.assertEqual(result["wallet"]["wallet_type"], "MAIN")
+        self.assertEqual(result["wallet"]["currency"], "XAF")
+        self.assertEqual(result["wallet"]["is_active"], True)
 
         mock_get_active_otp.assert_called_once_with("+237698765432")
         mock_otp.verify.assert_called_once_with("123456")
@@ -302,6 +318,11 @@ class VerifyOTPSerializerTestCase(TestCase):
 
         # Mock wallet_get_or_create
         mock_wallet = Mock()
+        mock_wallet.id = 1
+        mock_wallet.balance = 0.0
+        mock_wallet.wallet_type = "MAIN"
+        mock_wallet.currency = "XAF"
+        mock_wallet.is_active = True
         mock_wallet_get_or_create.return_value = (mock_wallet, False)
 
         # Create a mock token with a string representation
@@ -324,6 +345,14 @@ class VerifyOTPSerializerTestCase(TestCase):
 
         # Check that the country is included in the response
         self.assertEqual(result["user"]["country"], "Cameroon")
+
+        # Assert wallet data
+        self.assertIn("wallet", result)
+        self.assertEqual(result["wallet"]["id"], 1)
+        self.assertEqual(result["wallet"]["balance"], str(0.0))
+        self.assertEqual(result["wallet"]["wallet_type"], "MAIN")
+        self.assertEqual(result["wallet"]["currency"], "XAF")
+        self.assertEqual(result["wallet"]["is_active"], True)
 
     @patch("app.verify.models.OTP.objects.get_active_otp")
     @patch("app.accounts.models.User.objects.get_or_create")
@@ -357,6 +386,11 @@ class VerifyOTPSerializerTestCase(TestCase):
 
         # Mock wallet_get_or_create
         mock_wallet = Mock()
+        mock_wallet.id = 2
+        mock_wallet.balance = 0.0
+        mock_wallet.wallet_type = "MAIN"
+        mock_wallet.currency = "USD"
+        mock_wallet.is_active = True
         mock_wallet_get_or_create.return_value = (mock_wallet, True)
 
         # Create a mock token with a string representation
@@ -381,6 +415,14 @@ class VerifyOTPSerializerTestCase(TestCase):
         # Ensure the country_id was set
         self.assertEqual(mock_user.country_id, self.country.id)
         mock_user.save.assert_called_once()
+
+        # Assert wallet data
+        self.assertIn("wallet", result)
+        self.assertEqual(result["wallet"]["id"], 2)
+        self.assertEqual(result["wallet"]["balance"], str(0.0))
+        self.assertEqual(result["wallet"]["wallet_type"], "MAIN")
+        self.assertEqual(result["wallet"]["currency"], "USD")
+        self.assertEqual(result["wallet"]["is_active"], True)
 
         mock_get_active_otp.assert_called_once_with("test@example.com")
         mock_otp.verify.assert_called_once_with("123456")
