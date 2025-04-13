@@ -2,6 +2,8 @@ from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
+from app.accounts.models import AvailableCountry
+
 User = get_user_model()
 
 
@@ -47,3 +49,9 @@ class UserPINSetupSerializer(serializers.Serializer):
     def update(self, instance, validated_data):
         instance.set_pin(validated_data["pin1"])
         return instance
+
+
+class CountrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AvailableCountry
+        fields = ["id", "name", "dial_code", "iso_code", "currency"]

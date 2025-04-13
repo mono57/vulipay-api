@@ -2,6 +2,7 @@ from django.urls import path
 
 from app.accounts.api.views import (
     AppTokenRefreshView,
+    CountryListView,
     UserFullNameUpdateView,
     UserPINSetupView,
 )
@@ -14,4 +15,5 @@ urlpatterns = [
     ),
     path("user/pin-setup", UserPINSetupView.as_view(), name="user_pin_setup"),
     path("token/refresh/", AppTokenRefreshView.as_view(), name="token_refresh"),
+    path("countries/", CountryListView.as_view(), name="country_list"),
 ]

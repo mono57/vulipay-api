@@ -1,8 +1,11 @@
 from django.contrib.auth import get_user_model
+from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient, APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
+
+from app.accounts.models import AvailableCountry, User
 
 twilio_send_message_path = "app.core.utils.twilio_client.MessageClient.send_message"
 
@@ -100,3 +103,40 @@ class UserPINSetupViewTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("non_field_errors", response.data)
+
+
+class CountryListViewTests(TestCase):
+    """Test the countries API"""
+
+    def setUp(self):
+        self.client = APIClient()
+        # Create some test countries
+        AvailableCountry.objects.create(
+            name="Cameroon",
+            dial_code="237",
+            iso_code="CM",
+            phone_number_regex=r"^(?:\+237|00237)?[2368]\d{7,8}$",
+            currency="XAF",
+        )
+        AvailableCountry.objects.create(
+            name="Nigeria",
+            dial_code="234",
+            iso_code="NG",
+            phone_number_regex=r"^(?:\+234|00234)?[789]\d{9}$",
+            currency="NGN",
+        )
+
+    def test_list_countries(self):
+        """Test retrieving a list of countries"""
+        url = reverse("api:accounts:country_list")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+        self.assertEqual(response.data[0]["name"], "Cameroon")
+        self.assertEqual(response.data[1]["name"], "Nigeria")
+
+        # Check that all expected fields are present
+        expected_fields = ["id", "name", "dial_code", "iso_code", "currency"]
+        for field in expected_fields:
+            self.assertIn(field, response.data[0])

@@ -5,9 +5,11 @@ from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from app.accounts.api.serializers import (
+    CountrySerializer,
     UserFullNameUpdateSerializer,
     UserPINSetupSerializer,
 )
+from app.accounts.models import AvailableCountry
 
 
 @extend_schema(
@@ -71,3 +73,17 @@ class AppTokenRefreshView(TokenRefreshView):
     )
     def post(self, request, *args, **kwargs):
         return super().post(request, *args, **kwargs)
+
+
+@extend_schema(
+    tags=["Accounts"],
+    operation_id="list_countries",
+    description="List all available countries with their details",
+    responses={
+        200: CountrySerializer(many=True),
+    },
+)
+class CountryListView(generics.ListAPIView):
+    queryset = AvailableCountry.objects.all().order_by("name")
+    serializer_class = CountrySerializer
+    permission_classes = [permissions.AllowAny]
