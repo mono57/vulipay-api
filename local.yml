@@ -1,6 +1,7 @@
 volumes:
   vulipay_local_postgres_data: {}
   vulipay_local_postgres_data_backups: {}
+  vulipay_local_redis_data: {}
 
 services:
   django:
@@ -12,11 +13,13 @@ services:
     platform: linux/x86_64
     depends_on:
       - postgres
+      - redis
     volumes:
       - .:/app:z
     env_file:
       - ./.envs/.local/.django
       - ./.envs/.local/.postgres
+      - ./.envs/.local/.redis
     ports:
       - "8000:8000"
       - "3000:3000"
@@ -35,3 +38,12 @@ services:
       - ./.envs/.local/.postgres
     ports:
       - "5455:5432"
+
+  redis:
+    image: redis:7-alpine
+    container_name: vulipay_redis
+    volumes:
+      - vulipay_local_redis_data:/data
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass redispassword

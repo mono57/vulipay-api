@@ -16,10 +16,21 @@ ALLOWED_HOSTS = ["localhost", "0.0.0.0", "127.0.0.1"]
 
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "",
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": env("REDIS_URL", default="redis://redis:6379/0"),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "PASSWORD": env("REDIS_PASSWORD", default="redispassword"),
+            "IGNORE_EXCEPTIONS": True,
+        },
+        "KEY_PREFIX": "vulipay",
+        "TIMEOUT": 60 * 60 * 24,  # 24 hours in seconds
     }
 }
+
+# Set up session cache
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "default"
 
 # EMAIL
 
