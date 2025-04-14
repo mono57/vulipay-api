@@ -12,15 +12,10 @@ from app.accounts.models import AvailableCountry, User
 from app.accounts.tests.factories import UserFactory
 from app.core.utils.encryption import decrypt_data, encrypt_data
 from app.transactions.models import TransactionType, Wallet, WalletType
-from app.transactions.signals import create_main_wallet
 
 
 class ReceiveFundsPaymentCodeAPIViewTestCase(APITestCase):
     def setUp(self):
-        # Disconnect the signal temporarily
-        post_save.disconnect(create_main_wallet, sender=User)
-
-        # Create a country with currency
         self.country = AvailableCountry.objects.create(
             name="Test Country",
             dial_code="999",
@@ -29,7 +24,6 @@ class ReceiveFundsPaymentCodeAPIViewTestCase(APITestCase):
             currency="XAF",
         )
 
-        # Create a user with this country
         self.user = UserFactory.create(
             email="test@example.com",
             phone_number="+237612345678",
@@ -51,10 +45,6 @@ class ReceiveFundsPaymentCodeAPIViewTestCase(APITestCase):
 
         self.url = reverse("api:transactions:receive-funds-payment-code")
         self.client.force_authenticate(user=self.user)
-
-    def tearDown(self):
-        # Reconnect the signal
-        post_save.connect(create_main_wallet, sender=User)
 
     def test_get_payment_code_without_amount(self):
         response = self.client.post(self.url, {}, format="json")
@@ -104,9 +94,6 @@ class ReceiveFundsPaymentCodeAPIViewTestCase(APITestCase):
 
 class UserDataDecryptionAPIViewTestCase(APITestCase):
     def setUp(self):
-        # Disconnect the signal temporarily
-        post_save.disconnect(create_main_wallet, sender=User)
-
         # Create a country with currency
         self.country = AvailableCountry.objects.create(
             name="Test Country",
@@ -138,10 +125,6 @@ class UserDataDecryptionAPIViewTestCase(APITestCase):
 
         self.url = reverse("api:transactions:decrypt-user-data")
         self.client.force_authenticate(user=self.user)
-
-    def tearDown(self):
-        # Reconnect the signal
-        post_save.connect(create_main_wallet, sender=User)
 
     def test_decrypt_user_data_without_amount(self):
         # Create test data

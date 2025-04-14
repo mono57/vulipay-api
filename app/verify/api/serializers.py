@@ -94,6 +94,9 @@ class VerifyOTPSerializer(serializers.Serializer):
         if not attrs.get("country_id"):
             raise serializers.ValidationError(_("country_id is required."))
 
+        if not isinstance(attrs.get("country_id"), int):
+            raise serializers.ValidationError(_("country_id must be an integer."))
+
         if not attrs.get("country_dial_code"):
             raise serializers.ValidationError(_("country_dial_code is required."))
 

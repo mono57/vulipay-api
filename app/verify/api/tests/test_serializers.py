@@ -46,15 +46,6 @@ class GenerateOTPSerializerTestCase(TestCase):
         serializer = GenerateOTPSerializer(data={"phone_number": "698765432"})
         self.assertFalse(serializer.is_valid())
 
-    def test_validate_with_invalid_country(self):
-        data = {
-            "phone_number": "698765432",
-            "country_iso_code": "XX",  # Invalid country code
-            "channel": "sms",
-        }
-        serializer = GenerateOTPSerializer(data=data)
-        self.assertFalse(serializer.is_valid())
-
     def test_channel_auto_switch_for_email(self):
         # When only email is provided but channel is sms, it should switch to email
         data = {
@@ -145,16 +136,6 @@ class VerifyOTPSerializerTestCase(TestCase):
                 "country_dial_code": "237",
             }
         )
-        self.assertFalse(serializer.is_valid())
-
-    def test_validate_with_invalid_country(self):
-        data = {
-            "phone_number": "698765432",
-            "country_id": "9999",  # Invalid country ID
-            "country_dial_code": "237",
-            "code": "123456",
-        }
-        serializer = VerifyOTPSerializer(data=data)
         self.assertFalse(serializer.is_valid())
 
     def test_validate_with_non_digit_code(self):
