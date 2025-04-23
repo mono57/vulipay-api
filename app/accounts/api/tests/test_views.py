@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -6,6 +8,7 @@ from rest_framework.test import APIClient, APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from app.accounts.models import AvailableCountry, User
+from app.core.tests.factories import UserFactory
 
 twilio_send_message_path = "app.core.utils.twilio_client.MessageClient.send_message"
 
@@ -140,3 +143,35 @@ class CountryListViewTests(TestCase):
         expected_fields = ["id", "name", "dial_code", "iso_code", "currency"]
         for field in expected_fields:
             self.assertIn(field, response.data[0])
+
+
+class CacheHealthCheckViewTestCase(APITestCase):
+    def setUp(self):
+        self.url = reverse("api:accounts:cache-health")
+        self.admin_user = UserFactory.create(is_staff=True, is_superuser=True)
+        self.regular_user = UserFactory.create()
+
+    @patch("app.accounts.cache.get_cache_stats")
+    def test_cache_health_check_as_admin(self, mock_get_cache_stats):
+        mock_get_cache_stats.return_value = {
+            "hits": 100,
+            "misses": 10,
+            "memory_used": "1MB",
+        }
+        self.client.force_authenticate(user=self.admin_user)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, mock_get_cache_stats.return_value)
+
+    def test_cache_health_check_as_regular_user(self):
+        """Test that regular users cannot access the cache health check endpoint."""
+        # Login as regular user
+        self.client.force_authenticate(user=self.regular_user)
+
+        # Make request
+        response = self.client.get(self.url)
+
+        # Assert response (should be forbidden)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

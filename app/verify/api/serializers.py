@@ -5,6 +5,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from app.accounts.cache import is_valid_country_id
 from app.accounts.models import AvailableCountry
 from app.transactions.models import Wallet, WalletType
 from app.verify.models import OTP
@@ -97,6 +98,11 @@ class VerifyOTPSerializer(serializers.Serializer):
         if not isinstance(attrs.get("country_id"), int):
             raise serializers.ValidationError(_("country_id must be an integer."))
 
+        if not is_valid_country_id(attrs.get("country_id")):
+            raise serializers.ValidationError(
+                _("Invalid country_id. Country does not exist.")
+            )
+
         if not attrs.get("country_dial_code"):
             raise serializers.ValidationError(_("country_dial_code is required."))
 
@@ -124,12 +130,8 @@ class VerifyOTPSerializer(serializers.Serializer):
 
         if otp.verify(code):
             user, created = User.objects.get_or_create(email=identifier)
-
-            try:
-                user.country_id = country_id
-                user.save()
-            except Exception:
-                logger.error(f"Failed to set country for user {user.id}")
+            user.country_id = country_id
+            user.save()
 
             try:
                 wallet, created_wallet = Wallet.objects.get_or_create(

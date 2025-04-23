@@ -1,5 +1,7 @@
 from drf_spectacular.utils import OpenApiResponse, extend_schema
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions, status, viewsets
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.views import TokenRefreshView
@@ -9,6 +11,7 @@ from app.accounts.api.serializers import (
     UserFullNameUpdateSerializer,
     UserPINSetupSerializer,
 )
+from app.accounts.cache import get_cache_stats
 from app.accounts.models import AvailableCountry
 
 
@@ -87,3 +90,10 @@ class CountryListView(generics.ListAPIView):
     queryset = AvailableCountry.objects.all().order_by("name")
     serializer_class = CountrySerializer
     permission_classes = [permissions.AllowAny]
+
+
+@api_view(["GET"])
+@permission_classes([IsAdminUser])
+def cache_health_check(request):
+    stats = get_cache_stats()
+    return Response(stats, status=status.HTTP_200_OK)
