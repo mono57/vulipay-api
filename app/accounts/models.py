@@ -30,6 +30,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     email = models.EmailField(_("Email address"), unique=True, null=True, blank=True)
     full_name = AppCharField(_("Full name"), max_length=150, null=True, blank=True)
+    profile_picture = models.ImageField(
+        upload_to="profile_pictures/",
+        null=True,
+        blank=True,
+        help_text=_("User's profile picture"),
+    )
     country = models.ForeignKey(
         "AvailableCountry",
         on_delete=models.SET_NULL,

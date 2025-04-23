@@ -22,7 +22,7 @@ class UserAdmin(BaseUserAdmin):
         (None, {"fields": ("email", "phone_number", "password")}),
         (
             _("Personal info"),
-            {"fields": ("full_name", "country")},
+            {"fields": ("full_name", "profile_picture", "country")},
         ),
         (
             _("Permissions"),

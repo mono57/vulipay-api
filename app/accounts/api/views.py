@@ -10,6 +10,7 @@ from app.accounts.api.serializers import (
     CountrySerializer,
     UserFullNameUpdateSerializer,
     UserPINSetupSerializer,
+    UserProfilePictureSerializer,
 )
 from app.accounts.cache import get_cache_stats
 from app.accounts.models import AvailableCountry
@@ -27,6 +28,24 @@ from app.accounts.models import AvailableCountry
 )
 class UserFullNameUpdateView(generics.UpdateAPIView):
     serializer_class = UserFullNameUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user
+
+
+@extend_schema(
+    tags=["Accounts"],
+    operation_id="update_user_profile_picture",
+    description="Upload or update the user's profile picture",
+    responses={
+        200: UserProfilePictureSerializer,
+        400: OpenApiResponse(description="Invalid image file"),
+    },
+    request=UserProfilePictureSerializer,
+)
+class UserProfilePictureUpdateView(generics.UpdateAPIView):
+    serializer_class = UserProfilePictureSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
@@ -92,6 +111,14 @@ class CountryListView(generics.ListAPIView):
     permission_classes = [permissions.AllowAny]
 
 
+@extend_schema(
+    tags=["Accounts"],
+    operation_id="cache_health_check",
+    description="Check the health of the cache",
+    responses={
+        200: OpenApiResponse(description="Cache health check"),
+    },
+)
 @api_view(["GET"])
 @permission_classes([IsAdminUser])
 def cache_health_check(request):

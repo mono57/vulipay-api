@@ -1,9 +1,11 @@
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
 from app.accounts.api.serializers import (
     UserFullNameUpdateSerializer,
     UserPINSetupSerializer,
+    UserProfilePictureSerializer,
 )
 
 User = get_user_model()
@@ -115,3 +117,63 @@ class UserPINSetupSerializerTestCase(TestCase):
         updated_user = User.objects.get(pk=self.user.pk)
         self.assertIsNotNone(updated_user.pin)
         self.assertTrue(updated_user.verify_pin(self.serializer_data["pin1"]))
+
+
+class UserProfilePictureSerializerTestCase(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = User.objects.create_user(
+            email="test_profile_pic@example.com",
+            password="testpassword123",
+        )
+
+        # Create a test image
+        self.test_image = SimpleUploadedFile(
+            name="test_image.jpg",
+            content=b"GIF87a\x01\x00\x01\x00\x80\x01\x00\x00\x00\x00ccc,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;",
+            content_type="image/jpeg",
+        )
+
+        self.serializer_data = {"profile_picture": self.test_image}
+
+        self.serializer = UserProfilePictureSerializer(
+            instance=self.user, data=self.serializer_data
+        )
+
+    def test_serializer_valid_data(self):
+        self.assertTrue(self.serializer.is_valid())
+
+    def test_serializer_update_user(self):
+        self.serializer.is_valid()
+        updated_user = self.serializer.save()
+
+        self.assertIsNotNone(updated_user.profile_picture)
+        self.assertTrue(
+            updated_user.profile_picture.name.startswith("profile_pictures/")
+        )
+
+    def test_serializer_rejects_non_image_file(self):
+        non_image = SimpleUploadedFile(
+            name="test_file.txt",
+            content=b"This is not an image",
+            content_type="text/plain",
+        )
+
+        serializer = UserProfilePictureSerializer(
+            instance=self.user, data={"profile_picture": non_image}
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("profile_picture", serializer.errors)
+
+    def test_serializer_optional_profile_picture(self):
+        """Test that profile_picture is optional"""
+        serializer = UserProfilePictureSerializer(
+            instance=self.user, data={"profile_picture": None}
+        )
+        self.assertTrue(serializer.is_valid())
+
+    def tearDown(self):
+        # Clean up any uploaded files
+        if self.user.profile_picture:
+            self.user.profile_picture.delete()

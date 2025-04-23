@@ -18,6 +18,28 @@ class UserFullNameUpdateSerializer(serializers.ModelSerializer):
         return value.strip()
 
 
+class UserProfilePictureSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("profile_picture",)
+
+    def validate_profile_picture(self, value):
+        if value:
+            # Validate file size - limit to 5MB
+            if value.size > 5 * 1024 * 1024:
+                raise serializers.ValidationError(
+                    _("Image file size should not exceed 5MB.")
+                )
+
+            # Validate file type
+            if not value.content_type.startswith("image/"):
+                raise serializers.ValidationError(
+                    _("Uploaded file is not a valid image.")
+                )
+
+        return value
+
+
 class UserPINSetupSerializer(serializers.Serializer):
     pin1 = serializers.CharField(max_length=4, min_length=4, write_only=True)
     pin2 = serializers.CharField(max_length=4, min_length=4, write_only=True)

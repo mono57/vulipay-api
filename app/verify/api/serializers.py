@@ -156,6 +156,9 @@ class VerifyOTPSerializer(serializers.Serializer):
                         "email": user.email,
                         "phone_number": user.phone_number,
                         "country": user.country.name if user.country else None,
+                        "profile_picture": (
+                            user.profile_picture.url if user.profile_picture else None
+                        ),
                     },
                     "wallet": {
                         "id": wallet.id,

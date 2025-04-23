@@ -225,6 +225,8 @@ class VerifyOTPSerializerTestCase(TestCase):
         mock_user.full_name = "Test User"
         mock_user.email = "test@example.com"
         mock_user.phone_number = "+237698765432"
+        mock_user.profile_picture = Mock()
+        mock_user.profile_picture.url = "/media/profile_pictures/test.jpg"
 
         # Mock get_or_create to return a tuple (user, created)
         mock_get_or_create.return_value = (mock_user, False)
@@ -253,6 +255,9 @@ class VerifyOTPSerializerTestCase(TestCase):
         self.assertEqual(result["user"]["full_name"], "Test User")
         self.assertEqual(result["user"]["email"], "test@example.com")
         self.assertEqual(result["user"]["phone_number"], "+237698765432")
+        self.assertEqual(
+            result["user"]["profile_picture"], "/media/profile_pictures/test.jpg"
+        )
         self.assertEqual(result["tokens"]["access"], "access_token_value")
         self.assertEqual(result["tokens"]["refresh"], "refresh_token_value")
         self.assertEqual(result["created"], False)
@@ -293,6 +298,8 @@ class VerifyOTPSerializerTestCase(TestCase):
         mock_user.phone_number = "+237698765432"
         mock_user.country = Mock()
         mock_user.country.name = "Cameroon"
+        mock_user.profile_picture = Mock()
+        mock_user.profile_picture.url = "/media/profile_pictures/test.jpg"
 
         # Mock get_or_create to return a tuple (user, created)
         mock_get_or_create.return_value = (mock_user, False)
@@ -358,6 +365,7 @@ class VerifyOTPSerializerTestCase(TestCase):
         mock_user.phone_number = None
         mock_user.country = Mock()
         mock_user.country.name = "Cameroon"
+        mock_user.profile_picture = None
 
         # Mock get_or_create to return a tuple (user, created)
         mock_get_or_create.return_value = (
@@ -389,6 +397,7 @@ class VerifyOTPSerializerTestCase(TestCase):
         self.assertEqual(result["user"]["full_name"], "Email User")
         self.assertEqual(result["user"]["email"], "test@example.com")
         self.assertEqual(result["user"]["phone_number"], None)
+        self.assertEqual(result["user"]["profile_picture"], None)
         self.assertEqual(result["tokens"]["access"], "email_access_token")
         self.assertEqual(result["tokens"]["refresh"], "email_refresh_token")
         self.assertEqual(result["created"], True)

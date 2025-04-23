@@ -1,5 +1,9 @@
+import os
+import tempfile
+
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError
 from django.test import TestCase
 
@@ -19,6 +23,7 @@ class UserModelTestCase(TestCase):
         self.user_with_both = UserFactory.create(
             email="both@example.com", phone_number="+237698049701"
         )
+        self.user = UserFactory.create()
 
     def test_user_creation_with_email_only(self):
         """Test that a user can be created with only an email"""
@@ -98,3 +103,43 @@ class UserModelTestCase(TestCase):
         self.assertEqual(user.country, self.country)
         self.assertEqual(user.country.name, self.country.name)
         self.assertEqual(user.country.iso_code, self.country.iso_code)
+
+    def test_user_model_has_profile_picture(self):
+        """Test that the User model has a profile_picture field"""
+        self.assertTrue(hasattr(self.user, "profile_picture"))
+
+    def test_profile_picture_is_optional(self):
+        """Test that profile_picture is optional (can be null/blank)"""
+        user = UserFactory.create(profile_picture=None)
+        self.assertIsNone(user.profile_picture.name)
+
+    def test_profile_picture_upload(self):
+        """Test that a profile picture can be uploaded and retrieved"""
+        # Create a temporary image file for testing
+        with tempfile.NamedTemporaryFile(suffix=".jpg") as temp_file:
+            # Write some dummy data to the file
+            temp_file.write(
+                b"GIF87a\x01\x00\x01\x00\x80\x01\x00\x00\x00\x00ccc,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"
+            )
+            temp_file.flush()
+
+            # Create a SimpleUploadedFile from the temp file
+            img = SimpleUploadedFile(
+                name="test_upload.jpg",
+                content=open(temp_file.name, "rb").read(),
+                content_type="image/jpeg",
+            )
+
+            # Create a user with this profile picture
+            user = UserFactory.create(profile_picture=img)
+
+            # Check that the profile picture is saved and accessible
+            self.assertIsNotNone(user.profile_picture)
+            self.assertIn("profile_pictures", user.profile_picture.path)
+
+            # Check that the file exists on the filesystem
+            self.assertTrue(os.path.exists(user.profile_picture.path))
+
+            # Clean up the test file
+            if os.path.exists(user.profile_picture.path):
+                os.remove(user.profile_picture.path)

@@ -1,6 +1,8 @@
+import os
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
@@ -169,3 +171,60 @@ class CacheHealthCheckViewTestCase(APITestCase):
 
         # Assert response (should be forbidden)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class UserProfilePictureUpdateViewTestCase(APITestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = User.objects.create_user(
+            email="test@example.com",
+            password="testpassword123",
+        )
+        self.token = RefreshToken.for_user(self.user).access_token
+        self.url = reverse("api:accounts:user_profile_picture_update")
+
+        # Create a test image
+        self.test_image = SimpleUploadedFile(
+            name="test_image.jpg",
+            content=b"GIF87a\x01\x00\x01\x00\x80\x01\x00\x00\x00\x00ccc,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;",
+            content_type="image/jpeg",
+        )
+
+    def test_it_should_update_profile_picture_successfully(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(self.token)}")
+        payload = {"profile_picture": self.test_image}
+        response = self.client.put(self.url, payload, format="multipart")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertIsNotNone(self.user.profile_picture)
+        self.assertTrue(self.user.profile_picture.name.startswith("profile_pictures/"))
+
+        # Clean up the file
+        if os.path.exists(self.user.profile_picture.path):
+            os.remove(self.user.profile_picture.path)
+
+    def test_it_should_require_authentication(self):
+        payload = {"profile_picture": self.test_image}
+        response = self.client.put(self.url, payload, format="multipart")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_it_should_reject_non_image_file(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(self.token)}")
+
+        non_image = SimpleUploadedFile(
+            name="test_file.txt",
+            content=b"This is not an image",
+            content_type="text/plain",
+        )
+
+        payload = {"profile_picture": non_image}
+        response = self.client.put(self.url, payload, format="multipart")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("profile_picture", response.data)
+
+        self.user.refresh_from_db()
+        self.assertEqual("", self.user.profile_picture.name)

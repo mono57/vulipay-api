@@ -17,6 +17,18 @@ class UserFactory(django.DjangoModelFactory):
     phone_number = factory.Sequence(lambda n: f"+2376980497{n:02d}")
 
     @classmethod
+    def _create(cls, model_class, *args, **kwargs):
+        """Override the default _create method to handle profile pictures"""
+        if "profile_picture" not in kwargs:
+            # Only create a test image if not explicitly provided
+            kwargs["profile_picture"] = SimpleUploadedFile(
+                name="test_image.jpg",
+                content=b"",  # Empty content for testing
+                content_type="image/jpeg",
+            )
+        return super()._create(model_class, *args, **kwargs)
+
+    @classmethod
     def create_with_password(cls, password="password", **kwargs):
         user = cls.create(**kwargs)
         user.set_password(password)

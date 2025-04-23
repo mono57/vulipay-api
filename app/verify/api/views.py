@@ -121,6 +121,11 @@ class VerifyOTPView(APIView):
                                     "description": "User country name",
                                     "nullable": True,
                                 },
+                                "profile_picture": {
+                                    "type": "string",
+                                    "description": "URL to user's profile picture",
+                                    "nullable": True,
+                                },
                             },
                         },
                         "wallet": {
