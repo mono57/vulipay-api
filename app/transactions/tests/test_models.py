@@ -5,7 +5,7 @@ from django.test import TransactionTestCase
 
 from app.accounts.models import AvailableCountry, Currency
 from app.accounts.tests import factories as f
-from app.accounts.tests.factories import UserFactory
+from app.accounts.tests.factories import AvailableCountryFactory, UserFactory
 from app.transactions.models import (
     PaymentMethod,
     PaymentMethodType,
@@ -15,11 +15,7 @@ from app.transactions.models import (
     Wallet,
     WalletType,
 )
-from app.transactions.tests.factories import (
-    AvailableCountryFactory,
-    TransactionFactory,
-    WalletFactory,
-)
+from app.transactions.tests.factories import TransactionFactory, WalletFactory
 
 
 class PaymentMethodModelTestCase(TransactionTestCase):
@@ -108,19 +104,16 @@ class WalletModelTestCase(TransactionTestCase):
     def setUp(self):
         self.user = UserFactory.create()
 
-        self.main_wallet = Wallet.objects.get(
-            user=self.user, wallet_type=WalletType.MAIN
+        # Create main wallet explicitly since it's no longer created automatically by a signal
+        self.main_wallet = Wallet.objects.create(
+            user=self.user, wallet_type=WalletType.MAIN, balance=1000
         )
-
-        self.main_wallet.balance = 1000
-        self.main_wallet.save()
 
         self.other_user = UserFactory.create()
-        self.other_main_wallet = Wallet.objects.get(
-            user=self.other_user, wallet_type=WalletType.MAIN
+        # Create main wallet for other user as well
+        self.other_main_wallet = Wallet.objects.create(
+            user=self.other_user, wallet_type=WalletType.MAIN, balance=2000
         )
-        self.other_main_wallet.balance = 2000
-        self.other_main_wallet.save()
 
         self.other_business_wallet = WalletFactory.create_business_wallet(
             user=self.other_user, balance=3000
@@ -353,17 +346,17 @@ class WalletCurrencyTestCase(TransactionTestCase):
 
 class TransactionModelTestCase(TransactionTestCase):
     def setUp(self):
-        self.country = AvailableCountryFactory()
+        self.country = AvailableCountryFactory.create()
         self.sender = UserFactory(country=self.country)
         self.recipient = UserFactory(country=self.country)
 
-        # Get the automatically created main wallets
-        self.sender_wallet = Wallet.objects.get_user_main_wallet(self.sender)
-        self.recipient_wallet = Wallet.objects.get_user_main_wallet(self.recipient)
-
-        # Set initial balance for sender wallet
-        self.sender_wallet.balance = 1000
-        self.sender_wallet.save()
+        # Create main wallets explicitly since they're no longer created automatically by a signal
+        self.sender_wallet = Wallet.objects.create(
+            user=self.sender, wallet_type=WalletType.MAIN, balance=1000
+        )
+        self.recipient_wallet = Wallet.objects.create(
+            user=self.recipient, wallet_type=WalletType.MAIN
+        )
 
     def test_create_transaction_classmethod(self):
         """Test the create_transaction classmethod"""

@@ -12,31 +12,27 @@ User = get_user_model()
 class WalletManagerTestCase(TestCase):
     def setUp(self):
         # Create a test country
-        self.country = AvailableCountryFactory()
+        self.country = AvailableCountryFactory.create()
 
-        # Create test users - signal will create MAIN wallets automatically
+        # Create test users
         self.user = UserFactory(country=self.country)
         self.user_with_additional_wallet = UserFactory(country=self.country)
 
-        # Get the automatically created main wallet
-        self.main_wallet = Wallet.objects.get(
-            user=self.user, wallet_type=WalletType.MAIN
+        # Create main wallet explicitly since it's no longer created automatically by a signal
+        self.main_wallet = Wallet.objects.create(
+            user=self.user, wallet_type=WalletType.MAIN, balance=Decimal("1000")
         )
 
-        # Update the balance for testing
-        self.main_wallet.balance = Decimal("1000")
-        self.main_wallet.save()
+        # Create main wallet for the second user
+        self.second_main_wallet = Wallet.objects.create(
+            user=self.user_with_additional_wallet, wallet_type=WalletType.MAIN
+        )
 
         # Create a business wallet for the second user
         self.business_wallet = Wallet.objects.create(
             user=self.user_with_additional_wallet,
             wallet_type=WalletType.BUSINESS,
             balance=Decimal("2000"),
-        )
-
-        # Get the main wallet for the second user
-        self.second_main_wallet = Wallet.objects.get(
-            user=self.user_with_additional_wallet, wallet_type=WalletType.MAIN
         )
 
     def test_get_user_main_wallet(self):

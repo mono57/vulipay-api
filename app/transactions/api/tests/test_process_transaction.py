@@ -38,13 +38,12 @@ class ProcessTransactionAPIViewTestCase(APITestCase):
 
         self.recipient = UserFactory(country=self.country)
 
-        # Create wallets for users
-        self.sender_wallet = Wallet.objects.get(
-            user=self.sender, wallet_type=WalletType.MAIN
+        # Create wallets explicitly since they're no longer created automatically by a signal
+        self.sender_wallet = Wallet.objects.create(
+            user=self.sender, wallet_type=WalletType.MAIN, balance=1000
         )
-        self.sender_wallet.deposit(1000)  # Add funds to sender's wallet
 
-        self.recipient_wallet = Wallet.objects.get(
+        self.recipient_wallet = Wallet.objects.create(
             user=self.recipient, wallet_type=WalletType.MAIN
         )
 

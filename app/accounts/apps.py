@@ -1,4 +1,5 @@
 from django.apps import AppConfig
+from django.db.models.signals import post_migrate
 
 
 class AccountsConfig(AppConfig):
@@ -10,7 +11,7 @@ class AccountsConfig(AppConfig):
         import app.accounts.signals
         from app.accounts.cache import refresh_country_ids_cache
 
-        try:
+        def refresh_country_ids_cache_wrapper(sender, **kwargs):
             refresh_country_ids_cache()
-        except Exception:
-            pass
+
+        post_migrate.connect(refresh_country_ids_cache_wrapper, sender=self)
