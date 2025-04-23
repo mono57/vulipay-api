@@ -65,6 +65,10 @@ LOCAL_APPS = [
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
+# Add django-storages to INSTALLED_APPS if USE_S3_STORAGE is enabled
+if env.bool("USE_S3_STORAGE", default=False):
+    INSTALLED_APPS += ["storages"]
+
 # OTP Settings
 OTP_EXPIRY_MINUTES = 10
 OTP_MAX_ATTEMPTS = 3
@@ -114,6 +118,37 @@ MIDDLEWARE = [
 
 MEDIA_ROOT = str(APPS_DIR / "media")
 MEDIA_URL = "/media/"
+
+# AWS S3 and CloudFront settings
+# In production, these should all come from environment variables
+USE_S3_STORAGE = env.bool("USE_S3_STORAGE", default=False)
+
+if USE_S3_STORAGE:
+    # AWS credentials
+    AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID", default="")
+    AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY", default="")
+
+    # S3 settings
+    AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME", default="")
+    AWS_S3_REGION_NAME = env("AWS_S3_REGION_NAME", default="us-east-1")
+    AWS_S3_CUSTOM_DOMAIN = env("AWS_CLOUDFRONT_DOMAIN", default=None)
+    AWS_S3_OBJECT_PARAMETERS = {
+        "CacheControl": "max-age=86400",  # 1 day cache
+    }
+    AWS_DEFAULT_ACL = env("AWS_DEFAULT_ACL", default="public-read")
+    AWS_LOCATION = "media"
+
+    # Only use MediaRootS3BotoStorage for profile pictures to avoid disrupting other code
+    MEDIA_URL = (
+        f"https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/"
+        if AWS_S3_CUSTOM_DOMAIN
+        else f"https://{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{AWS_LOCATION}/"
+    )
+
+    # AWS CloudFront settings
+    AWS_CLOUDFRONT_DOMAIN = env("AWS_CLOUDFRONT_DOMAIN", default=None)
+    if AWS_CLOUDFRONT_DOMAIN:
+        MEDIA_URL = f"https://{AWS_CLOUDFRONT_DOMAIN}/{AWS_LOCATION}/"
 
 STATIC_ROOT = str(ROOT_DIR / "staticfiles")
 STATIC_URL = "/static/"

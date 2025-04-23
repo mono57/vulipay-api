@@ -13,6 +13,7 @@ from .hashers import (
 )
 from .models import AppModel
 from .network_carrier import get_carrier
+from .storage import ProfilePictureStorage
 from .twilio_client import MessageClient
 
 __all__ = [
@@ -32,4 +33,5 @@ __all__ = [
     "make_pin",
     "check_pin",
     "AppAmountField",
+    "ProfilePictureStorage",
 ]

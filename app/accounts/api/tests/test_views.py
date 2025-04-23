@@ -199,11 +199,22 @@ class UserProfilePictureUpdateViewTestCase(APITestCase):
 
         self.user.refresh_from_db()
         self.assertIsNotNone(self.user.profile_picture)
-        self.assertTrue(self.user.profile_picture.name.startswith("profile_pictures/"))
 
-        # Clean up the file
-        if os.path.exists(self.user.profile_picture.path):
-            os.remove(self.user.profile_picture.path)
+        # Check the filename follows our expected format (profile_pictures/ directory)
+        file_path_parts = self.user.profile_picture.name.split("/")
+        self.assertEqual(file_path_parts[0], "profile_pictures")
+
+        # If using local storage, clean up the file
+        from django.conf import settings
+
+        if not getattr(settings, "USE_S3_STORAGE", False):
+            try:
+                # Clean up the file if it exists locally
+                if os.path.exists(self.user.profile_picture.path):
+                    os.remove(self.user.profile_picture.path)
+            except NotImplementedError:
+                # S3 storage doesn't support path, so we'll skip this
+                pass
 
     def test_it_should_require_authentication(self):
         payload = {"profile_picture": self.test_image}

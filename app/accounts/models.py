@@ -7,7 +7,13 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from app.accounts.managers import UserManager
-from app.core.utils import AppCharField, AppModel, check_pin, make_pin
+from app.core.utils import (
+    AppCharField,
+    AppModel,
+    ProfilePictureStorage,
+    check_pin,
+    make_pin,
+)
 
 
 def compute_next_attempt_time(count) -> datetime.datetime:
@@ -32,6 +38,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     full_name = AppCharField(_("Full name"), max_length=150, null=True, blank=True)
     profile_picture = models.ImageField(
         upload_to="profile_pictures/",
+        storage=ProfilePictureStorage(),
         null=True,
         blank=True,
         help_text=_("User's profile picture"),

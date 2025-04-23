@@ -135,11 +135,22 @@ class UserModelTestCase(TestCase):
 
             # Check that the profile picture is saved and accessible
             self.assertIsNotNone(user.profile_picture)
-            self.assertIn("profile_pictures", user.profile_picture.path)
 
-            # Check that the file exists on the filesystem
-            self.assertTrue(os.path.exists(user.profile_picture.path))
+            # Check the filename follows our expected format (profile_pictures/ directory and UUID-like name)
+            file_path_parts = user.profile_picture.name.split("/")
+            self.assertEqual(file_path_parts[0], "profile_pictures")
 
-            # Clean up the test file
-            if os.path.exists(user.profile_picture.path):
-                os.remove(user.profile_picture.path)
+            # If we're using local storage, the file should exist on the filesystem
+            from django.conf import settings
+
+            if not getattr(settings, "USE_S3_STORAGE", False):
+                try:
+                    # Check if file exists on filesystem (only for local storage)
+                    self.assertTrue(os.path.exists(user.profile_picture.path))
+
+                    # Clean up the test file
+                    if os.path.exists(user.profile_picture.path):
+                        os.remove(user.profile_picture.path)
+                except NotImplementedError:
+                    # S3 storage doesn't support path, so we'll skip this check
+                    pass

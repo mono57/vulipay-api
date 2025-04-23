@@ -176,4 +176,8 @@ class UserProfilePictureSerializerTestCase(TestCase):
     def tearDown(self):
         # Clean up any uploaded files
         if self.user.profile_picture:
-            self.user.profile_picture.delete()
+            try:
+                self.user.profile_picture.delete()
+            except (AttributeError, NotImplementedError):
+                # Handle S3 storage errors gracefully
+                pass

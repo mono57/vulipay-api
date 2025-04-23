@@ -38,6 +38,32 @@ EMAIL_BACKEND = env(
     "DJANGO_EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend"
 )
 
+# AWS S3 and CloudFront settings
+# For local development, you can enable these to test S3 integration
+# Or leave them disabled to use local file storage
+USE_S3_STORAGE = env.bool(
+    "USE_S3_STORAGE", default=False
+)  # Set to True to test S3 storage
+
+# If enabling S3 storage locally, configure these with your credentials
+if USE_S3_STORAGE:
+    # Add django-storages to INSTALLED_APPS
+    INSTALLED_APPS += ["storages"]
+
+    # AWS credentials
+    AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID", default="")
+    AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY", default="")
+
+    # S3 settings
+    AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME", default="")
+    AWS_S3_REGION_NAME = env("AWS_S3_REGION_NAME", default="us-east-1")
+
+    # CloudFront settings (if using)
+    AWS_CLOUDFRONT_DOMAIN = env("AWS_CLOUDFRONT_DOMAIN", default=None)
+
+    # For development, you might want to set this to False to avoid creating public files
+    AWS_DEFAULT_ACL = env("AWS_DEFAULT_ACL", default="public-read")
+
 # WhiteNoise
 
 # INSTALLED_APPS = ["whitenoise.runserver_nostatic"] + INSTALLED_APPS
