@@ -8,12 +8,15 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from app.accounts.api.serializers import (
     CountrySerializer,
+    ProfilePictureConfirmationSerializer,
+    ProfilePicturePresignedUrlSerializer,
     UserFullNameUpdateSerializer,
     UserPINSetupSerializer,
     UserProfilePictureSerializer,
 )
 from app.accounts.cache import get_cache_stats
 from app.accounts.models import AvailableCountry
+from app.core.utils import ProfilePictureStorage
 
 
 @extend_schema(
@@ -50,6 +53,98 @@ class UserProfilePictureUpdateView(generics.UpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+@extend_schema(
+    tags=["Accounts"],
+    operation_id="get_profile_picture_presigned_url",
+    description="Get a presigned URL for direct upload of a profile picture",
+    responses={
+        200: OpenApiResponse(
+            description="Presigned URL generated successfully",
+            response={
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string"},
+                    "fields": {"type": "object"},
+                    "file_key": {"type": "string"},
+                    "method": {"type": "string", "example": "POST"},
+                },
+            },
+        ),
+        400: OpenApiResponse(description="Invalid file type or extension"),
+        503: OpenApiResponse(description="Storage service unavailable"),
+    },
+    request=ProfilePicturePresignedUrlSerializer,
+)
+class ProfilePicturePresignedUrlView(generics.GenericAPIView):
+    serializer_class = ProfilePicturePresignedUrlSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        file_extension = serializer.validated_data["file_extension"]
+        content_type = serializer.validated_data["content_type"]
+
+        storage = ProfilePictureStorage()
+
+        presigned_data = storage.generate_presigned_url(
+            file_extension=file_extension, content_type=content_type
+        )
+
+        if not presigned_data:
+            return Response(
+                {"detail": "Failed to generate presigned URL"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return Response(presigned_data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=["Accounts"],
+    operation_id="confirm_profile_picture_upload",
+    description="Confirm the upload of a profile picture and update the user's profile",
+    responses={
+        200: OpenApiResponse(
+            description="Profile picture updated successfully",
+            response={
+                "type": "object",
+                "properties": {
+                    "detail": {
+                        "type": "string",
+                        "example": "Profile picture updated successfully",
+                    },
+                    "profile_picture_url": {"type": "string"},
+                },
+            },
+        ),
+        400: OpenApiResponse(description="Invalid file key or file not found"),
+    },
+    request=ProfilePictureConfirmationSerializer,
+)
+class ProfilePictureConfirmationView(generics.GenericAPIView):
+    serializer_class = ProfilePictureConfirmationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+        serializer.update(user, serializer.validated_data)
+
+        profile_picture_url = user.profile_picture.url if user.profile_picture else None
+
+        return Response(
+            {
+                "detail": "Profile picture updated successfully",
+                "profile_picture_url": profile_picture_url,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 @extend_schema(

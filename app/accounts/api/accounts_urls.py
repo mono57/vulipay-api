@@ -3,6 +3,8 @@ from django.urls import path
 from app.accounts.api.views import (
     AppTokenRefreshView,
     CountryListView,
+    ProfilePictureConfirmationView,
+    ProfilePicturePresignedUrlView,
     UserFullNameUpdateView,
     UserPINSetupView,
     UserProfilePictureUpdateView,
@@ -20,6 +22,16 @@ urlpatterns = [
         "user/profile-picture",
         UserProfilePictureUpdateView.as_view(),
         name="user_profile_picture_update",
+    ),
+    path(
+        "user/profile-picture/presigned-url",
+        ProfilePicturePresignedUrlView.as_view(),
+        name="profile_picture_presigned_url",
+    ),
+    path(
+        "user/profile-picture/confirm",
+        ProfilePictureConfirmationView.as_view(),
+        name="profile_picture_confirmation",
     ),
     path("token/refresh/", AppTokenRefreshView.as_view(), name="token_refresh"),
     path("countries/", CountryListView.as_view(), name="country_list"),

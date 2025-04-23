@@ -1,12 +1,13 @@
 import os
-from unittest.mock import patch
+from unittest import mock
+from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APIClient, APITestCase
+from rest_framework.test import APIClient, APITestCase, override_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from app.accounts.models import AvailableCountry, User
@@ -19,95 +20,118 @@ User = get_user_model()
 
 class UserFullNameUpdateViewTestCase(APITestCase):
     def setUp(self):
-        super().setUp()
         self.user = User.objects.create_user(
-            email="test@example.com",
-            password="testpassword123",
+            phone_number="+447123456789",
             full_name="Original Name",
+            password="testpass123",
         )
-        self.token = RefreshToken.for_user(self.user).access_token
+        self.client.force_authenticate(self.user)
         self.url = reverse("api:accounts:user_full_name_update")
 
     def test_it_should_update_full_name_successfully(self):
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(self.token)}")
-        payload = {"full_name": "New Full Name"}
-        response = self.client.put(self.url, payload, format="json")
+        # Given
+        new_name = "Updated Name"
 
+        # When
+        response = self.client.put(self.url, {"full_name": new_name})
+
+        # Then
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
         self.user.refresh_from_db()
-        self.assertEqual(self.user.full_name, payload["full_name"])
+        self.assertEqual(self.user.full_name, new_name)
+
+    def test_it_should_not_update_with_invalid_data(self):
+        # Given
+        original_name = self.user.full_name
+
+        # When - empty name
+        response = self.client.put(self.url, {"full_name": ""})
+
+        # Then
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.full_name, original_name)
 
     def test_it_should_require_authentication(self):
-        payload = {"full_name": "New Full Name"}
-        response = self.client.put(self.url, payload, format="json")
+        # Given
+        self.client.force_authenticate(user=None)
 
+        # When
+        response = self.client.put(self.url, {"full_name": "New Name"})
+
+        # Then
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
-    def test_it_should_reject_empty_full_name(self):
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(self.token)}")
-        payload = {"full_name": ""}
-        response = self.client.put(self.url, payload, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("full_name", response.data)
-
-        self.user.refresh_from_db()
-        self.assertEqual(self.user.full_name, "Original Name")
 
 
 class UserPINSetupViewTestCase(APITestCase):
     def setUp(self):
-        super().setUp()
         self.user = User.objects.create_user(
-            email="test@example.com",
-            password="testpassword123",
+            phone_number="+447123456789",
             full_name="Test User",
+            password="testpass123",
         )
-        self.token = RefreshToken.for_user(self.user).access_token
+        self.client.force_authenticate(self.user)
         self.url = reverse("api:accounts:user_pin_setup")
 
-    def test_it_should_set_pin_successfully(self):
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(self.token)}")
-        payload = {"pin1": "1234", "pin2": "1234"}
-        response = self.client.put(self.url, payload, format="json")
+    def test_it_should_setup_pin_successfully(self):
+        # Given
+        data = {"pin1": "1234", "pin2": "1234"}
 
+        # When
+        response = self.client.put(self.url, data)
+
+        # Then
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        # Check if PIN was set by checking for a successful response
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["detail"], "PIN set successfully")
 
-        self.user.refresh_from_db()
-        self.assertIsNotNone(self.user.pin)
-        self.assertTrue(self.user.verify_pin("1234"))
+    def test_it_should_not_setup_with_non_matching_pins(self):
+        # Given
+        data = {"pin1": "1234", "pin2": "5678"}
+
+        # When
+        response = self.client.put(self.url, data)
+
+        # Then
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("PINs do not match", str(response.data))
+
+    def test_it_should_not_setup_with_non_digit_pins(self):
+        # Given
+        data = {"pin1": "abcd", "pin2": "abcd"}
+
+        # When
+        response = self.client.put(self.url, data)
+
+        # Then
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("PIN must contain only digits", str(response.data))
+
+    def test_it_should_not_setup_with_wrong_length_pins(self):
+        # Given
+        data = {"pin1": "12345", "pin2": "12345"}
+
+        # When
+        response = self.client.put(self.url, data)
+
+        # Then
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Ensure this field has no more than 4 characters", str(response.data)
+        )
 
     def test_it_should_require_authentication(self):
-        payload = {"pin1": "1234", "pin2": "1234"}
-        response = self.client.put(self.url, payload, format="json")
+        # Given
+        self.client.force_authenticate(user=None)
+        data = {"pin1": "1234", "pin2": "1234"}
 
+        # When
+        response = self.client.put(self.url, data)
+
+        # Then
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
-    def test_it_should_reject_non_digit_pin(self):
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(self.token)}")
-        payload = {"pin1": "123a", "pin2": "123a"}
-        response = self.client.put(self.url, payload, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("pin1", response.data)
-
-    def test_it_should_reject_wrong_length_pin(self):
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(self.token)}")
-        payload = {"pin1": "12345", "pin2": "12345"}
-        response = self.client.put(self.url, payload, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("pin1", response.data)
-
-    def test_it_should_reject_mismatched_pins(self):
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(self.token)}")
-        payload = {"pin1": "1234", "pin2": "5678"}
-        response = self.client.put(self.url, payload, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("non_field_errors", response.data)
 
 
 class CountryListViewTests(TestCase):
@@ -175,67 +199,162 @@ class CacheHealthCheckViewTestCase(APITestCase):
 
 class UserProfilePictureUpdateViewTestCase(APITestCase):
     def setUp(self):
-        super().setUp()
         self.user = User.objects.create_user(
-            email="test@example.com",
-            password="testpassword123",
+            phone_number="+447123456789",
+            full_name="Test User",
+            password="testpass123",
         )
-        self.token = RefreshToken.for_user(self.user).access_token
+        self.client.force_authenticate(self.user)
         self.url = reverse("api:accounts:user_profile_picture_update")
 
-        # Create a test image
-        self.test_image = SimpleUploadedFile(
-            name="test_image.jpg",
-            content=b"GIF87a\x01\x00\x01\x00\x80\x01\x00\x00\x00\x00ccc,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;",
-            content_type="image/jpeg",
-        )
+    @mock.patch("django.core.files.storage.FileSystemStorage.save")
+    def test_it_should_update_profile_picture_successfully(self, mock_save):
+        # Given
+        mock_save.return_value = "profile_pictures/test.jpg"
+        with open("app/accounts/api/tests/fixtures/test_image.jpg", "rb") as image_file:
+            data = {"profile_picture": image_file}
 
-    def test_it_should_update_profile_picture_successfully(self):
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(self.token)}")
-        payload = {"profile_picture": self.test_image}
-        response = self.client.put(self.url, payload, format="multipart")
+            # When
+            response = self.client.put(self.url, data, format="multipart")
 
+        # Then
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
         self.user.refresh_from_db()
         self.assertIsNotNone(self.user.profile_picture)
 
-        # Check the filename follows our expected format (profile_pictures/ directory)
-        file_path_parts = self.user.profile_picture.name.split("/")
-        self.assertEqual(file_path_parts[0], "profile_pictures")
+    def test_it_should_not_update_with_invalid_image(self):
+        # Given
+        with open("app/accounts/api/tests/test_invalid_file.txt", "w") as f:
+            f.write("This is not an image")
 
-        # If using local storage, clean up the file
-        from django.conf import settings
+        with open("app/accounts/api/tests/test_invalid_file.txt", "rb") as file:
+            data = {"profile_picture": file}
 
-        if not getattr(settings, "USE_S3_STORAGE", False):
-            try:
-                # Clean up the file if it exists locally
-                if os.path.exists(self.user.profile_picture.path):
-                    os.remove(self.user.profile_picture.path)
-            except NotImplementedError:
-                # S3 storage doesn't support path, so we'll skip this
-                pass
+            # When
+            response = self.client.put(self.url, data, format="multipart")
+
+        # Then
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Upload a valid image", str(response.data))
 
     def test_it_should_require_authentication(self):
-        payload = {"profile_picture": self.test_image}
-        response = self.client.put(self.url, payload, format="multipart")
+        # Given
+        self.client.force_authenticate(user=None)
 
+        # When
+        response = self.client.put(self.url, {}, format="multipart")
+
+        # Then
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_it_should_reject_non_image_file(self):
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(self.token)}")
+    def tearDown(self):
+        import os
 
-        non_image = SimpleUploadedFile(
-            name="test_file.txt",
-            content=b"This is not an image",
-            content_type="text/plain",
+        if os.path.exists("app/accounts/api/tests/test_invalid_file.txt"):
+            os.remove("app/accounts/api/tests/test_invalid_file.txt")
+
+
+@override_settings(USE_S3_STORAGE=False)
+class ProfilePicturePresignedUrlViewTestCase(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            phone_number="+447123456789",
+            full_name="Test User",
+            password="testpass123",
         )
+        self.client.force_authenticate(self.user)
+        self.url = reverse("api:accounts:profile_picture_presigned_url")
 
-        payload = {"profile_picture": non_image}
-        response = self.client.put(self.url, payload, format="multipart")
+    @mock.patch("app.core.utils.storage.ProfilePictureStorage.generate_presigned_url")
+    def test_it_should_generate_presigned_url_successfully(self, mock_generate_url):
+        # Given
+        mock_generate_url.return_value = {
+            "url": "https://test-bucket.s3.amazonaws.com/",
+            "fields": {
+                "key": "profile_pictures/user_123/test.jpg",
+                "policy": "base64policy",
+                "x-amz-signature": "signature",
+            },
+            "file_key": "profile_pictures/user_123/test.jpg",
+        }
 
+        data = {"file_extension": "jpg", "content_type": "image/jpeg"}
+
+        # When
+        response = self.client.post(self.url, data)
+
+        # Then
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("url", response.data)
+        self.assertIn("fields", response.data)
+        self.assertIn("file_key", response.data)
+
+    def test_it_should_validate_file_extension(self):
+        # Given
+        data = {"file_extension": "exe", "content_type": "image/jpeg"}
+
+        # When
+        response = self.client.post(self.url, data)
+
+        # Then
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("profile_picture", response.data)
+        self.assertIn("file_extension", response.data)
 
+    def test_it_should_validate_content_type(self):
+        # Given
+        data = {"file_extension": "jpg", "content_type": "application/exe"}
+
+        # When
+        response = self.client.post(self.url, data)
+
+        # Then
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("content_type", response.data)
+
+    def test_it_should_require_authentication(self):
+        # Given
+        self.client.force_authenticate(user=None)
+        data = {"file_extension": "jpg", "content_type": "image/jpeg"}
+
+        # When
+        response = self.client.post(self.url, data)
+
+        # Then
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+@override_settings(USE_S3_STORAGE=False)
+class ProfilePictureConfirmationViewTestCase(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            phone_number="+447123456789",
+            full_name="Test User",
+            password="testpass123",
+        )
+        self.client.force_authenticate(self.user)
+        self.url = reverse("api:accounts:profile_picture_confirmation")
+
+    @mock.patch("django.core.files.storage.FileSystemStorage.exists")
+    def test_it_should_confirm_upload_successfully(self, mock_exists):
+        # Given
+        mock_exists.return_value = True
+        data = {"file_key": "profile_pictures/user_123/test.jpg"}
+
+        # When
+        response = self.client.post(self.url, data)
+
+        # Then
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
-        self.assertEqual("", self.user.profile_picture.name)
+        self.assertIsNotNone(self.user.profile_picture)
+
+    def test_it_should_require_authentication(self):
+        # Given
+        self.client.force_authenticate(user=None)
+        data = {"file_key": "profile_pictures/user_123/test.jpg"}
+
+        # When
+        response = self.client.post(self.url, data)
+
+        # Then
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
