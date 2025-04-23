@@ -1,3 +1,5 @@
+import logging
+
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
@@ -5,6 +7,7 @@ from rest_framework import serializers
 from app.accounts.models import AvailableCountry
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 class UserFullNameUpdateSerializer(serializers.ModelSerializer):
@@ -38,6 +41,38 @@ class UserProfilePictureSerializer(serializers.ModelSerializer):
                 )
 
         return value
+
+    def update(self, instance, validated_data):
+        if "profile_picture" in validated_data and instance.profile_picture:
+            old_picture_name = instance.profile_picture.name
+            instance = super().update(instance, validated_data)
+
+            if old_picture_name and instance.profile_picture.name != old_picture_name:
+                try:
+                    storage = instance.profile_picture.storage
+                    storage_type = storage.__class__.__name__
+
+                    if hasattr(storage, "exists") and hasattr(storage, "delete"):
+                        if storage.exists(old_picture_name):
+                            storage.delete(old_picture_name)
+                            logger.info(
+                                f"Deleted old profile picture: {old_picture_name}"
+                            )
+                        else:
+                            logger.warning(
+                                f"Old profile picture not found: {old_picture_name}"
+                            )
+                    else:
+                        logger.info(
+                            f"Skipping deletion for storage type: {storage_type}"
+                        )
+
+                except Exception as e:
+                    logger.error(f"Error deleting old profile picture: {e}")
+        else:
+            instance = super().update(instance, validated_data)
+
+        return instance
 
 
 class UserPINSetupSerializer(serializers.Serializer):
