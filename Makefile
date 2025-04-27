@@ -16,8 +16,19 @@ down:
 	docker compose -f local.yml down
 
 # View logs
+# Usage:
+#   make logs           # View logs for all services
+#   make logs srv=<service>  # View logs for a specific service
+# Examples:
+#   make logs           # View all logs
+#   make logs srv=django     # View logs for the django service
+#   make logs srv=db         # View logs for the database service
 logs:
-	docker compose -f local.yml logs -f
+	@if [ -z "$(srv)" ]; then \
+		docker compose -f local.yml logs -f; \
+	else \
+		docker compose -f local.yml logs -f $(srv); \
+	fi
 
 # Open shell in django container
 shell:
