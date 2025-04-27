@@ -11,49 +11,27 @@ class OTPDeliveryChannel(ABC):
 
     @abstractmethod
     def send(self, recipient: str, code: str) -> bool:
-        """
-        Send the OTP code to the recipient.
-
-        Args:
-            recipient: The recipient identifier (phone number, email, etc.)
-            code: The OTP code to send
-
-        Returns:
-            bool: True if sending was successful, False otherwise
-        """
         pass
 
 
 class SMSDeliveryChannel(OTPDeliveryChannel):
-    """SMS delivery channel for OTP codes."""
-
     def send(self, recipient: str, code: str) -> bool:
-        """
-        Send the OTP code via SMS.
-
-        Args:
-            recipient: The phone number to send to
-            code: The OTP code to send
-
-        Returns:
-            bool: True if sending was successful, False otherwise
-        """
         try:
-            # Here you would integrate with your SMS provider
-            # For example, using Twilio:
             if hasattr(settings, "TWILIO_ENABLED") and settings.TWILIO_ENABLED:
+                from twilio.base.exceptions import TwilioRestException
                 from twilio.rest import Client
 
                 client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+
                 message = client.messages.create(
-                    body=f"Your verification code is: {code}",
+                    body=f"Your Vulipay verification code is: {code}",
                     from_=settings.TWILIO_PHONE_NUMBER,
                     to=recipient,
                 )
                 logger.info(f"SMS sent to {recipient}, SID: {message.sid}")
                 return True
             else:
-                # For development, just log the code
+                # For development, just log the code when Twilio is not enabled
                 logger.info(f"[DEVELOPMENT] SMS OTP for {recipient}: {code}")
                 return True
         except Exception as e:

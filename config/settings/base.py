@@ -277,3 +277,9 @@ SPECTACULAR_SETTINGS = {
     },
     "TERMS_OF_SERVICE": "https://www.vulipay.com/terms/",
 }
+
+# Twilio Configuration (for SMS OTP)
+TWILIO_ENABLED = env.bool("TWILIO_ENABLED", default=False)
+TWILIO_ACCOUNT_SID = env("TWILIO_ACCOUNT_SID", default="")
+TWILIO_AUTH_TOKEN = env("TWILIO_AUTH_TOKEN", default="")
+TWILIO_PHONE_NUMBER = env("TWILIO_PHONE_NUMBER", default="")

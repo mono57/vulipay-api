@@ -1,9 +1,11 @@
 import datetime
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
-from django.test import TestCase
+from django.conf import settings
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
+from app.verify.delivery_channels import SMSDeliveryChannel
 from app.verify.models import OTP, OTPWaitingPeriodError
 
 
@@ -161,3 +163,68 @@ class OTPManagerTestCase(TestCase):
         self.assertFalse(new_otp.is_used)
         self.assertFalse(new_otp.is_expired)
         self.assertGreater(new_otp.expires_at, timezone.now())
+
+
+class TwilioSMSTests(TestCase):
+    def setUp(self):
+        self.phone_number = "+12345678901"
+        self.code = "123456"
+        self.otp = OTP.objects.create(
+            identifier=self.phone_number,
+            code=self.code,
+            channel="sms",
+            expires_at=timezone.now() + timezone.timedelta(minutes=10),
+        )
+
+    @override_settings(TWILIO_ENABLED=True, TWILIO_PHONE_NUMBER="+15551234567")
+    @patch("twilio.rest.Client")
+    def test_send_sms_with_twilio(self, mock_client):
+        # Mocking the Twilio client and its methods
+        mock_messages = MagicMock()
+        mock_message = MagicMock()
+        mock_message.sid = "SM123456"
+        mock_messages.create.return_value = mock_message
+
+        mock_client_instance = MagicMock()
+        mock_client_instance.messages = mock_messages
+        mock_client.return_value = mock_client_instance
+
+        # Create SMS channel and send OTP
+        sms_channel = SMSDeliveryChannel()
+        result = sms_channel.send(self.phone_number, self.code)
+
+        # Assert Twilio SMS API was called
+        self.assertTrue(result)
+        mock_messages.create.assert_called_once_with(
+            body=f"Your Vulipay verification code is: {self.code}",
+            from_=settings.TWILIO_PHONE_NUMBER,
+            to=self.phone_number,
+        )
+
+    @override_settings(TWILIO_ENABLED=False)
+    def test_send_sms_without_twilio(self):
+        # Create SMS channel and send OTP in development mode
+        sms_channel = SMSDeliveryChannel()
+        result = sms_channel.send(self.phone_number, self.code)
+
+        # Should succeed without calling Twilio
+        self.assertTrue(result)
+
+    def test_verify_otp(self):
+        # Just test standard OTP verification
+        result = self.otp.verify(self.code)
+        self.assertTrue(result)
+        self.assertTrue(self.otp.is_used)
+        self.assertIsNotNone(self.otp.used_at)
+
+        # Test verification with wrong code
+        wrong_otp = OTP.objects.create(
+            identifier=self.phone_number,
+            code="654321",
+            channel="sms",
+            expires_at=timezone.now() + timezone.timedelta(minutes=10),
+        )
+        result = wrong_otp.verify(self.code)
+        self.assertFalse(result)
+        self.assertFalse(wrong_otp.is_used)
+        self.assertIsNone(wrong_otp.used_at)

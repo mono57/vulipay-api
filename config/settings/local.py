@@ -47,8 +47,9 @@ USE_S3_STORAGE = env.bool(
 
 # If enabling S3 storage locally, configure these with your credentials
 if USE_S3_STORAGE:
-    # Add django-storages to INSTALLED_APPS
-    INSTALLED_APPS += ["storages"]
+    # Add django-storages to INSTALLED_APPS if not already added in base settings
+    if "storages" not in INSTALLED_APPS:
+        INSTALLED_APPS += ["storages"]
 
     # AWS credentials
     AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID", default="")
@@ -87,3 +88,11 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(days=5),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=10),
 }
+
+# Twilio configuration for local development
+TWILIO_ENABLED = env.bool(
+    "TWILIO_ENABLED", default=False
+)  # Set to True to enable Twilio
+TWILIO_ACCOUNT_SID = env("TWILIO_ACCOUNT_SID", default="")
+TWILIO_AUTH_TOKEN = env("TWILIO_AUTH_TOKEN", default="")
+TWILIO_PHONE_NUMBER = env("TWILIO_PHONE_NUMBER", default="")
