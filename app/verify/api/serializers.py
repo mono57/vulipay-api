@@ -155,7 +155,7 @@ class VerifyOTPSerializer(serializers.Serializer):
                         "full_name": user.full_name,
                         "email": user.email,
                         "phone_number": user.phone_number,
-                        "country": user.country.name if user.country else None,
+                        "country": user.country.name,
                         "profile_picture": (
                             user.profile_picture.url if user.profile_picture else None
                         ),

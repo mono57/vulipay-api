@@ -7,8 +7,6 @@ logger = logging.getLogger(__name__)
 
 
 class OTPDeliveryChannel(ABC):
-    """Abstract base class for OTP delivery channels."""
-
     @abstractmethod
     def send(self, recipient: str, code: str) -> bool:
         pass
@@ -70,32 +68,37 @@ class EmailDeliveryChannel(OTPDeliveryChannel):
 
 
 class WhatsAppDeliveryChannel(OTPDeliveryChannel):
-    """WhatsApp delivery channel for OTP codes."""
+    _TWILIO_PHONE_PREFIX = "whatsapp:"
 
     def send(self, recipient: str, code: str) -> bool:
-        """
-        Send the OTP code via WhatsApp.
-
-        Args:
-            recipient: The phone number to send to
-            code: The OTP code to send
-
-        Returns:
-            bool: True if sending was successful, False otherwise
-        """
         try:
-            # Here you would integrate with WhatsApp Business API
-            # For development, just log the code
-            logger.info(f"[DEVELOPMENT] WhatsApp OTP for {recipient}: {code}")
-            return True
+            if hasattr(settings, "TWILIO_ENABLED") and settings.TWILIO_ENABLED:
+                from twilio.rest import Client
+
+                client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+
+                whatsapp_to = f"{self._TWILIO_PHONE_PREFIX}{recipient}"
+                whatsapp_from = (
+                    f"{self._TWILIO_PHONE_PREFIX}{settings.TWILIO_PHONE_NUMBER}"
+                )
+
+                message = client.messages.create(
+                    body=f"Your Vulipay verification code is: {code}",
+                    to=whatsapp_to,
+                    from_=whatsapp_from,
+                )
+                logger.info(f"WhatsApp message sent to {recipient}, SID: {message.sid}")
+                return True
+            else:
+                logger.info(f"[DEVELOPMENT] WhatsApp OTP for {recipient}: {code}")
+                return True
         except Exception as e:
             logger.error(f"Failed to send WhatsApp message to {recipient}: {str(e)}")
             return False
 
 
-# Factory for delivery channels
 DELIVERY_CHANNELS = {
-    "sms": SMSDeliveryChannel(),
+    "sms": WhatsAppDeliveryChannel(),
     "email": EmailDeliveryChannel(),
     "whatsapp": WhatsAppDeliveryChannel(),
 }

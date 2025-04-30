@@ -14,12 +14,10 @@ from .hashers import (
 from .models import AppModel
 from .network_carrier import get_carrier
 from .storage import ProfilePictureStorage
-from .twilio_client import MessageClient
 
 __all__ = [
     "generate_code",
     "AppModelAdmin",
-    "MessageClient",
     "AppCharField",
     "AppModel",
     "get_carrier",
