@@ -2,8 +2,10 @@ import os
 
 from twilio.rest import Client
 
+
 class MessageClient:
     _BODY_VIRIFICATION = "Your vefirification code is {0}"
+    _TWILIO_PHONE_PREFIX = "whatsapp:"
 
     @classmethod
     def send_message(cls, body, to):
@@ -13,10 +15,13 @@ class MessageClient:
 
         twilio_client = Client(account_ssid, auth_token)
 
+        _to = f"{cls._TWILIO_PHONE_PREFIX}{to}"
+        _from = f"{cls._TWILIO_PHONE_PREFIX}{sender}"
+
         message = twilio_client.messages.create(
             body=body,
-            to=to,
-            from_=sender,
+            to=_to,
+            from_=_from,
         )
 
         return message
