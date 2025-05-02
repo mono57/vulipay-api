@@ -191,3 +191,52 @@ class VerifyOTPSerializer(serializers.Serializer):
                     "success": False,
                     "message": f"Invalid code. {remaining_attempts} attempts remaining.",
                 }
+
+
+class AccountRecoverySerializer(serializers.Serializer):
+    phone_number = serializers.CharField(
+        required=True, help_text="Phone number to recover the account"
+    )
+    country_dial_code = serializers.CharField(
+        required=True, help_text="Dial code of the country"
+    )
+
+    def validate(self, attrs):
+        try:
+            identifier = f"+{attrs['country_dial_code']}{attrs['phone_number']}"
+            user = User.objects.get(phone_number=identifier)
+
+            if not user.email:
+                raise serializers.ValidationError(
+                    _(
+                        "No email address associated with this account. Please contact support."
+                    )
+                )
+
+            attrs["user_email"] = user.email
+            return attrs
+
+        except User.DoesNotExist:
+            raise serializers.ValidationError(
+                _("No account found with this phone number.")
+            )
+
+    def recover_account(self):
+        result = OTP.generate(self.validated_data["user_email"], channel="email")
+
+        if result["success"]:
+            email_parts = self.validated_data["user_email"].split("@")
+            username = email_parts[0]
+            domain = email_parts[1]
+
+            masked_username = username[:2] + "*" * (len(username) - 2)
+            masked_email = f"{masked_username}@{domain}"
+
+            return {
+                "success": True,
+                "message": _("Recovery code sent to your email address."),
+                "masked_email": masked_email,
+                "expires_at": result["expires_at"],
+            }
+        else:
+            return {"success": False, "message": result["message"]}

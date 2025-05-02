@@ -6,7 +6,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from app.accounts.models import AvailableCountry
+from app.accounts.models import AvailableCountry, User
 from app.verify.models import OTP, OTPWaitingPeriodError
 
 
@@ -270,3 +270,115 @@ class VerifyOTPViewTestCase(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(response.data["success"])
+
+
+class AccountRecoveryViewTestCase(APITestCase):
+    def setUp(self):
+        self.url = reverse("api:verify:recover_account")
+        self.country_data = {
+            "name": "Cameroon",
+            "dial_code": "237",
+            "iso_code": "CM",
+            "phone_number_regex": "",
+        }
+        self.country = AvailableCountry.objects.create(**self.country_data)
+
+        self.valid_data = {
+            "phone_number": "698765432",
+            "country_dial_code": "237",
+        }
+
+        # Create a test user with email
+        self.user = User.objects.create_user(
+            phone_number="+237698765432",
+            email="test@example.com",
+            password="testpass123",
+        )
+
+    @patch("app.verify.models.OTP.generate")
+    def test_recover_account_success(self, mock_generate):
+        mock_otp = OTP(
+            identifier="test@example.com",
+            code="123456",
+            channel="email",
+            expires_at=timezone.now() + datetime.timedelta(minutes=10),
+        )
+
+        mock_generate.return_value = {
+            "success": True,
+            "message": "Verification code sent to test@example.com via email.",
+            "otp": mock_otp,
+            "expires_at": mock_otp.expires_at,
+        }
+
+        response = self.client.post(self.url, self.valid_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["success"])
+        self.assertEqual(response.data["masked_email"], "te**@example.com")
+        self.assertIn("expires_at", response.data)
+        mock_generate.assert_called_once_with("test@example.com", channel="email")
+
+    def test_recover_account_invalid_data(self):
+        # Missing phone_number
+        response = self.client.post(
+            self.url,
+            {"country_dial_code": "237"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.data["success"])
+        self.assertIn("phone_number", response.data["errors"])
+
+        # Missing country_dial_code
+        response = self.client.post(
+            self.url,
+            {"phone_number": "698765432"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.data["success"])
+        self.assertIn("country_dial_code", response.data["errors"])
+
+    def test_recover_account_user_not_found(self):
+        data = self.valid_data.copy()
+        data["phone_number"] = "123456789"
+
+        response = self.client.post(self.url, data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.data["success"])
+        self.assertEqual(
+            response.data["message"], "No account found with this phone number."
+        )
+
+    def test_recover_account_no_email(self):
+        user = User.objects.create_user(
+            phone_number="+237123456789",
+            password="testpass123",
+        )
+
+        data = self.valid_data.copy()
+        data["phone_number"] = "123456789"
+
+        response = self.client.post(self.url, data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.data["success"])
+        self.assertEqual(
+            response.data["message"],
+            "No email address associated with this account. Please contact support.",
+        )
+
+    @patch("app.verify.models.OTP.generate")
+    def test_recover_account_otp_generation_failure(self, mock_generate):
+        mock_generate.return_value = {
+            "success": False,
+            "message": "Failed to send verification code.",
+        }
+
+        response = self.client.post(self.url, self.valid_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.data["success"])
+        self.assertEqual(response.data["message"], "Failed to send verification code.")
