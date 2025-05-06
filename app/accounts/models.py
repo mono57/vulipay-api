@@ -43,6 +43,12 @@ class User(AbstractBaseUser, PermissionsMixin):
         blank=True,
         help_text=_("User's profile picture"),
     )
+    preferences = models.JSONField(
+        _("User Preferences"),
+        default=dict,
+        blank=True,
+        help_text=_("User preferences stored as JSON"),
+    )
     country = models.ForeignKey(
         "AvailableCountry",
         on_delete=models.SET_NULL,

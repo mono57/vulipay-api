@@ -154,3 +154,26 @@ class UserModelTestCase(TestCase):
                 except NotImplementedError:
                     # S3 storage doesn't support path, so we'll skip this check
                     pass
+
+    def test_user_preferences(self):
+        """Test that user preferences are stored and retrieved correctly"""
+        # Test default empty preferences
+        user = UserFactory.create()
+        self.assertEqual(user.preferences, {})
+
+        # Test setting preferences
+        test_preferences = {
+            "theme": "dark",
+            "notifications": {"email": True, "push": False},
+            "language": "en",
+        }
+        user.preferences = test_preferences
+        user.save()
+
+        # Refresh from database and verify
+        user.refresh_from_db()
+        self.assertEqual(user.preferences, test_preferences)
+        self.assertEqual(user.preferences["theme"], "dark")
+        self.assertEqual(user.preferences["notifications"]["email"], True)
+        self.assertEqual(user.preferences["notifications"]["push"], False)
+        self.assertEqual(user.preferences["language"], "en")
