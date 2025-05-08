@@ -807,3 +807,23 @@ class TransactionListAPIViewTests(APITestCase):
         self.client.force_authenticate(user=None)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_signed_amount_in_transactions(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        for transaction in response.data["results"]:
+            if transaction["id"] == self.outgoing_transaction.id:
+                self.assertEqual(
+                    transaction["signed_amount"], -self.outgoing_transaction.amount
+                )
+
+            elif transaction["id"] == self.incoming_transaction.id:
+                self.assertEqual(
+                    transaction["signed_amount"], self.incoming_transaction.amount
+                )
+
+            elif transaction["id"] == self.cash_in_transaction.id:
+                self.assertEqual(
+                    transaction["signed_amount"], self.cash_in_transaction.amount
+                )

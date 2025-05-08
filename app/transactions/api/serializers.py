@@ -410,6 +410,9 @@ class TransactionSerializer(serializers.ModelSerializer):
         source="payment_method.id", read_only=True, allow_null=True
     )
     transaction_date = serializers.DateTimeField(source="created_on", read_only=True)
+    signed_amount = serializers.SerializerMethodField(
+        help_text=_("Amount with sign indicating debit or credit")
+    )
 
     class Meta:
         model = Transaction
@@ -417,6 +420,7 @@ class TransactionSerializer(serializers.ModelSerializer):
             "id",
             "reference",
             "amount",
+            "signed_amount",
             "charged_amount",
             "calculated_fee",
             "status",
@@ -428,6 +432,22 @@ class TransactionSerializer(serializers.ModelSerializer):
             "transaction_date",
         ]
         read_only_fields = fields
+
+    def get_signed_amount(self, obj):
+        request = self.context.get("request")
+        if request and hasattr(request, "user"):
+            user = request.user
+            if obj.to_wallet and obj.to_wallet.user_id == user.id:
+                return obj.amount
+            elif obj.from_wallet and obj.from_wallet.user_id == user.id:
+                return -obj.amount
+
+        if obj.type == "CI":
+            return obj.amount
+        elif obj.type == "CO":
+            return -obj.amount
+
+        return obj.amount
 
 
 @extend_schema_serializer(component_name="CashInTransaction")
