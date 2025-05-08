@@ -161,14 +161,14 @@ class CountryListViewTests(TestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
-        self.assertEqual(response.data[0]["name"], "Cameroon")
-        self.assertEqual(response.data[1]["name"], "Nigeria")
+        self.assertIn("results", response.data)
+        self.assertEqual(len(response.data["results"]), 2)
+        self.assertEqual(response.data["results"][0]["name"], "Cameroon")
+        self.assertEqual(response.data["results"][1]["name"], "Nigeria")
 
-        # Check that all expected fields are present
         expected_fields = ["id", "name", "dial_code", "iso_code", "currency"]
         for field in expected_fields:
-            self.assertIn(field, response.data[0])
+            self.assertIn(field, response.data["results"][0])
 
 
 class CacheHealthCheckViewTestCase(APITestCase):

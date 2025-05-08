@@ -8,6 +8,7 @@ from app.transactions.api.views import (
     PaymentMethodTypeListAPIView,
     ProcessTransactionAPIView,
     ReceiveFundsPaymentCodeAPIView,
+    TransactionListAPIView,
     UserDataDecryptionAPIView,
 )
 
@@ -53,5 +54,10 @@ urlpatterns = [
         "process",
         ProcessTransactionAPIView.as_view(),
         name="process-transaction",
+    ),
+    path(
+        "list",
+        TransactionListAPIView.as_view(),
+        name="transactions-list",
     ),
 ]

@@ -1,3 +1,4 @@
+import datetime
 import json
 
 from django.urls import reverse
@@ -108,26 +109,27 @@ class PaymentMethodAPITestCase(APITestCase):
         response = self.client.get(self.list_create_url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
+        self.assertIn("results", response.data)
+        self.assertEqual(len(response.data["results"]), 2)
 
-        card_data = next(item for item in response.data if item["type"] == "card")
+        card_data = next(
+            item for item in response.data["results"] if item["type"] == "card"
+        )
         self.assertEqual(
             card_data["masked_card_number"], self.card_payment.masked_card_number
         )
         self.assertTrue(card_data["default_method"])
-        # Check for transaction fees and payment method type name
         self.assertIn("transactions_fees", card_data)
         self.assertIn("payment_method_type_name", card_data)
 
         mobile_data = next(
-            item for item in response.data if item["type"] == "mobile_money"
+            item for item in response.data["results"] if item["type"] == "mobile_money"
         )
         self.assertEqual(mobile_data["provider"], self.mobile_payment.provider)
         self.assertEqual(
             mobile_data["mobile_number"], self.mobile_payment.mobile_number
         )
         self.assertFalse(mobile_data["default_method"])
-        # Check for transaction fees and payment method type name
         self.assertIn("transactions_fees", mobile_data)
         self.assertIn("payment_method_type_name", mobile_data)
 
@@ -225,28 +227,29 @@ class PaymentMethodAPITestCase(APITestCase):
             f"{self.list_create_url}?transaction_type={TransactionType.CashIn}"
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["type"], "card")
+        self.assertIn("results", response.data)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data["results"][0]["type"], "card")
 
-        # Test filtering by P2P (only MTN mobile money should be returned)
         response = self.client.get(
             f"{self.list_create_url}?transaction_type={TransactionType.P2P}"
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["type"], "mobile_money")
+        self.assertIn("results", response.data)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data["results"][0]["type"], "mobile_money")
 
-        # Test filtering by CashOut (both payment methods should be returned)
         response = self.client.get(
             f"{self.list_create_url}?transaction_type={TransactionType.CashOut}"
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
+        self.assertIn("results", response.data)
+        self.assertEqual(len(response.data["results"]), 2)
 
-        # Test with invalid transaction type
         response = self.client.get(f"{self.list_create_url}?transaction_type=INVALID")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)  # Should return all payment methods
+        self.assertIn("results", response.data)
+        self.assertEqual(len(response.data["results"]), 2)
 
     def test_delete_payment_method(self):
         response = self.client.delete(self.detail_url)
@@ -567,10 +570,13 @@ class PaymentMethodTypeAPITestCase(APITestCase):
         response = self.client.get(self.list_url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 5)  # All payment method types
+        self.assertIn("results", response.data)
+        self.assertEqual(len(response.data["results"]), 5)  # All payment method types
 
         # Check that the response includes the expected fields
-        visa_data = next(item for item in response.data if item["name"] == "Visa")
+        visa_data = next(
+            item for item in response.data["results"] if item["name"] == "Visa"
+        )
         self.assertEqual(visa_data["code"], "CARD_VISA")
         self.assertEqual(visa_data["country_name"], "Cameroon")
         self.assertEqual(visa_data["country_code"], "CM")
@@ -585,7 +591,9 @@ class PaymentMethodTypeAPITestCase(APITestCase):
 
         # Check required fields for mobile money payment method type
         mtn_data = next(
-            item for item in response.data if item["name"] == "MTN Mobile Money"
+            item
+            for item in response.data["results"]
+            if item["name"] == "MTN Mobile Money"
         )
         self.assertIn("provider", mtn_data["required_fields"])
         self.assertIn("mobile_number", mtn_data["required_fields"])
@@ -604,7 +612,7 @@ class PaymentMethodTypeAPITestCase(APITestCase):
         # Should only include payment methods for the user's country
         # Count how many are from the user's country
         user_country_count = 0
-        for item in response.data:
+        for item in response.data["results"]:
             if item["country_name"] == "Cameroon":
                 user_country_count += 1
 
@@ -613,7 +621,7 @@ class PaymentMethodTypeAPITestCase(APITestCase):
 
         # There should be no payment method types for other countries
         other_country_count = 0
-        for item in response.data:
+        for item in response.data["results"]:
             if item["country_name"] == "Nigeria":
                 other_country_count += 1
 
@@ -646,7 +654,7 @@ class PaymentMethodTypeAPITestCase(APITestCase):
 
         # Check that the results include payment methods that allow CashIn
         cashin_method_found = False
-        for item in response.data:
+        for item in response.data["results"]:
             if item["code"] == card_payment_type.code:
                 cashin_method_found = True
                 break
@@ -656,7 +664,7 @@ class PaymentMethodTypeAPITestCase(APITestCase):
 
         # Check that P2P-only methods are not included when filtering for CashIn
         p2p_only_method_in_cashin_results = False
-        for item in response.data:
+        for item in response.data["results"]:
             if item["code"] == mobile_payment_type.code:
                 p2p_only_method_in_cashin_results = True
                 break
@@ -673,7 +681,7 @@ class PaymentMethodTypeAPITestCase(APITestCase):
 
         # Check that the results include payment methods that allow P2P
         p2p_method_found = False
-        for item in response.data:
+        for item in response.data["results"]:
             if item["code"] == mobile_payment_type.code:
                 p2p_method_found = True
                 break
@@ -685,4 +693,117 @@ class PaymentMethodTypeAPITestCase(APITestCase):
 
         response = client.get(self.list_url)
 
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class TransactionListAPIViewTests(APITestCase):
+    def setUp(self):
+        self.user = UserFactory.create()
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+        self.wallet = Wallet.objects.create(
+            user=self.user,
+            balance=5000,
+            wallet_type=WalletType.MAIN,
+            currency="XAF",
+        )
+
+        self.other_user = UserFactory.create()
+        self.other_wallet = Wallet.objects.create(
+            user=self.other_user,
+            balance=3000,
+            wallet_type=WalletType.MAIN,
+            currency="XAF",
+        )
+
+        self.outgoing_transaction = Transaction.create_transaction(
+            transaction_type=TransactionType.P2P,
+            amount=1000,
+            status=TransactionStatus.COMPLETED,
+            source_wallet=self.wallet,
+            target_wallet=self.other_wallet,
+            notes="Test outgoing transaction",
+        )
+
+        self.incoming_transaction = Transaction.create_transaction(
+            transaction_type=TransactionType.P2P,
+            amount=500,
+            status=TransactionStatus.COMPLETED,
+            source_wallet=self.other_wallet,
+            target_wallet=self.wallet,
+            notes="Test incoming transaction",
+        )
+
+        # Cash-in transaction
+        self.cash_in_transaction = Transaction.create_transaction(
+            transaction_type=TransactionType.CashIn,
+            amount=2000,
+            status=TransactionStatus.COMPLETED,
+            target_wallet=self.wallet,
+            notes="Test cash-in transaction",
+        )
+
+        self.url = reverse("api:transactions:transactions-list")
+
+    def test_list_transactions(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 3)
+        self.assertEqual(len(response.data["results"]), 3)
+
+        transaction_ids = [t["id"] for t in response.data["results"]]
+        self.assertIn(self.outgoing_transaction.id, transaction_ids)
+        self.assertIn(self.incoming_transaction.id, transaction_ids)
+        self.assertIn(self.cash_in_transaction.id, transaction_ids)
+
+    def test_list_transactions_with_filters(self):
+        response = self.client.get(f"{self.url}?type={TransactionType.P2P}")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 2)
+        self.assertEqual(len(response.data["results"]), 2)
+
+        response = self.client.get(f"{self.url}?type={TransactionType.CashIn}")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data["results"][0]["id"], self.cash_in_transaction.id)
+
+        today = datetime.datetime.now().date().strftime("%Y-%m-%d")
+        response = self.client.get(f"{self.url}?from_date={today}")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_list_transactions_with_pagination(self):
+        for i in range(20):
+            Transaction.create_transaction(
+                transaction_type=TransactionType.P2P,
+                amount=100,
+                status=TransactionStatus.COMPLETED,
+                source_wallet=self.wallet,
+                target_wallet=self.other_wallet,
+                notes=f"Test transaction {i+1}",
+            )
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 23)  # 3 from setup + 20 new ones
+        self.assertEqual(len(response.data["results"]), 20)  # Default page size
+
+        response = self.client.get(f"{self.url}?limit=10")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 23)
+        self.assertEqual(len(response.data["results"]), 10)
+
+        response = self.client.get(f"{self.url}?limit=10&offset=10")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 23)
+        self.assertEqual(len(response.data["results"]), 10)
+
+    def test_unauthenticated_access(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

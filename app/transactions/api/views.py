@@ -1,7 +1,8 @@
+import datetime
 import logging
 from decimal import Decimal
 
-from django.db import transaction
+from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
@@ -551,3 +552,99 @@ class ProcessTransactionAPIView(ValidPINRequiredMixin, APIView):
                     {"detail": _("Error processing transaction")},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
+
+
+@extend_schema(
+    tags=["Transactions"],
+    operation_id="list_transactions",
+    description="List transactions with pagination for lazy loading in mobile app",
+    responses={
+        200: serializers.TransactionSerializer(many=True),
+    },
+    parameters=[
+        OpenApiParameter(
+            name="status",
+            description="Filter by transaction status",
+            required=False,
+            type=str,
+            enum=TransactionStatus.values,
+            location=OpenApiParameter.QUERY,
+        ),
+        OpenApiParameter(
+            name="type",
+            description="Filter by transaction type (P2P, MP, CO, CI)",
+            required=False,
+            type=str,
+            enum=TransactionType.values,
+            location=OpenApiParameter.QUERY,
+        ),
+        OpenApiParameter(
+            name="from_date",
+            description="Filter transactions from this date (YYYY-MM-DD)",
+            required=False,
+            type=str,
+            location=OpenApiParameter.QUERY,
+        ),
+        OpenApiParameter(
+            name="to_date",
+            description="Filter transactions to this date (YYYY-MM-DD)",
+            required=False,
+            type=str,
+            location=OpenApiParameter.QUERY,
+        ),
+        OpenApiParameter(
+            name="limit",
+            description="Number of records to return per page",
+            required=False,
+            type=int,
+            location=OpenApiParameter.QUERY,
+        ),
+        OpenApiParameter(
+            name="offset",
+            description="Starting point for pagination",
+            required=False,
+            type=int,
+            location=OpenApiParameter.QUERY,
+        ),
+    ],
+)
+class TransactionListAPIView(ListAPIView):
+    serializer_class = serializers.TransactionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+
+        user_wallets = Wallet.objects.filter(user=user)
+
+        queryset = Transaction.objects.filter(
+            models.Q(from_wallet__in=user_wallets)
+            | models.Q(to_wallet__in=user_wallets)
+        ).order_by("-created_on")
+
+        status = self.request.query_params.get("status")
+        transaction_type = self.request.query_params.get("type")
+        from_date = self.request.query_params.get("from_date")
+        to_date = self.request.query_params.get("to_date")
+
+        if status and status in TransactionStatus.values:
+            queryset = queryset.filter(status=status)
+
+        if transaction_type and transaction_type in TransactionType.values:
+            queryset = queryset.filter(type=transaction_type)
+
+        if from_date:
+            try:
+                from_date = datetime.datetime.strptime(from_date, "%Y-%m-%d").date()
+                queryset = queryset.filter(created_on__date__gte=from_date)
+            except ValueError:
+                pass
+
+        if to_date:
+            try:
+                to_date = datetime.datetime.strptime(to_date, "%Y-%m-%d").date()
+                queryset = queryset.filter(created_on__date__lte=to_date)
+            except ValueError:
+                pass
+
+        return queryset

@@ -375,7 +375,7 @@ class WalletType(models.TextChoices):
     BUSINESS = "BUSINESS", _("Business Wallet")
 
 
-class Wallet(models.Model):
+class Wallet(AppModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="wallets")
     balance = models.DecimalField(
         max_digits=12,
@@ -397,7 +397,6 @@ class Wallet(models.Model):
         blank=True,
         help_text=_("Currency for this wallet (e.g., USD, EUR, XAF)"),
     )
-    created_at = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(
         default=True, help_text=_("Whether this wallet is active")

@@ -391,11 +391,43 @@ class WalletSerializer(serializers.ModelSerializer):
             "balance",
             "wallet_type",
             "currency",
-            "created_at",
+            "created_on",
             "last_updated",
             "is_active",
         ]
-        read_only_fields = ["id", "balance", "created_at", "last_updated"]
+        read_only_fields = ["id", "balance", "created_on", "last_updated"]
+
+
+@extend_schema_serializer(component_name="Transaction")
+class TransactionSerializer(serializers.ModelSerializer):
+    from_wallet_id = serializers.IntegerField(
+        source="from_wallet.id", read_only=True, allow_null=True
+    )
+    to_wallet_id = serializers.IntegerField(
+        source="to_wallet.id", read_only=True, allow_null=True
+    )
+    payment_method_id = serializers.IntegerField(
+        source="payment_method.id", read_only=True, allow_null=True
+    )
+    transaction_date = serializers.DateTimeField(source="created_on", read_only=True)
+
+    class Meta:
+        model = Transaction
+        fields = [
+            "id",
+            "reference",
+            "amount",
+            "charged_amount",
+            "calculated_fee",
+            "status",
+            "type",
+            "notes",
+            "from_wallet_id",
+            "to_wallet_id",
+            "payment_method_id",
+            "transaction_date",
+        ]
+        read_only_fields = fields
 
 
 @extend_schema_serializer(component_name="CashInTransaction")
