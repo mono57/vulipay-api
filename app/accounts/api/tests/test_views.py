@@ -358,3 +358,46 @@ class ProfilePictureConfirmationViewTestCase(APITestCase):
 
         # Then
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class UserPreferencesUpdateViewTests(APITestCase):
+    def setUp(self):
+        self.user = UserFactory.create(email="preferences_test@example.com")
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+        self.url = reverse("api:accounts:user_preferences_update")
+
+    def test_update_preferences(self):
+        preferences = {
+            "theme": "dark",
+            "notifications": {"email": True, "push": False},
+            "language": "en",
+        }
+
+        response = self.client.put(
+            self.url, {"preferences": preferences}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["preferences"], preferences)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.preferences, preferences)
+
+    def test_invalid_preferences_format(self):
+        response = self.client.put(self.url, {"preferences": "invalid"}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.preferences, {})
+
+    def test_unauthenticated_access(self):
+        self.client.force_authenticate(user=None)
+
+        preferences = {"theme": "light"}
+        response = self.client.put(
+            self.url, {"preferences": preferences}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

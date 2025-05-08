@@ -12,6 +12,7 @@ from app.accounts.api.serializers import (
     ProfilePicturePresignedUrlSerializer,
     UserFullNameUpdateSerializer,
     UserPINSetupSerializer,
+    UserPreferencesSerializer,
     UserProfilePictureSerializer,
 )
 from app.accounts.cache import get_cache_stats
@@ -219,3 +220,21 @@ class CountryListView(generics.ListAPIView):
 def cache_health_check(request):
     stats = get_cache_stats()
     return Response(stats, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=["Accounts"],
+    operation_id="update_user_preferences",
+    description="Update the user's preferences",
+    responses={
+        200: UserPreferencesSerializer,
+        400: OpenApiResponse(description="Invalid preferences format"),
+    },
+    request=UserPreferencesSerializer,
+)
+class UserPreferencesUpdateView(generics.UpdateAPIView):
+    serializer_class = UserPreferencesSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user

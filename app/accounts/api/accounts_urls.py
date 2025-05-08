@@ -7,6 +7,7 @@ from app.accounts.api.views import (
     ProfilePicturePresignedUrlView,
     UserFullNameUpdateView,
     UserPINSetupView,
+    UserPreferencesUpdateView,
     UserProfilePictureUpdateView,
     cache_health_check,
 )
@@ -18,6 +19,11 @@ urlpatterns = [
         "user/full-name", UserFullNameUpdateView.as_view(), name="user_full_name_update"
     ),
     path("user/pin-setup", UserPINSetupView.as_view(), name="user_pin_setup"),
+    path(
+        "user/preferences",
+        UserPreferencesUpdateView.as_view(),
+        name="user_preferences_update",
+    ),
     path(
         "user/profile-picture",
         UserProfilePictureUpdateView.as_view(),

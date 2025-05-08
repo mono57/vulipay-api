@@ -24,6 +24,19 @@ class UserFullNameUpdateSerializer(serializers.ModelSerializer):
         return value.strip()
 
 
+class UserPreferencesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("preferences",)
+
+    def validate_preferences(self, value):
+        if not isinstance(value, dict):
+            raise serializers.ValidationError(
+                _("Preferences must be a valid JSON object.")
+            )
+        return value
+
+
 class UserProfilePictureSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
