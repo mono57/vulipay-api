@@ -2,6 +2,7 @@ import datetime
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -93,7 +94,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     def clean(self):
         super().clean()
         if not self.phone_number and not self.email:
-            raise ValueError(
+            raise ValidationError(
                 _("User must have either a phone number or an email address")
             )
 
@@ -110,6 +111,13 @@ class User(AbstractBaseUser, PermissionsMixin):
     def verify_pin(self, raw_pin):
         is_correct = check_pin(self.pin, raw_pin)
         return is_correct
+
+    def save(self, *args, **kwargs):
+        if not self.phone_number and not self.email:
+            raise ValidationError(
+                _("User must have either a phone number or an email address")
+            )
+        super().save(*args, **kwargs)
 
 
 class AvailableCountry(AppModel):

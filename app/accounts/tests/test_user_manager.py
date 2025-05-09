@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.test import TestCase
 
@@ -53,7 +54,7 @@ class UserManagerTestCase(TestCase):
 
     def test_create_user_invalid_email(self):
         """Test creating user with no email or phone raises error"""
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValidationError):
             User.objects.create_user(email=None, phone_number=None)
 
     def test_create_superuser(self):
@@ -67,27 +68,29 @@ class UserManagerTestCase(TestCase):
 
     def test_create_superuser_without_email(self):
         """Test creating a superuser without email raises error"""
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValidationError):
             User.objects.create_superuser(email=None, password="testpass123")
 
     def test_create_superuser_without_password(self):
         """Test creating a superuser without password raises error"""
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValidationError):
             User.objects.create_superuser(email="super@example.com", password=None)
 
-    def test_create_superuser_not_staff(self):
-        """Test creating a superuser with is_staff=False raises error"""
-        with self.assertRaises(ValueError):
-            User.objects.create_superuser(
-                email="super@example.com", password="testpass123", is_staff=False
-            )
+    def test_superuser_staff_flag_honored(self):
+        """Test that is_staff=False is honored when creating a superuser"""
+        user = User.objects.create_superuser(
+            email="super@example.com", password="testpass123", is_staff=False
+        )
+        self.assertFalse(user.is_staff)
+        self.assertTrue(user.is_superuser)
 
-    def test_create_superuser_not_superuser(self):
-        """Test creating a superuser with is_superuser=False raises error"""
-        with self.assertRaises(ValueError):
-            User.objects.create_superuser(
-                email="super@example.com", password="testpass123", is_superuser=False
-            )
+    def test_superuser_superuser_flag_honored(self):
+        """Test that is_superuser=False is honored when creating a superuser"""
+        user = User.objects.create_superuser(
+            email="super@example.com", password="testpass123", is_superuser=False
+        )
+        self.assertTrue(user.is_staff)
+        self.assertFalse(user.is_superuser)
 
     def test_get_by_natural_key_email(self):
         """Test retrieving a user by email using get_by_natural_key"""

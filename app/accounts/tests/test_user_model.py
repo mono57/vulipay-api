@@ -45,7 +45,7 @@ class UserModelTestCase(TestCase):
 
     def test_user_creation_fails_without_email_or_phone(self):
         """Test that a user cannot be created without either email or phone number"""
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValidationError):
             User.objects.create_user(email=None, phone_number=None)
 
     def test_user_string_representation(self):

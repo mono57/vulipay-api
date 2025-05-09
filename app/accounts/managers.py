@@ -4,6 +4,7 @@ import random
 
 from django.conf import settings
 from django.contrib.auth.models import BaseUserManager
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import F, Manager, Q
 from django.db.models.functions import Cast
@@ -14,14 +15,13 @@ from django.utils.translation import gettext_lazy as _
 class UserManager(BaseUserManager):
     def create_user(self, phone_number=None, email=None, password=None, **extra_fields):
         if not phone_number and not email:
-            raise ValueError(
+            raise ValidationError(
                 _("User must have either a phone number or an email address")
             )
 
         if email:
             email = self.normalize_email(email)
 
-        # Set default empty string for full_name if not provided
         extra_fields.setdefault("full_name", "")
 
         user = self.model(phone_number=phone_number, email=email, **extra_fields)
@@ -35,19 +35,14 @@ class UserManager(BaseUserManager):
 
     def create_superuser(self, email, password=None, phone_number=None, **extra_fields):
         if not email:
-            raise ValueError(_("Email address is required for superuser"))
+            raise ValidationError(_("Email address is required for superuser"))
 
         if not password:
-            raise ValueError(_("Password is required for superuser"))
+            raise ValidationError(_("Password is required for superuser"))
 
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("is_active", True)
-
-        if extra_fields.get("is_staff") is not True:
-            raise ValueError(_("Superuser must have is_staff=True."))
-        if extra_fields.get("is_superuser") is not True:
-            raise ValueError(_("Superuser must have is_superuser=True."))
 
         return self.create_user(phone_number, email, password, **extra_fields)
 
