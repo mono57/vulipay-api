@@ -24,12 +24,10 @@ class PaymentMethodTypeAdminForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Initialize the field with existing values if instance exists
         if self.instance.pk and self.instance.allowed_transactions:
             self.initial["allowed_transactions"] = self.instance.allowed_transactions
 
     def clean_allowed_transactions(self):
-        # Convert form data to a list for JSON storage
         return self.cleaned_data["allowed_transactions"]
 
 
