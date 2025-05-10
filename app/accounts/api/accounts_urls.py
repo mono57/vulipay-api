@@ -10,6 +10,7 @@ from app.accounts.api.views import (
     UserPreferencesUpdateView,
     UserProfilePictureUpdateView,
     cache_health_check,
+    generate_token_for_user,
 )
 
 app_name = "accounts"
@@ -42,4 +43,9 @@ urlpatterns = [
     path("token/refresh/", AppTokenRefreshView.as_view(), name="token_refresh"),
     path("countries/", CountryListView.as_view(), name="country_list"),
     path("cache-health/", cache_health_check, name="cache_health"),
+    path(
+        "admin/user/<int:user_id>/token/",
+        generate_token_for_user,
+        name="admin_generate_token",
+    ),
 ]

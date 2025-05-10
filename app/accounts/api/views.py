@@ -1,9 +1,15 @@
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import generics, permissions, status, viewsets
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.decorators import (
+    api_view,
+    authentication_classes,
+    permission_classes,
+)
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from app.accounts.api.serializers import (
@@ -15,8 +21,9 @@ from app.accounts.api.serializers import (
     UserPreferencesSerializer,
     UserProfilePictureSerializer,
 )
+from app.accounts.authentication import AppJWTAuthentication
 from app.accounts.cache import get_cache_stats
-from app.accounts.models import AvailableCountry
+from app.accounts.models import AvailableCountry, User
 from app.core.utils import ProfilePictureStorage
 
 
@@ -238,3 +245,18 @@ class UserPreferencesUpdateView(generics.UpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+@api_view(["GET"])
+@authentication_classes([SessionAuthentication, AppJWTAuthentication])
+@permission_classes([IsAdminUser])
+def generate_token_for_user(request, user_id):
+    """Generate a JWT token for a user (admin only)"""
+    try:
+        user = User.objects.get(id=user_id)
+        refresh = RefreshToken.for_user(user)
+        return Response(
+            {"access_token": str(refresh.access_token), "refresh_token": str(refresh)}
+        )
+    except User.DoesNotExist:
+        return Response({"error": "User not found"}, status=404)

@@ -1,0 +1,302 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block userlinks %}
+{{ block.super }}
+{% if user.is_active and user.is_staff %}
+<a href="#" onclick="showTokenModal()" id="token-link">{% translate 'Get Auth Token' %}</a>
+{% endif %}
+{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    /* Token Modal Styles */
+    .token-modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+    }
+
+    .token-modal-content {
+        position: relative;
+        background-color: #fff;
+        margin: 10% auto;
+        padding: 20px;
+        border-radius: 5px;
+        width: 80%;
+        max-width: 600px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .token-close {
+        position: absolute;
+        top: 10px;
+        right: 15px;
+        font-size: 25px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+
+    .token-section {
+        margin-bottom: 15px;
+    }
+
+    .token-input {
+        width: 100%;
+        padding: 10px;
+        margin-bottom: 10px;
+        font-family: monospace;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+    }
+
+    .token-copy-btn {
+        background-color: #79aec8;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        border-radius: 3px;
+        cursor: pointer;
+    }
+
+    .token-copy-btn:hover {
+        background-color: #417690;
+    }
+
+    .user-select {
+        width: 100%;
+        padding: 8px;
+        margin-bottom: 15px;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+    }
+
+    .token-generate-btn {
+        background-color: #417690;
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 3px;
+        cursor: pointer;
+        margin-bottom: 20px;
+    }
+
+    .token-generate-btn:hover {
+        background-color: #2b4c5e;
+    }
+
+    .token-section-title {
+        font-size: 16px;
+        margin-bottom: 5px;
+        font-weight: bold;
+    }
+
+    .token-message {
+        color: green;
+        margin-bottom: 10px;
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block footer %}
+{{ block.super }}
+<!-- Token Modal -->
+<div id="tokenModal" class="token-modal">
+    <div class="token-modal-content">
+        <span class="token-close" onclick="closeTokenModal()">&times;</span>
+        <h2>{% translate 'Authentication Token Generator' %}</h2>
+
+        <div id="userSelectSection">
+            <label for="userSelect">{% translate 'Select User:' %}</label>
+            <select id="userSelect" class="user-select">
+                <option value="">{% translate 'Select a user...' %}</option>
+                {% if user.is_superuser %}
+                <option value="{{ user.id }}">{% translate 'Yourself' %} ({{ user.email|default:user.phone_number }})
+                </option>
+                {% endif %}
+            </select>
+            <button id="generateTokenBtn" class="token-generate-btn" onclick="generateToken()">
+                {% translate 'Generate Token' %}</button>
+        </div>
+
+        <div id="tokenMessage" class="token-message"></div>
+
+        <div id="accessTokenSection" class="token-section" style="display:none;">
+            <div class="token-section-title">{% translate 'Access Token:' %}</div>
+            <input type="text" id="accessToken" class="token-input" readonly>
+            <button class="token-copy-btn" onclick="copyToken('accessToken')">{% translate 'Copy' %}</button>
+        </div>
+
+        <div id="refreshTokenSection" class="token-section" style="display:none;">
+            <div class="token-section-title">{% translate 'Refresh Token:' %}</div>
+            <input type="text" id="refreshToken" class="token-input" readonly>
+            <button class="token-copy-btn" onclick="copyToken('refreshToken')">{% translate 'Copy' %}</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Fetch users for dropdown if superuser
+    document.addEventListener('DOMContentLoaded', function () {
+        if ("{{ user.is_superuser }}" === "True") {
+            fetchUsers();
+        }
+    });
+
+    function fetchUsers() {
+        fetch('/admin/accounts/user/?_to_field=id')
+            .then(response => response.text())
+            .then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const userRows = doc.querySelectorAll('#result_list tr[class^="row"]');
+
+                const userSelect = document.getElementById('userSelect');
+
+                userRows.forEach(row => {
+                    const cells = row.querySelectorAll('th, td');
+                    if (cells.length > 0) {
+                        const userIdLink = cells[0].querySelector('a');
+                        if (userIdLink) {
+                            const userId = userIdLink.textContent.trim();
+                            let userIdentifier = '';
+
+                            // Look for email in cells (adjust index if needed)
+                            for (let i = 0; i < cells.length; i++) {
+                                const cellText = cells[i].textContent.trim();
+                                if (cellText.includes('@') || /^\+\d+$/.test(cellText)) {
+                                    userIdentifier = cellText;
+                                    break;
+                                }
+                            }
+
+                            if (userIdentifier) {
+                                const option = document.createElement('option');
+                                option.value = userId;
+                                option.textContent = userIdentifier;
+                                userSelect.appendChild(option);
+                            }
+                        }
+                    }
+                });
+            })
+            .catch(error => {
+                console.error('Error fetching users:', error);
+            });
+    }
+
+    function showTokenModal() {
+        document.getElementById('tokenModal').style.display = 'block';
+        resetTokenModal();
+    }
+
+    function closeTokenModal() {
+        document.getElementById('tokenModal').style.display = 'none';
+    }
+
+    function resetTokenModal() {
+        document.getElementById('accessTokenSection').style.display = 'none';
+        document.getElementById('refreshTokenSection').style.display = 'none';
+        document.getElementById('tokenMessage').style.display = 'none';
+        document.getElementById('tokenMessage').textContent = '';
+        document.getElementById('accessToken').value = '';
+        document.getElementById('refreshToken').value = '';
+        if (document.getElementById('userSelect')) {
+            document.getElementById('userSelect').value = '';
+        }
+    }
+
+    function generateToken() {
+        const userId = document.getElementById('userSelect').value;
+        if (!userId) {
+            document.getElementById('tokenMessage').textContent = '{% translate "Please select a user" %}';
+            document.getElementById('tokenMessage').style.display = 'block';
+            return;
+        }
+
+        try {
+            // Get CSRF token directly from the admin page
+            const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+            // Reset message styling
+            const tokenMessage = document.getElementById('tokenMessage');
+            tokenMessage.style.color = '';
+
+            // Show working message
+            tokenMessage.textContent = '{% translate "Generating token..." %}';
+            tokenMessage.style.display = 'block';
+
+            fetch(`/api/v1/accounts/admin/user/${userId}/token/`, {
+                method: 'GET',
+                credentials: 'same-origin', // Include cookies for session authentication
+                headers: {
+                    'X-CSRFToken': csrftoken,
+                    'Accept': 'application/json'
+                }
+            })
+                .then(response => {
+                    if (response.status === 401) {
+                        throw new Error('Unauthorized. Make sure you are logged in as an admin user.');
+                    }
+                    if (response.status === 403) {
+                        throw new Error('Forbidden. You do not have permission to access this resource.');
+                    }
+                    if (!response.ok) {
+                        throw new Error(`Request failed with status ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    document.getElementById('accessToken').value = data.access_token;
+                    document.getElementById('refreshToken').value = data.refresh_token;
+                    document.getElementById('accessTokenSection').style.display = 'block';
+                    document.getElementById('refreshTokenSection').style.display = 'block';
+                    document.getElementById('tokenMessage').textContent = '{% translate "Token generated successfully!" %}';
+                    document.getElementById('tokenMessage').style.color = 'green';
+                })
+                .catch(error => {
+                    document.getElementById('tokenMessage').textContent = `{% translate "Error generating token" %}: ${error.message}`;
+                    document.getElementById('tokenMessage').style.color = 'red';
+                    console.error('Error:', error);
+                });
+        } catch (e) {
+            // Handle any JavaScript errors in the main function
+            document.getElementById('tokenMessage').textContent = `JavaScript error: ${e.message}`;
+            document.getElementById('tokenMessage').style.color = 'red';
+            document.getElementById('tokenMessage').style.display = 'block';
+            console.error('JavaScript error:', e);
+        }
+    }
+
+    function copyToken(elementId) {
+        const tokenInput = document.getElementById(elementId);
+        tokenInput.select();
+        document.execCommand('copy');
+
+        // Show temporary success message
+        const tokenMessage = document.getElementById('tokenMessage');
+        tokenMessage.textContent = '{% translate "Copied to clipboard!" %}';
+        tokenMessage.style.display = 'block';
+
+        // Hide message after 2 seconds
+        setTimeout(() => {
+            tokenMessage.style.display = 'none';
+        }, 2000);
+    }
+
+    // Close the modal if user clicks outside of it
+    window.onclick = function (event) {
+        const modal = document.getElementById('tokenModal');
+        if (event.target === modal) {
+            closeTokenModal();
+        }
+    }
+</script>
+{% endblock %}

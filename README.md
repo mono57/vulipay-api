@@ -509,3 +509,19 @@ Each country in the system can have a default currency assigned to it by setting
 ### API Interaction
 
 When creating or updating wallets via API, the currency field can be specified explicitly as a string. If not provided, the system will try to set it automatically based on the user's country as described above.
+
+## Admin Authentication Token Feature
+
+The Django admin interface includes a feature to generate and copy authentication tokens for users. This is useful for testing and debugging API endpoints.
+
+### How to use:
+
+1. Log in to the Django admin interface with admin credentials
+2. In the top-right corner of the admin interface, you'll see a "Get Auth Token" link next to the "Log out" link
+3. Click on "Get Auth Token" to open the token generation modal
+4. Select a user from the dropdown (if you're a superuser, you'll see all users)
+5. Click "Generate Token" to create a new token for the selected user
+6. Use the "Copy" button to copy the access token or refresh token
+7. Use the token in your API requests with the Bearer authentication scheme: `Authorization: Bearer <token>`
+
+This feature is only available to admin users and is intended for development and testing purposes.
