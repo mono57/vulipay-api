@@ -86,6 +86,12 @@ class WalletManager(models.Manager):
 
         return self.filter(user=user, wallet_type=WalletType.MAIN).first()
 
+    def get_wallet(self, wallet_id, user):
+        try:
+            return self.get(id=wallet_id, user=user)
+        except self.model.DoesNotExist:
+            return None
+
 
 class PlatformWalletManager(models.Manager):
     def collect_fees(self, country, amount):

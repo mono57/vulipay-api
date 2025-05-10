@@ -48,3 +48,37 @@ class WalletManagerTestCase(TestCase):
         self.assertEqual(wallet, self.second_main_wallet)
         self.assertEqual(wallet.wallet_type, WalletType.MAIN)
         self.assertNotEqual(wallet, self.business_wallet)
+
+    def test_get_wallet_with_valid_id(self):
+        """Test that get_wallet returns the wallet when given a valid wallet ID and user"""
+        wallet = Wallet.objects.get_wallet(self.main_wallet.id, self.user)
+        self.assertEqual(wallet, self.main_wallet)
+        self.assertEqual(wallet.wallet_type, WalletType.MAIN)
+
+    def test_get_wallet_with_multiple_wallet_types(self):
+        """Test that get_wallet returns the correct wallet type"""
+        # Get main wallet
+        main_wallet = Wallet.objects.get_wallet(
+            self.second_main_wallet.id, self.user_with_additional_wallet
+        )
+        self.assertEqual(main_wallet, self.second_main_wallet)
+        self.assertEqual(main_wallet.wallet_type, WalletType.MAIN)
+
+        # Get business wallet
+        business_wallet = Wallet.objects.get_wallet(
+            self.business_wallet.id, self.user_with_additional_wallet
+        )
+        self.assertEqual(business_wallet, self.business_wallet)
+        self.assertEqual(business_wallet.wallet_type, WalletType.BUSINESS)
+
+    def test_get_wallet_with_invalid_id(self):
+        """Test that get_wallet returns None when given an invalid wallet ID"""
+        wallet = Wallet.objects.get_wallet(999999, self.user)
+        self.assertIsNone(wallet)
+
+    def test_get_wallet_belonging_to_different_user(self):
+        """Test that get_wallet returns None when the wallet belongs to a different user"""
+        wallet = Wallet.objects.get_wallet(
+            self.main_wallet.id, self.user_with_additional_wallet
+        )
+        self.assertIsNone(wallet)
