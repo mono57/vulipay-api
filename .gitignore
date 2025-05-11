@@ -133,3 +133,6 @@ app/media/
 
 # Model diagrams
 diagrams/
+
+# macOS
+.DS_Store
