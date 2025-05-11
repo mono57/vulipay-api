@@ -112,6 +112,13 @@ class PaymentMethodListCreateAPIView(ListCreateAPIView):
 
         return self.serializer_class
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        transaction_type = self.request.query_params.get("transaction_type")
+        if transaction_type and transaction_type in TransactionType.values:
+            context["transaction_type"] = transaction_type
+        return context
+
 
 @extend_schema(
     tags=["Transactions"],
@@ -306,6 +313,13 @@ class PaymentMethodTypeListAPIView(ListAPIView):
             )
 
         return queryset
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        transaction_type = self.request.query_params.get("transaction_type")
+        if transaction_type and transaction_type in TransactionType.values:
+            context["transaction_type"] = transaction_type
+        return context
 
 
 @extend_schema(

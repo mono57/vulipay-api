@@ -133,6 +133,11 @@ class PaymentMethodSerializer(serializers.ModelSerializer):
                 country=obj.user.country,
             ).select_related("country")
 
+            # Filter by transaction_type if it's in the context
+            transaction_type = self.context.get("transaction_type")
+            if transaction_type:
+                fee_objs = fee_objs.filter(transaction_type=transaction_type)
+
             if not fee_objs:
                 return None
 
@@ -681,6 +686,11 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
             country=obj.country,
             payment_method_type=obj,
         ).select_related("country")
+
+        # Filter by transaction_type if it's in the context
+        transaction_type = self.context.get("transaction_type")
+        if transaction_type:
+            fee_records = fee_records.filter(transaction_type=transaction_type)
 
         if not fee_records:
             return None
