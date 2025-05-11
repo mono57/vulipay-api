@@ -873,7 +873,11 @@ class ProcessTransactionSerializer(serializers.Serializer):
             payment_method_type_id=attrs.get("payment_method_type_id"),
         ):
             raise serializers.ValidationError(
-                {"detail": _("Transaction type not allowed")}
+                {
+                    "detail": _(
+                        f"Payment method not allowed for this transaction type {attrs.get('transaction_type')}"
+                    )
+                }
             )
 
         attrs["charged_amount"] = charged_amount
