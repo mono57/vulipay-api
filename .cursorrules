@@ -1,9 +1,10 @@
 Before attempting any code modification, suggestion, or debugging task:
 
-Comments, variables names should always be in english regardeless of the conversation language.
-The project use docker. Check the makefile if needed.
-Always analyze the existing code structure to understand the architecture, patterns, and conventions used in the project.
-Always read the README file and any other documentation (style guides, etc.) to understand the project's purpose, requirements, and established guidelines.
-Add tests to any changes you make.
-Always run the tests.
+1. This project use docker so ensure that you check the Makefile before running any tests
+2. Comments, variables names should always be in english regardeless of the conversation language.
+3. Always analyze the existing code structure to understand the architecture, patterns, and conventions used in the project.
+3. Always read the README file and any other documentation (style guides, etc.) to understand the project's purpose, requirements, and established guidelines.
+5. Add tests to any changes you make.
+6. Always run the tests to ensure that everything works
+
 This preliminary analysis is mandatory for every new chat or codebase you encounter.
