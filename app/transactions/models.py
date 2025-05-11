@@ -100,8 +100,8 @@ class TransactionFee(AppModel):
 
     name = AppCharField(_("Name"), max_length=255)
     description = models.TextField(_("Description"), null=True, blank=True)
-    fixed_fee = models.FloatField(null=True, db_index=True)  # i.e: 100
-    percentage_fee = models.FloatField(null=True, db_index=True)  # i.e: 5
+    fixed_fee = models.FloatField(null=True, blank=True, db_index=True)  # i.e: 100
+    percentage_fee = models.FloatField(null=True, blank=True, db_index=True)  # i.e: 5
     fee_priority = models.CharField(
         max_length=20, choices=FeePriority.choices, default=FeePriority.PERCENTAGE
     )
@@ -136,6 +136,13 @@ class TransactionFee(AppModel):
             models.Index(fields=["transaction_type"], name="tx_fee_type_idx"),
         ]
 
+    def clean(self):
+        super().clean()
+        if self.fixed_fee is None and self.percentage_fee is None:
+            raise ValidationError(
+                _("Either fixed fee or percentage fee must be provided.")
+            )
+
     @property
     def fee(self):
         if self.fixed_fee is not None:
@@ -145,11 +152,12 @@ class TransactionFee(AppModel):
         return 0
 
     def save(self, *args, **kwargs):
-        if self.fixed_fee is not None:
+        if self.fixed_fee is not None and self.percentage_fee is None:
             self.fee_priority = self.FeePriority.FIXED
             self.percentage_fee = None
-        elif self.percentage_fee is not None:
+        elif self.percentage_fee is not None and self.fixed_fee is None:
             self.fee_priority = self.FeePriority.PERCENTAGE
+            self.fixed_fee = None
         super().save(*args, **kwargs)
 
     def __str__(self):

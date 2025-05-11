@@ -2,6 +2,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.db import connection
 from django.test import TestCase, override_settings
 
@@ -90,6 +91,49 @@ class TransactionFeeModelTestCase(TestCase):
         self.assertIn("Percentage: 3.0%", default_fee_str)
         self.assertIn("All", default_fee_str)
         self.assertIn("Merchant Payment Default Fee", default_fee_str)
+
+    def test_fee_validation(self):
+        """Test that a transaction fee requires either fixed_fee or percentage_fee."""
+        country = self.country
+        payment_method_type = self.payment_method_type
+
+        # Test creating a fee with no fee values (should raise validation error)
+        with self.assertRaises(ValidationError):
+            fee = TransactionFee(
+                name="Invalid Fee",
+                country=country,
+                transaction_type=TransactionType.P2P,
+                payment_method_type=payment_method_type,
+                fixed_fee=None,
+                percentage_fee=None,
+            )
+            fee.full_clean()  # This should raise ValidationError
+
+        # Test with fixed fee (should be valid)
+        fee = TransactionFee(
+            name="Valid Fixed Fee",
+            country=country,
+            transaction_type=TransactionType.P2P,
+            payment_method_type=payment_method_type,
+            fixed_fee=100,
+            percentage_fee=None,
+        )
+        fee.full_clean()  # Should not raise any error
+        fee.save()
+        self.assertEqual(fee.fee_priority, TransactionFee.FeePriority.FIXED)
+
+        # Test with percentage fee (should be valid)
+        fee = TransactionFee(
+            name="Valid Percentage Fee",
+            country=country,
+            transaction_type=TransactionType.P2P,
+            payment_method_type=payment_method_type,
+            fixed_fee=None,
+            percentage_fee=2.5,
+        )
+        fee.full_clean()  # Should not raise any error
+        fee.save()
+        self.assertEqual(fee.fee_priority, TransactionFee.FeePriority.PERCENTAGE)
 
 
 class TransactionAllowedTestCase(TestCase):
