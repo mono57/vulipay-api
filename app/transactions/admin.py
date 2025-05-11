@@ -4,6 +4,7 @@ from django.contrib import admin
 from app.transactions.models import (
     PaymentMethod,
     PaymentMethodType,
+    PlatformWallet,
     Transaction,
     TransactionFee,
     TransactionType,
@@ -43,9 +44,17 @@ class PaymentMethodTypeAdmin(admin.ModelAdmin):
     get_allowed_transactions.short_description = "Allowed Transactions"
 
 
+class PlatformWalletAdmin(admin.ModelAdmin):
+    list_display = ("id", "balance", "currency", "country", "created_on", "updated_on")
+    list_filter = ("currency", "country")
+    search_fields = ("currency", "country__name")
+    readonly_fields = ("created_on", "updated_on", "balance")
+
+
 # Register your models here.
 admin.site.register(Transaction)
 admin.site.register(TransactionFee)
 admin.site.register(PaymentMethod)
 admin.site.register(Wallet)
 admin.site.register(PaymentMethodType, PaymentMethodTypeAdmin)
+admin.site.register(PlatformWallet, PlatformWalletAdmin)

@@ -1,5 +1,6 @@
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import generics, permissions, status, viewsets
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import (
     api_view,
     authentication_classes,
@@ -255,7 +256,7 @@ class UserPreferencesUpdateView(generics.UpdateAPIView):
     },
 )
 @api_view(["GET"])
-@authentication_classes([AppJWTAuthentication])
+@authentication_classes([SessionAuthentication, AppJWTAuthentication])
 @permission_classes([IsAdminUser])
 def generate_token_for_user(request, user_id):
     """Generate a JWT token for a user (admin only)"""
