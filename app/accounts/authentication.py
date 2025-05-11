@@ -1,4 +1,5 @@
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.extensions import OpenApiAuthenticationExtension
 from rest_framework import exceptions
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
@@ -14,3 +15,16 @@ class AppJWTAuthentication(JWTAuthentication):
             )
 
         return user
+
+
+class AppJWTAuthenticationScheme(OpenApiAuthenticationExtension):
+    target_class = "app.accounts.authentication.AppJWTAuthentication"
+    name = "Bearer"
+
+    def get_security_definition(self, auto_schema):
+        return {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": "JWT authentication. Enter your token in the format: Bearer <token>",
+        }
