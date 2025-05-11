@@ -20,9 +20,19 @@ class TransactionManager(models.Manager):
 
 
 class TransactionFeeManager(models.Manager):
-    def get_applicable_fee(self, country, transaction_type, payment_method_type=None):
+    def get_applicable_fee(
+        self,
+        country,
+        transaction_type,
+        payment_method_type=None,
+        payment_method_type_id=None,
+    ):
         country_id = getattr(country, "id", country)
-        payment_method_type_id = getattr(payment_method_type, "id", payment_method_type)
+
+        if payment_method_type_id is None and payment_method_type is not None:
+            payment_method_type_id = getattr(
+                payment_method_type, "id", payment_method_type
+            )
 
         cache_key = (
             f"transaction_fee:{country_id}:{transaction_type}:{payment_method_type_id}"
@@ -39,7 +49,7 @@ class TransactionFeeManager(models.Manager):
         else:
             query &= Q(country__isnull=True)
 
-        if payment_method_type:
+        if payment_method_type_id:
             query &= Q(payment_method_type_id=payment_method_type_id) | Q(
                 payment_method_type__isnull=True
             )
@@ -70,14 +80,12 @@ class TransactionFeeManager(models.Manager):
         )
 
         if fee:
-            # Return a single fee value, with fixed fee taking priority
             fee_value = fee.fee
+            cache.set(cache_key, fee_value, timeout=3600)
+            return fee_value
         else:
-            fee_value = 0
-
-        cache.set(cache_key, fee_value, 3600)
-
-        return fee_value
+            cache.set(cache_key, 0, timeout=3600)
+            return 0
 
 
 class WalletManager(models.Manager):

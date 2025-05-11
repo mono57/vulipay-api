@@ -20,8 +20,8 @@ from app.transactions.models import (
     TransactionType,
     Wallet,
     WalletType,
-    compute_inclusive_amount,
 )
+from app.transactions.utils import compute_inclusive_amount, process_fee_dict
 
 User = get_user_model()
 
@@ -787,20 +787,21 @@ class ProcessTransactionSerializer(serializers.Serializer):
     target_wallet_id = serializers.IntegerField(
         required=True, help_text=_("ID of the recipient's wallet")
     )
-
-    full_name = serializers.CharField(
-        required=True, help_text=_("Full name of the recipient")
+    payment_method_id = serializers.IntegerField(
+        required=True, help_text=_("ID of the payment method to use")
     )
-    email = serializers.EmailField(
-        required=False, allow_null=True, help_text=_("Email of the recipient")
+    payment_method_type_id = serializers.IntegerField(
+        required=True, help_text=_("ID of the payment method type to use")
     )
-    phone_number = serializers.CharField(
-        required=False, allow_null=True, help_text=_("Phone number of the recipient")
+    payment_method_type_code = serializers.CharField(
+        required=True, help_text=_("Type of the payment method")
     )
-
     currency = serializers.CharField(
         required=True,
         help_text=_("Currency code of the transaction (e.g., USD, EUR, XAF)"),
+    )
+    full_name = serializers.CharField(
+        required=False, help_text=_("Name of the recipient")
     )
 
     def validate_currency(self, value):
@@ -826,44 +827,48 @@ class ProcessTransactionSerializer(serializers.Serializer):
     def validate(self, attrs):
         user = self.context["request"].user
 
-        source_wallet = Wallet.objects.get_user_main_wallet(user)
+        if attrs.get("payment_method_type_code") != "WalletToWallet":
+            raise serializers.ValidationError({"detail": _("Invalid payment method")})
+
+        source_wallet = Wallet.objects.get_wallet(attrs.get("payment_method_id"), user)
         if not source_wallet:
             raise serializers.ValidationError(
                 {"detail": _("Source wallet not found for the user")}
             )
 
-        amount = Decimal(str(attrs.get("amount")))
-        if source_wallet.balance < amount:
+        fee = TransactionFee.objects.get_applicable_fee(
+            country=user.country,
+            transaction_type=attrs.get("transaction_type"),
+            payment_method_type_id=attrs.get("payment_method_type_id"),
+        )
+        if not fee:
+            raise serializers.ValidationError(
+                {"detail": _("Transaction fee not found")}
+            )
+        calculated_fee, charged_amount = process_fee_dict(
+            amount=attrs.get("amount"),
+            fee_dict={
+                "fee_value": fee,
+                "fee_type": TransactionFee.FeePriority.PERCENTAGE,
+            },
+        )
+
+        if source_wallet.balance < charged_amount:
             raise serializers.ValidationError(
                 {"detail": _("Insufficient funds in your wallet")}
             )
 
+        if not PaymentMethodType.is_transaction_allowed(
+            transaction_type=attrs.get("transaction_type"),
+            payment_method_type_id=attrs.get("payment_method_type_id"),
+        ):
+            raise serializers.ValidationError(
+                {"detail": _("Transaction type not allowed")}
+            )
+
+        attrs["charged_amount"] = charged_amount
+        attrs["calculated_fee"] = calculated_fee
         attrs["source_wallet"] = source_wallet
         attrs["target_wallet"] = self.context["target_wallet"]
-
-        # Check if the transaction type is allowed
-        if "payment_method_id" in attrs:
-            try:
-                payment_method = PaymentMethod.objects.get(
-                    id=attrs["payment_method_id"]
-                )
-                if (
-                    payment_method.payment_method_type
-                    and payment_method.payment_method_type.allowed_transactions
-                ):
-                    transaction_type = attrs.get("transaction_type")
-                    if (
-                        transaction_type
-                        not in payment_method.payment_method_type.allowed_transactions
-                    ):
-                        raise serializers.ValidationError(
-                            {
-                                "transaction_type": _(
-                                    f"Transaction type '{transaction_type}' is not allowed for this payment method."
-                                )
-                            }
-                        )
-            except PaymentMethod.DoesNotExist:
-                pass  # The payment method validation will handle this
 
         return attrs

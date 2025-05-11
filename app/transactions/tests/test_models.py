@@ -238,6 +238,84 @@ class PaymentMethodTypeTestCase(TransactionTestCase):
         )
         self.assertNotIn(TransactionType.MP, payment_method_type.allowed_transactions)
 
+    def test_is_transaction_allowed_with_allowed_transaction(self):
+        # Create a payment method type with specific allowed transactions
+        payment_method_type = PaymentMethodType.objects.create(
+            name="Test Method",
+            code="TEST_METHOD",
+            country=self.country,
+            allowed_transactions=[TransactionType.CashIn, TransactionType.P2P],
+        )
+
+        # Test with an allowed transaction type
+        is_allowed = PaymentMethodType.is_transaction_allowed(
+            TransactionType.P2P, payment_method_type.id
+        )
+
+        self.assertTrue(is_allowed)
+
+    def test_is_transaction_allowed_with_disallowed_transaction(self):
+        # Create a payment method type with specific allowed transactions
+        payment_method_type = PaymentMethodType.objects.create(
+            name="Test Method",
+            code="TEST_METHOD",
+            country=self.country,
+            allowed_transactions=[TransactionType.CashIn, TransactionType.P2P],
+        )
+
+        # Test with a transaction type that is not in allowed_transactions
+        is_allowed = PaymentMethodType.is_transaction_allowed(
+            TransactionType.CashOut, payment_method_type.id
+        )
+
+        self.assertFalse(is_allowed)
+
+    def test_is_transaction_allowed_with_nonexistent_payment_method_type(self):
+        # Test with a payment method type ID that doesn't exist
+        is_allowed = PaymentMethodType.is_transaction_allowed(
+            TransactionType.P2P, 99999
+        )
+
+        self.assertFalse(is_allowed)
+
+    def test_is_transaction_allowed_with_none_payment_method_type(self):
+        # Test with None as payment_method_type_id
+        is_allowed = PaymentMethodType.is_transaction_allowed(TransactionType.P2P, None)
+
+        self.assertFalse(is_allowed)
+
+    def test_is_transaction_allowed_with_null_allowed_transactions(self):
+        # Create a payment method type with null allowed_transactions
+        payment_method_type = PaymentMethodType.objects.create(
+            name="Null Allowed Transactions",
+            code="NULL_TX",
+            country=self.country,
+            allowed_transactions=None,
+        )
+
+        # Test with any transaction type - should be true since allowed_transactions is null (which means all allowed)
+        is_allowed = PaymentMethodType.is_transaction_allowed(
+            TransactionType.P2P, payment_method_type.id
+        )
+
+        self.assertTrue(is_allowed)
+
+    def test_is_transaction_allowed_with_empty_allowed_transactions(self):
+        # Create a payment method type with empty allowed_transactions list
+        payment_method_type = PaymentMethodType.objects.create(
+            name="Empty Allowed Transactions",
+            code="EMPTY_TX",
+            country=self.country,
+            allowed_transactions=[],
+        )
+
+        # Test with any transaction type - should be false since allowed_transactions is empty
+        is_allowed = PaymentMethodType.is_transaction_allowed(
+            TransactionType.P2P, payment_method_type.id
+        )
+
+        self.assertFalse(is_allowed)
+
 
 class WalletCurrencyTestCase(TransactionTestCase):
     def test_wallet_currency_auto_set_from_user_country_with_currency(self):

@@ -8,6 +8,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from app.accounts.tests.factories import AvailableCountryFactory, UserFactory
 from app.transactions.models import (
+    PaymentMethodType,
     Transaction,
     TransactionFee,
     TransactionStatus,
@@ -47,6 +48,27 @@ class ProcessTransactionAPIViewTestCase(APITestCase):
             user=self.recipient, wallet_type=WalletType.MAIN
         )
 
+        # Create a payment method type for wallet to wallet transfers
+        self.wallet_to_wallet_pmt = PaymentMethodType.objects.create(
+            name="Wallet to Wallet",
+            code="WalletToWallet",
+            country=self.country,
+            allowed_transactions=[
+                TransactionType.P2P,
+                TransactionType.MP,
+                TransactionType.CashIn,
+                TransactionType.CashOut,
+            ],
+        )
+
+        # Create a transaction fee for this payment method type
+        TransactionFee.objects.create(
+            country=self.country,
+            payment_method_type=self.wallet_to_wallet_pmt,
+            transaction_type=TransactionType.P2P,
+            percentage_fee=2.5,
+        )
+
         # URL for the endpoint
         self.url = reverse("api:transactions:process-transaction")
 
@@ -79,6 +101,9 @@ class ProcessTransactionAPIViewTestCase(APITestCase):
             "currency": "USD",
             "pin": "1234",
             "transaction_fee": "2.5",
+            "payment_method_id": str(self.sender_wallet.id),
+            "payment_method_type_code": "WalletToWallet",
+            "payment_method_type_id": self.wallet_to_wallet_pmt.id,
         }
 
         # Execute the request
@@ -137,6 +162,9 @@ class ProcessTransactionAPIViewTestCase(APITestCase):
             "email": self.recipient.email,
             "currency": "USD",
             "pin": "9999",  # Wrong PIN
+            "payment_method_id": self.sender_wallet.id,
+            "payment_method_type_code": "WalletToWallet",
+            "payment_method_type_id": self.wallet_to_wallet_pmt.id,
         }
 
         # Execute the request
@@ -165,6 +193,9 @@ class ProcessTransactionAPIViewTestCase(APITestCase):
             "email": self.recipient.email,
             "currency": "USD",
             # Missing PIN
+            "payment_method_id": self.sender_wallet.id,
+            "payment_method_type_code": "WalletToWallet",
+            "payment_method_type_id": self.wallet_to_wallet_pmt.id,
         }
 
         # Execute the request
@@ -190,6 +221,9 @@ class ProcessTransactionAPIViewTestCase(APITestCase):
             "email": self.recipient.email,
             "currency": "EUR",  # User's currency is USD
             "pin": "1234",
+            "payment_method_id": self.sender_wallet.id,
+            "payment_method_type_code": "WalletToWallet",
+            "payment_method_type_id": self.wallet_to_wallet_pmt.id,
         }
 
         # Execute the request
@@ -200,10 +234,13 @@ class ProcessTransactionAPIViewTestCase(APITestCase):
         self.assertIn("currency", response.data)
 
     @patch("app.accounts.models.User.verify_pin")
-    def test_insufficient_funds(self, mock_verify_pin):
+    @patch("app.transactions.models.TransactionFee.objects.get_applicable_fee")
+    def test_insufficient_funds(self, mock_get_fee, mock_verify_pin):
         """Test that transaction fails when user has insufficient funds."""
         # Return True for PIN validation
         mock_verify_pin.return_value = True
+        # Mock the get_applicable_fee method to return 2.5%
+        mock_get_fee.return_value = Decimal("2.5")
 
         # Set sender wallet balance to a small amount
         self.sender_wallet.balance = 50
@@ -220,19 +257,68 @@ class ProcessTransactionAPIViewTestCase(APITestCase):
             "phone_number": self.recipient.phone_number,
             "currency": "USD",
             "pin": "1234",
+            "payment_method_id": self.sender_wallet.id,
+            "payment_method_type_code": "WalletToWallet",
+            "payment_method_type_id": self.wallet_to_wallet_pmt.id,
         }
 
         response = self.client.post(self.url, data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Print response for debugging
+        print("Response data for insufficient funds test:", response.data)
+
         # Check if there's any error message containing 'insufficient funds'
         error_found = False
+        if "detail" in response.data:
+            if isinstance(response.data["detail"], list):
+                for error in response.data["detail"]:
+                    if "insufficient funds" in str(error).lower():
+                        error_found = True
+                        break
+            else:
+                if "insufficient funds" in str(response.data["detail"]).lower():
+                    error_found = True
+
+        self.assertTrue(error_found, "No error message about insufficient funds found")
+
+    @patch("app.accounts.models.User.verify_pin")
+    def test_invalid_payment_method_type(self, mock_verify_pin):
+        """Test that transaction fails with an invalid payment method type code."""
+        # Return True for PIN validation
+        mock_verify_pin.return_value = True
+
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(self.token)}")
+
+        # Prepare transaction data with invalid payment method type
+        data = {
+            "amount": 100,
+            "transaction_type": TransactionType.P2P,
+            "target_wallet_id": self.recipient_wallet.id,
+            "full_name": self.recipient.full_name,
+            "email": self.recipient.email,
+            "phone_number": self.recipient.phone_number,
+            "currency": "USD",
+            "pin": "1234",
+            "payment_method_id": self.sender_wallet.id,
+            "payment_method_type_code": "Invalid",  # Not WalletToWallet
+            "payment_method_type_id": self.wallet_to_wallet_pmt.id,
+        }
+
+        response = self.client.post(self.url, data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        # Check if there's any error message about invalid payment method
+        error_found = False
         for error in response.data.get("detail", []):
-            if "insufficient funds" in str(error).lower():
+            if "invalid payment method" in str(error).lower():
                 error_found = True
                 break
 
-        self.assertTrue(error_found, "No error message about insufficient funds found")
+        self.assertTrue(
+            error_found, "No error message about invalid payment method found"
+        )
 
     @patch("app.accounts.models.User.verify_pin")
     def test_serializer_validation_no_source_wallet(self, mock_verify_pin):
@@ -254,6 +340,9 @@ class ProcessTransactionAPIViewTestCase(APITestCase):
             "phone_number": "1234567890",
             "currency": "USD",
             "pin": "1234",
+            "payment_method_id": 999,  # Non-existent wallet ID
+            "payment_method_type_code": "WalletToWallet",
+            "payment_method_type_id": self.wallet_to_wallet_pmt.id,
         }
 
         response = self.client.post(self.url, data, format="json")
@@ -269,10 +358,15 @@ class ProcessTransactionAPIViewTestCase(APITestCase):
         self.assertTrue(error_found, "No error message about source wallet found")
 
     @patch("app.accounts.models.User.verify_pin")
-    def test_serializer_validation_insufficient_funds(self, mock_verify_pin):
+    @patch("app.transactions.models.TransactionFee.objects.get_applicable_fee")
+    def test_serializer_validation_insufficient_funds(
+        self, mock_get_fee, mock_verify_pin
+    ):
         """Test that the serializer validates sufficient funds."""
         # Return True for PIN validation
         mock_verify_pin.return_value = True
+        # Mock the get_applicable_fee method to return 2.5%
+        mock_get_fee.return_value = Decimal("2.5")
 
         # Set sender wallet balance to a low amount
         self.sender_wallet.balance = 50
@@ -289,16 +383,31 @@ class ProcessTransactionAPIViewTestCase(APITestCase):
             "phone_number": "1234567890",
             "currency": "USD",
             "pin": "1234",
+            "payment_method_id": self.sender_wallet.id,
+            "payment_method_type_code": "WalletToWallet",
+            "payment_method_type_id": self.wallet_to_wallet_pmt.id,
         }
 
         response = self.client.post(self.url, data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Print response for debugging
+        print(
+            "Response data for serializer validation insufficient funds test:",
+            response.data,
+        )
+
         # Check if there's any error message containing 'insufficient funds'
         error_found = False
-        for error in response.data.get("detail", []):
-            if "insufficient funds" in str(error).lower():
-                error_found = True
-                break
+        if "detail" in response.data:
+            if isinstance(response.data["detail"], list):
+                for error in response.data["detail"]:
+                    if "insufficient funds" in str(error).lower():
+                        error_found = True
+                        break
+            else:
+                if "insufficient funds" in str(response.data["detail"]).lower():
+                    error_found = True
 
         self.assertTrue(error_found, "No error message about insufficient funds found")

@@ -6,7 +6,7 @@ from django.db import connection
 from django.test import TestCase, override_settings
 
 from app.accounts.tests.factories import AvailableCountryFactory
-from app.transactions.models import TransactionFee, TransactionType
+from app.transactions.models import PaymentMethodType, TransactionFee, TransactionType
 from app.transactions.tests.factories import PaymentMethodTypeFactory
 
 
@@ -79,18 +79,136 @@ class TransactionFeeModelTestCase(TestCase):
         )
         self.assertEqual(str(self.default_fee), expected_str)
 
-    def test_get_inclusive_amount(self):
-        """Test the get_inclusive_amount class method"""
-        fee = TransactionFee.get_inclusive_amount(
-            transaction_type=TransactionType.P2P, country=self.country
-        )
-        self.assertEqual(fee, 100)
 
-        # Test with non-existent fee configuration
-        fee = TransactionFee.get_inclusive_amount(
-            transaction_type="NON_EXISTENT", country=self.country
+class TransactionAllowedTestCase(TestCase):
+    def setUp(self):
+        self.country = AvailableCountryFactory.create()
+
+        # Create payment method types with different allowed transactions
+        self.pmt_all_allowed = PaymentMethodType.objects.create(
+            name="All Transactions Allowed",
+            code="ALL_ALLOWED",
+            country=self.country,
+            allowed_transactions=None,  # None means all are allowed
         )
-        self.assertEqual(fee, 0)
+
+        self.pmt_specific_allowed = PaymentMethodType.objects.create(
+            name="Specific Transactions Allowed",
+            code="SPECIFIC",
+            country=self.country,
+            allowed_transactions=[TransactionType.P2P, TransactionType.CashIn],
+        )
+
+        self.pmt_none_allowed = PaymentMethodType.objects.create(
+            name="No Transactions Allowed",
+            code="NONE_ALLOWED",
+            country=self.country,
+            allowed_transactions=[],  # Empty list means none are allowed
+        )
+
+    def test_transaction_allowed_with_none_pmt(self):
+        """Test that transactions are allowed when no payment method type is provided"""
+        # With the new implementation, this should be false for all types when no payment method type is provided
+        self.assertFalse(PaymentMethodType.is_transaction_allowed(TransactionType.P2P))
+        self.assertFalse(PaymentMethodType.is_transaction_allowed(TransactionType.MP))
+        self.assertFalse(
+            PaymentMethodType.is_transaction_allowed(TransactionType.CashIn)
+        )
+        self.assertFalse(
+            PaymentMethodType.is_transaction_allowed(TransactionType.CashOut)
+        )
+
+    def test_transaction_allowed_with_all_allowed_pmt(self):
+        """Test that all transactions are allowed with payment method type that allows all"""
+        self.assertTrue(
+            PaymentMethodType.is_transaction_allowed(
+                TransactionType.P2P, payment_method_type_id=self.pmt_all_allowed.id
+            )
+        )
+        self.assertTrue(
+            PaymentMethodType.is_transaction_allowed(
+                TransactionType.MP, payment_method_type_id=self.pmt_all_allowed.id
+            )
+        )
+        self.assertTrue(
+            PaymentMethodType.is_transaction_allowed(
+                TransactionType.CashIn, payment_method_type_id=self.pmt_all_allowed.id
+            )
+        )
+        self.assertTrue(
+            PaymentMethodType.is_transaction_allowed(
+                TransactionType.CashOut, payment_method_type_id=self.pmt_all_allowed.id
+            )
+        )
+
+    def test_transaction_allowed_with_specific_allowed_pmt(self):
+        """Test that only specific transactions are allowed with payment method type that allows specific types"""
+        self.assertTrue(
+            PaymentMethodType.is_transaction_allowed(
+                TransactionType.P2P, payment_method_type_id=self.pmt_specific_allowed.id
+            )
+        )
+        self.assertTrue(
+            PaymentMethodType.is_transaction_allowed(
+                TransactionType.CashIn,
+                payment_method_type_id=self.pmt_specific_allowed.id,
+            )
+        )
+        self.assertFalse(
+            PaymentMethodType.is_transaction_allowed(
+                TransactionType.MP, payment_method_type_id=self.pmt_specific_allowed.id
+            )
+        )
+        self.assertFalse(
+            PaymentMethodType.is_transaction_allowed(
+                TransactionType.CashOut,
+                payment_method_type_id=self.pmt_specific_allowed.id,
+            )
+        )
+
+    def test_transaction_allowed_with_none_allowed_pmt(self):
+        """Test that no transactions are allowed with payment method type that allows none"""
+        self.assertFalse(
+            PaymentMethodType.is_transaction_allowed(
+                TransactionType.P2P, payment_method_type_id=self.pmt_none_allowed.id
+            )
+        )
+        self.assertFalse(
+            PaymentMethodType.is_transaction_allowed(
+                TransactionType.MP, payment_method_type_id=self.pmt_none_allowed.id
+            )
+        )
+        self.assertFalse(
+            PaymentMethodType.is_transaction_allowed(
+                TransactionType.CashIn, payment_method_type_id=self.pmt_none_allowed.id
+            )
+        )
+        self.assertFalse(
+            PaymentMethodType.is_transaction_allowed(
+                TransactionType.CashOut, payment_method_type_id=self.pmt_none_allowed.id
+            )
+        )
+
+    def test_transaction_allowed_with_payment_method_type_id(self):
+        """Test that the method works when using payment_method_type_id instead of the object"""
+        self.assertTrue(
+            PaymentMethodType.is_transaction_allowed(
+                TransactionType.P2P, payment_method_type_id=self.pmt_specific_allowed.id
+            )
+        )
+        self.assertFalse(
+            PaymentMethodType.is_transaction_allowed(
+                TransactionType.MP, payment_method_type_id=self.pmt_specific_allowed.id
+            )
+        )
+
+    def test_transaction_allowed_with_nonexistent_payment_method_type_id(self):
+        """Test that transactions are not allowed when the payment method type doesn't exist"""
+        self.assertFalse(
+            PaymentMethodType.is_transaction_allowed(
+                TransactionType.P2P, payment_method_type_id=999999
+            )
+        )
 
 
 class TransactionFeeManagerTestCase(TestCase):
@@ -194,6 +312,67 @@ class TransactionFeeManagerTestCase(TestCase):
             payment_method_type=self.payment_method_type1,
         )
         self.assertEqual(fee, 0)  # Now returns a single value (0) instead of (0, 0)
+
+    def test_get_applicable_fee_with_payment_method_type_id(self):
+        """Test that get_applicable_fee works correctly with payment_method_type_id parameter"""
+        # Clear cache before the test
+        cache.clear()
+
+        # Test with payment_method_type_id
+        fee = TransactionFee.objects.get_applicable_fee(
+            country=self.country1,
+            transaction_type=TransactionType.P2P,
+            payment_method_type_id=self.payment_method_type1.id,
+        )
+        self.assertEqual(fee, 2.5)
+
+        # Test with payment_method_type object (should give same result)
+        fee2 = TransactionFee.objects.get_applicable_fee(
+            country=self.country1,
+            transaction_type=TransactionType.P2P,
+            payment_method_type=self.payment_method_type1,
+        )
+        self.assertEqual(fee, fee2)
+
+        # Test with both parameters (payment_method_type_id should take precedence)
+        fee3 = TransactionFee.objects.get_applicable_fee(
+            country=self.country1,
+            transaction_type=TransactionType.P2P,
+            payment_method_type=self.payment_method_type2,
+            payment_method_type_id=self.payment_method_type1.id,
+        )
+        self.assertEqual(
+            fee3, 2.5
+        )  # Should use payment_method_type1, not payment_method_type2
+
+    def test_get_applicable_fee_with_direct_id_values(self):
+        """Test that get_applicable_fee works correctly with direct ID values"""
+        # Clear cache before the test
+        cache.clear()
+
+        # Test with country_id and payment_method_type_id
+        fee = TransactionFee.objects.get_applicable_fee(
+            country=self.country1.id,
+            transaction_type=TransactionType.P2P,
+            payment_method_type_id=self.payment_method_type1.id,
+        )
+        self.assertEqual(fee, 2.5)
+
+        # Test with country object and payment_method_type_id
+        fee2 = TransactionFee.objects.get_applicable_fee(
+            country=self.country1,
+            transaction_type=TransactionType.P2P,
+            payment_method_type_id=self.payment_method_type1.id,
+        )
+        self.assertEqual(fee, fee2)
+
+        # Test non-existent payment_method_type_id should fallback to default
+        fee3 = TransactionFee.objects.get_applicable_fee(
+            country=self.country1,
+            transaction_type=TransactionType.P2P,
+            payment_method_type_id=9999,  # Non-existent ID
+        )
+        self.assertEqual(fee3, 2.0)  # Should use the country-specific default
 
 
 class TransactionFeePerformanceTestCase(TestCase):

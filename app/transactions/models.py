@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -45,6 +46,36 @@ class PaymentMethodType(AppModel):
 
     def __str__(self):
         return self.name
+
+    @classmethod
+    def is_transaction_allowed(cls, transaction_type, payment_method_type_id=None):
+        """
+        Check if a given transaction type is allowed for the specified payment method type.
+
+        Args:
+            transaction_type: The transaction type to check
+            payment_method_type_id: The ID of the payment method type
+
+        Returns:
+            bool: True if the transaction is allowed, False otherwise
+        """
+        if payment_method_type_id is None:
+            return False
+
+        try:
+            payment_method_type = PaymentMethodType.objects.get(
+                id=payment_method_type_id
+            )
+
+            # If allowed_transactions is None, all transaction types are allowed
+            if payment_method_type.allowed_transactions is None:
+                return True
+
+            # Otherwise, check if the transaction type is in the allowed_transactions list
+            return transaction_type in payment_method_type.allowed_transactions
+
+        except PaymentMethodType.DoesNotExist:
+            return False
 
     def clean(self):
         super().clean()
@@ -103,16 +134,6 @@ class TransactionFee(AppModel):
             models.Index(fields=["transaction_type"], name="tx_fee_type_idx"),
         ]
         unique_together = [["country", "transaction_type", "payment_method_type"]]
-
-    @classmethod
-    def get_inclusive_amount(cls, transaction_type, country):
-        try:
-            transaction_fee = cls.objects.select_related(
-                "country", "payment_method_type"
-            ).get(transaction_type=transaction_type, country=country)
-            return transaction_fee.fee
-        except cls.DoesNotExist:
-            return 0
 
     @property
     def fee(self):
@@ -207,44 +228,6 @@ class Transaction(AppModel):
     @classmethod
     def is_valid_payment_code(cls, payment_code):
         return is_valid_payment_code(payment_code, TransactionType.values)
-
-    def get_inclusive_amount(self, country):
-        if self.charged_amount is not None and self.calculated_fee is not None:
-            return self.charged_amount
-
-        payment_method_type = None
-        if self.payment_method and hasattr(self.payment_method, "payment_method_type"):
-            payment_method_type = self.payment_method.payment_method_type
-
-        fee = TransactionFee.objects.get_applicable_fee(
-            country=country,
-            transaction_type=self.type,
-            payment_method_type=payment_method_type,
-        )
-
-        fee_record = TransactionFee.objects.filter(
-            country=country,
-            transaction_type=self.type,
-            payment_method_type=payment_method_type,
-        ).first()
-
-        if fee_record and fee_record.fee_priority == TransactionFee.FeePriority.FIXED:
-            self.calculated_fee = fee
-            self.charged_amount = self.amount + fee
-        elif (
-            fee_record
-            and fee_record.fee_priority == TransactionFee.FeePriority.PERCENTAGE
-        ):
-            self.calculated_fee = (self.amount * fee) / 100
-            self.charged_amount = self.amount + self.calculated_fee
-        else:
-            # No fee or unknown fee type
-            self.calculated_fee = 0
-            self.charged_amount = self.amount
-
-        self.save(update_fields=["calculated_fee", "charged_amount"])
-
-        return self.charged_amount
 
     def _set_status(self, status_code):
         self.status = status_code

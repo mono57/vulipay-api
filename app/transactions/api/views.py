@@ -487,59 +487,34 @@ class ProcessTransactionAPIView(ValidPINRequiredMixin, APIView):
 
         data = serializer.validated_data
 
-        source_wallet = data["source_wallet"]
-        target_wallet = data["target_wallet"]
-        amount = Decimal(str(data["amount"]))
-
-        transaction_fee = data.get("transaction_fee")
-        fee_type = None
-
-        if transaction_fee is None:
-            try:
-                transaction_fee = TransactionFee.objects.get_applicable_fee(
-                    country=request.user.country,
-                    transaction_type=data["transaction_type"],
-                )
-
-                fee_record = TransactionFee.objects.filter(
-                    country=request.user.country,
-                    transaction_type=data["transaction_type"],
-                ).first()
-
-                if fee_record:
-                    fee_type = fee_record.fee_priority
-            except Exception as e:
-                logger.error(f"Error getting transaction fee: {str(e)}")
-                transaction_fee = 0
-
-        computed_fee, charged_amount = compute_inclusive_amount(
-            amount, transaction_fee, fee_type
-        )
-
         with transaction.atomic():
             try:
                 transaction_obj = Transaction.create_transaction(
                     transaction_type=data["transaction_type"],
-                    amount=amount,
+                    amount=data["amount"],
                     status=TransactionStatus.PENDING,
-                    source_wallet=source_wallet,
-                    target_wallet=target_wallet,
+                    source_wallet=data["source_wallet"],
+                    target_wallet=data["target_wallet"],
                     notes=f"Transfer to {data['full_name']}",
-                    calculated_fee=computed_fee,
-                    charged_amount=charged_amount,
+                    calculated_fee=data["calculated_fee"],
+                    charged_amount=data["charged_amount"],
                 )
 
-                source_wallet.transfer(target_wallet, charged_amount)
-                PlatformWallet.objects.collect_fees(
-                    country=request.user.country, amount=computed_fee
+                data["source_wallet"].transfer(
+                    data["target_wallet"], data["charged_amount"]
                 )
+
+                PlatformWallet.objects.collect_fees(
+                    country=request.user.country, amount=data["calculated_fee"]
+                )
+
                 transaction_obj.set_as_COMPLETED()
 
                 return Response(
                     {
                         "transaction_reference": transaction_obj.reference,
                         "status": transaction_obj.status,
-                        "amount": float(amount),
+                        "amount": data["amount"],
                         "currency": data["currency"],
                         "message": _("Transaction processed successfully"),
                     },
