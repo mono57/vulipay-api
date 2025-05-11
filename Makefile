@@ -1,4 +1,4 @@
-.PHONY: build up down logs shell django-shell migrate makemigrations test test-coverage test-coverage-html clean create-app
+.PHONY: build up down logs shell django-shell migrate makemigrations test test-coverage test-coverage-html clean create-app diagram diagram-app diagram-models
 
 # Default target
 all: build up
@@ -90,3 +90,56 @@ create-app:
 	fi
 	docker compose -f local.yml exec django python manage.py startapp $(APP_NAME)
 	@echo "Django app '$(APP_NAME)' created successfully."
+
+# Generate diagram for all models
+# Usage:
+#   make diagram                               # Generate diagram for all apps in PNG format
+#   make diagram format=svg                    # Generate diagram in SVG format
+#   make diagram output=custom_models.png      # Specify custom output filename
+#   make diagram exclude="admin sessions"      # Exclude specific apps from diagram
+diagram:
+	@mkdir -p diagrams
+	@echo "Generating diagram for all models..."
+	@FILENAME=$(if $(output),$(output),models.$(if $(format),$(format),png)); \
+	docker compose -f local.yml exec django mkdir -p /app/diagrams; \
+	docker compose -f local.yml exec django python manage.py graph_models -a -g \
+		$(if $(exclude),-e $(exclude),) \
+		-o /app/diagrams/$$FILENAME; \
+	docker cp $$(docker compose -f local.yml ps -q django):/app/diagrams/$$FILENAME ./diagrams/$$FILENAME; \
+	echo "Generated diagram: diagrams/$$FILENAME"
+
+# Generate diagram for a specific app
+# Usage:
+#   make diagram-app app=accounts              # Generate diagram for accounts app
+#   make diagram-app app=transactions format=svg output=trans.svg  # Custom format and filename
+diagram-app:
+	@mkdir -p diagrams
+	@if [ -z "$(app)" ]; then \
+		echo "Error: app parameter is required. Usage: make diagram-app app=your_app_name"; \
+		exit 1; \
+	fi
+	@echo "Generating diagram for app: $(app)..."
+	@FILENAME=$(if $(output),$(output),$(app)_models.$(if $(format),$(format),png)); \
+	docker compose -f local.yml exec django mkdir -p /app/diagrams; \
+	docker compose -f local.yml exec django python manage.py graph_models $(app) \
+		-o /app/diagrams/$$FILENAME; \
+	docker cp $$(docker compose -f local.yml ps -q django):/app/diagrams/$$FILENAME ./diagrams/$$FILENAME; \
+	echo "Generated diagram: diagrams/$$FILENAME"
+
+# Generate diagram for specific models
+# Usage:
+#   make diagram-models models="accounts.User transactions.Transaction"  # Generate diagram for specific models
+#   make diagram-models models="accounts.User" output=user_model.svg format=svg  # Custom format and filename
+diagram-models:
+	@mkdir -p diagrams
+	@if [ -z "$(models)" ]; then \
+		echo "Error: models parameter is required. Usage: make diagram-models models=\"app.Model1 app.Model2\""; \
+		exit 1; \
+	fi
+	@echo "Generating diagram for models: $(models)..."
+	@FILENAME=$(if $(output),$(output),models_selection.$(if $(format),$(format),png)); \
+	docker compose -f local.yml exec django mkdir -p /app/diagrams; \
+	docker compose -f local.yml exec django python manage.py graph_models $(models) \
+		-o /app/diagrams/$$FILENAME; \
+	docker cp $$(docker compose -f local.yml ps -q django):/app/diagrams/$$FILENAME ./diagrams/$$FILENAME; \
+	echo "Generated diagram: diagrams/$$FILENAME"

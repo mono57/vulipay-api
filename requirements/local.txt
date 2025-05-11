@@ -3,3 +3,5 @@
 psycopg2==2.9.3
 Werkzeug[watchdog]==2.2.2
 ipdb==0.13.9
+pydot==4.0.0
+graphviz==0.20.3
