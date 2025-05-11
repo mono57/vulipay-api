@@ -43,6 +43,7 @@ class PaymentMethodAPITestCase(APITestCase):
 
         # Create transaction fees for these payment method types
         TransactionFee.objects.create(
+            name="Visa CashIn Fee",
             country=self.country,
             transaction_type=TransactionType.CashIn,
             payment_method_type=self.visa_type,
@@ -52,6 +53,7 @@ class PaymentMethodAPITestCase(APITestCase):
         )
 
         TransactionFee.objects.create(
+            name="Visa CashOut Fee",
             country=self.country,
             transaction_type=TransactionType.CashOut,
             payment_method_type=self.visa_type,
@@ -61,6 +63,7 @@ class PaymentMethodAPITestCase(APITestCase):
         )
 
         TransactionFee.objects.create(
+            name="MTN CashIn Fee",
             country=self.country,
             transaction_type=TransactionType.CashIn,
             payment_method_type=self.mtn_type,
@@ -70,6 +73,7 @@ class PaymentMethodAPITestCase(APITestCase):
         )
 
         TransactionFee.objects.create(
+            name="MTN CashOut Fee",
             country=self.country,
             transaction_type=TransactionType.CashOut,
             payment_method_type=self.mtn_type,
@@ -404,6 +408,7 @@ class AddFundsTransactionAPITestCase(APITestCase):
         # Create transaction fee for this payment method type
         self.percentage_fee = 2.5  # 2.5% fee
         self.transaction_fee = TransactionFee.objects.create(
+            name="CashIn Transaction Fee",
             country=self.user.country,
             transaction_type=TransactionType.CashIn,
             payment_method_type=self.payment_method_type,

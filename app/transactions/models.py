@@ -98,6 +98,8 @@ class TransactionFee(AppModel):
         FIXED = "fixed", _("Fixed Fee")
         PERCENTAGE = "percentage", _("Percentage Fee")
 
+    name = AppCharField(_("Name"), max_length=255)
+    description = models.TextField(_("Description"), null=True, blank=True)
     fixed_fee = models.FloatField(null=True, db_index=True)  # i.e: 100
     percentage_fee = models.FloatField(null=True, db_index=True)  # i.e: 5
     fee_priority = models.CharField(
@@ -161,7 +163,7 @@ class TransactionFee(AppModel):
         else:
             fee_info = f"Percentage: {self.percentage_fee}%"
 
-        return f"{country_name} - {self.transaction_type} - {payment_type} - {fee_info}"
+        return f"{country_name} - {self.transaction_type} - {payment_type} - {fee_info} ({self.name})"
 
 
 class Transaction(AppModel):

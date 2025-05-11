@@ -35,6 +35,7 @@ class PaymentMethodTypeSerializerTestCase(TestCase):
         from app.transactions.models import TransactionFee
 
         TransactionFee.objects.create(
+            name="Visa CashIn Fee",
             country=self.country,
             payment_method_type=self.visa_type,
             transaction_type=TransactionType.CashIn,
@@ -99,6 +100,7 @@ class PaymentMethodTypeSerializerTestCase(TestCase):
         from app.transactions.models import TransactionFee
 
         TransactionFee.objects.create(
+            name="Visa CashIn Fee",
             country=self.country,
             payment_method_type=self.visa_type,
             transaction_type=TransactionType.CashIn,
@@ -108,6 +110,7 @@ class PaymentMethodTypeSerializerTestCase(TestCase):
         )
 
         TransactionFee.objects.create(
+            name="Visa P2P Fee",
             country=self.country,
             payment_method_type=self.visa_type,
             transaction_type=TransactionType.P2P,

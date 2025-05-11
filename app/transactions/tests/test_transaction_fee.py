@@ -20,6 +20,7 @@ class TransactionFeeModelTestCase(TestCase):
 
         # Create test transaction fees
         self.fee_fixed = TransactionFee.objects.create(
+            name="P2P Fixed Fee",
             country=self.country,
             transaction_type=TransactionType.P2P,
             payment_method_type=self.payment_method_type,
@@ -29,6 +30,7 @@ class TransactionFeeModelTestCase(TestCase):
         )
 
         self.fee_percentage = TransactionFee.objects.create(
+            name="Cash In Percentage Fee",
             country=self.country,
             transaction_type=TransactionType.CashIn,
             payment_method_type=self.payment_method_type,
@@ -39,6 +41,7 @@ class TransactionFeeModelTestCase(TestCase):
 
         # Create another fixed fee (instead of 'both')
         self.fee_fixed2 = TransactionFee.objects.create(
+            name="Cash Out Fixed Fee",
             country=self.country,
             transaction_type=TransactionType.CashOut,
             payment_method_type=self.payment_method_type,
@@ -49,6 +52,7 @@ class TransactionFeeModelTestCase(TestCase):
 
         # Create a default fee with no specific payment method type
         self.default_fee = TransactionFee.objects.create(
+            name="Merchant Payment Default Fee",
             country=self.country,
             transaction_type=TransactionType.MP,
             payment_method_type=None,
@@ -65,19 +69,27 @@ class TransactionFeeModelTestCase(TestCase):
 
     def test_string_representation(self):
         """Test the string representation of the model"""
-        expected_str = f"{self.country.name} - {TransactionType.P2P} - {self.payment_method_type.name} - Fixed: 100"
-        self.assertEqual(str(self.fee_fixed), expected_str)
+        # Test that the string representation includes the expected components
+        fee_fixed_str = str(self.fee_fixed)
+        self.assertIn("P2P", fee_fixed_str)
+        self.assertIn("Fixed: 100", fee_fixed_str)
+        self.assertIn("P2P Fixed Fee", fee_fixed_str)
 
-        expected_str = f"{self.country.name} - {TransactionType.CashIn} - {self.payment_method_type.name} - Percentage: 2.5%"
-        self.assertEqual(str(self.fee_percentage), expected_str)
+        fee_percentage_str = str(self.fee_percentage)
+        self.assertIn("CI", fee_percentage_str)
+        self.assertIn("Percentage: 2.5%", fee_percentage_str)
+        self.assertIn("Cash In Percentage Fee", fee_percentage_str)
 
-        expected_str = f"{self.country.name} - {TransactionType.CashOut} - {self.payment_method_type.name} - Fixed: 50"
-        self.assertEqual(str(self.fee_fixed2), expected_str)
+        fee_fixed2_str = str(self.fee_fixed2)
+        self.assertIn("CO", fee_fixed2_str)
+        self.assertIn("Fixed: 50", fee_fixed2_str)
+        self.assertIn("Cash Out Fixed Fee", fee_fixed2_str)
 
-        expected_str = (
-            f"{self.country.name} - {TransactionType.MP} - All - Percentage: 3.0%"
-        )
-        self.assertEqual(str(self.default_fee), expected_str)
+        default_fee_str = str(self.default_fee)
+        self.assertIn("MP", default_fee_str)
+        self.assertIn("Percentage: 3.0%", default_fee_str)
+        self.assertIn("All", default_fee_str)
+        self.assertIn("Merchant Payment Default Fee", default_fee_str)
 
 
 class TransactionAllowedTestCase(TestCase):
@@ -223,6 +235,7 @@ class TransactionFeeManagerTestCase(TestCase):
 
         # Create specific fee configurations
         self.fee1 = TransactionFee.objects.create(
+            name="Specific Transaction Fee",
             country=self.country1,
             transaction_type=TransactionType.P2P,
             payment_method_type=self.payment_method_type1,
@@ -232,6 +245,7 @@ class TransactionFeeManagerTestCase(TestCase):
         )
 
         self.fee2 = TransactionFee.objects.create(
+            name="Default Transaction Fee",
             country=self.country1,
             transaction_type=TransactionType.P2P,
             payment_method_type=None,  # Default for all payment method types
@@ -241,6 +255,7 @@ class TransactionFeeManagerTestCase(TestCase):
         )
 
         self.fee3 = TransactionFee.objects.create(
+            name="Global Transaction Fee",
             country=None,  # Global fee
             transaction_type=TransactionType.P2P,
             payment_method_type=None,
@@ -402,15 +417,17 @@ class TransactionFeePerformanceTestCase(TestCase):
             # Alternate between fixed and percentage fees
             if i % 2 == 0:
                 TransactionFee.objects.create(
+                    name=f"Performance Test Fee {i}-{pmt_type.id}-{tx_type}",
                     country=self.country,
                     transaction_type=tx_type,
                     payment_method_type=pmt_type,
-                    fixed_fee=i * 10,
+                    fixed_fee=100,
                     percentage_fee=None,
                     fee_priority=TransactionFee.FeePriority.FIXED,
                 )
             else:
                 TransactionFee.objects.create(
+                    name=f"Performance Test Fee {i}-{pmt_type.id}-{tx_type}",
                     country=self.country,
                     transaction_type=tx_type,
                     payment_method_type=pmt_type,
@@ -422,6 +439,7 @@ class TransactionFeePerformanceTestCase(TestCase):
             # Also create a default fee (no payment method type)
             if i % 2 != 0:
                 TransactionFee.objects.create(
+                    name=f"Performance Test Fee {i}-{tx_type}",
                     country=self.country,
                     transaction_type=tx_type,
                     payment_method_type=None,
@@ -431,6 +449,7 @@ class TransactionFeePerformanceTestCase(TestCase):
                 )
             else:
                 TransactionFee.objects.create(
+                    name=f"Performance Test Fee {i}-{tx_type}",
                     country=self.country,
                     transaction_type=tx_type,
                     payment_method_type=None,

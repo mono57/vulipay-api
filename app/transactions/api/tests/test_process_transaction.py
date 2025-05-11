@@ -63,6 +63,7 @@ class ProcessTransactionAPIViewTestCase(APITestCase):
 
         # Create a transaction fee for this payment method type
         TransactionFee.objects.create(
+            name="P2P Transaction Fee",
             country=self.country,
             payment_method_type=self.wallet_to_wallet_pmt,
             transaction_type=TransactionType.P2P,
