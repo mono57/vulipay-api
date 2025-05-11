@@ -133,7 +133,6 @@ class TransactionFee(AppModel):
             ),
             models.Index(fields=["transaction_type"], name="tx_fee_type_idx"),
         ]
-        unique_together = [["country", "transaction_type", "payment_method_type"]]
 
     @property
     def fee(self):
