@@ -96,3 +96,13 @@ TWILIO_ENABLED = env.bool(
 TWILIO_ACCOUNT_SID = env("TWILIO_ACCOUNT_SID", default="")
 TWILIO_AUTH_TOKEN = env("TWILIO_AUTH_TOKEN", default="")
 TWILIO_PHONE_NUMBER = env("TWILIO_PHONE_NUMBER", default="")
+
+# CORS settings for local development
+CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins in development
+# You can also specify origins explicitly if needed:
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://10.0.2.2:8000",
+]
