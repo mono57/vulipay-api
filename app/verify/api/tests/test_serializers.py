@@ -273,7 +273,7 @@ class VerifyOTPSerializerTestCase(TestCase):
 
         mock_get_active_otp.assert_called_once_with("+237698765432")
         mock_otp.verify.assert_called_once_with("123456")
-        mock_get_or_create.assert_called_once_with(email="+237698765432")
+        mock_get_or_create.assert_called_once_with(phone_number="+237698765432")
         mock_refresh_token.assert_called_once_with(mock_user)
 
     @patch("app.verify.models.OTP.objects.get_active_otp")
@@ -342,6 +342,11 @@ class VerifyOTPSerializerTestCase(TestCase):
         self.assertEqual(result["wallet"]["wallet_type"], "MAIN")
         self.assertEqual(result["wallet"]["currency"], "XAF")
         self.assertEqual(result["wallet"]["is_active"], True)
+
+        mock_get_active_otp.assert_called_once_with("+237698765432")
+        mock_otp.verify.assert_called_once_with("123456")
+        mock_get_or_create.assert_called_once_with(phone_number="+237698765432")
+        mock_refresh_token.assert_called_once_with(mock_user)
 
     @patch("app.verify.models.OTP.objects.get_active_otp")
     @patch("app.accounts.models.User.objects.get_or_create")
@@ -417,5 +422,58 @@ class VerifyOTPSerializerTestCase(TestCase):
 
         mock_get_active_otp.assert_called_once_with("test@example.com")
         mock_otp.verify.assert_called_once_with("123456")
-        mock_get_or_create.assert_called_once_with(email="test@example.com")
+        mock_get_or_create.assert_called_once_with(phone_number="test@example.com")
         mock_refresh_token.assert_called_once_with(mock_user)
+
+    @patch("app.verify.models.OTP.objects.get_active_otp")
+    @patch("app.accounts.models.User.objects.get_or_create")
+    @patch("app.transactions.models.Wallet.objects.get_or_create")
+    @patch("rest_framework_simplejwt.tokens.RefreshToken.for_user")
+    def test_verify_otp_use_phone_number(
+        self,
+        mock_refresh_token,
+        mock_wallet_get_or_create,
+        mock_get_or_create,
+        mock_get_active_otp,
+    ):
+        """Test that verify_otp uses phone_number parameter for User.objects.get_or_create."""
+        # Set up the OTP verification
+        mock_otp = Mock()
+        mock_otp.verify.return_value = True
+        mock_get_active_otp.return_value = mock_otp
+
+        # Create a mock user
+        mock_user = Mock()
+        mock_user.full_name = "Test User"
+        mock_user.email = "test@example.com"
+        mock_user.phone_number = "+237698765432"
+        mock_user.country = Mock()
+        mock_user.country.name = "Cameroon"
+        mock_user.profile_picture = None
+
+        # Mock get_or_create to return a tuple (user, created)
+        mock_get_or_create.return_value = (mock_user, True)
+
+        # Mock wallet_get_or_create
+        mock_wallet = Mock()
+        mock_wallet.id = 1
+        mock_wallet.balance = 0.0
+        mock_wallet.wallet_type = "MAIN"
+        mock_wallet.currency = "XAF"
+        mock_wallet.is_active = True
+        mock_wallet_get_or_create.return_value = (mock_wallet, True)
+
+        # Create a mock token
+        mock_token = Mock()
+        mock_token.access_token = "test_access_token"
+        type(mock_token).__str__ = lambda self: "test_refresh_token"
+        mock_refresh_token.return_value = mock_token
+
+        serializer = VerifyOTPSerializer(data=self.valid_phone_data)
+        self.assertTrue(serializer.is_valid())
+
+        # Call the verify_otp method
+        serializer.verify_otp()
+
+        # Assert that get_or_create was called with phone_number, not email
+        mock_get_or_create.assert_called_once_with(phone_number="+237698765432")

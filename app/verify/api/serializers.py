@@ -142,7 +142,7 @@ class VerifyOTPSerializer(serializers.Serializer):
             }
 
         if otp.verify(code):
-            user, created = User.objects.get_or_create(email=identifier)
+            user, created = User.objects.get_or_create(phone_number=identifier)
             user.country_id = country_id
             user.save()
 
