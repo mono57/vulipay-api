@@ -1,3 +1,4 @@
+from django.conf import settings
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.authentication import SessionAuthentication
@@ -45,7 +46,7 @@ class UserFullNameRateThrottle(UserRateThrottle):
 class UserFullNameUpdateView(generics.UpdateAPIView):
     serializer_class = UserFullNameUpdateSerializer
     permission_classes = [permissions.IsAuthenticated]
-    throttle_classes = [UserFullNameRateThrottle]
+    throttle_classes = [UserFullNameRateThrottle] if not settings.DEBUG else []
 
     def get_object(self):
         return self.request.user
