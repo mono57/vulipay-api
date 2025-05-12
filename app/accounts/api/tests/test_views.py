@@ -5,9 +5,10 @@ from unittest.mock import MagicMock, patch
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+from django.test.utils import override_settings
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APIClient, APITestCase, override_settings
+from rest_framework.test import APIClient, APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from app.accounts.models import AvailableCountry, User
@@ -61,6 +62,25 @@ class UserFullNameUpdateViewTestCase(APITestCase):
 
         # Then
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @override_settings(
+        REST_FRAMEWORK={
+            "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.UserRateThrottle"],
+            "DEFAULT_THROTTLE_RATES": {"user": "3/minute"},
+        }
+    )
+    def test_rate_limiting(self):
+        """Test that rate limiting works on the endpoint"""
+        # Make 3 requests that should succeed
+        for i in range(3):
+            new_name = f"Test Name {i+1}"
+            response = self.client.put(self.url, {"full_name": new_name})
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # The 4th request should be throttled
+        response = self.client.put(self.url, {"full_name": "One too many"})
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertIn("Request was throttled", str(response.content))
 
 
 class UserPINSetupViewTestCase(APITestCase):

@@ -8,6 +8,7 @@ from rest_framework.decorators import (
 )
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import UserRateThrottle
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
@@ -27,6 +28,10 @@ from app.accounts.models import AvailableCountry, User
 from app.core.utils import ProfilePictureStorage
 
 
+class UserFullNameRateThrottle(UserRateThrottle):
+    rate = "3/minute"
+
+
 @extend_schema(
     tags=["Accounts"],
     operation_id="update_user_full_name",
@@ -40,6 +45,7 @@ from app.core.utils import ProfilePictureStorage
 class UserFullNameUpdateView(generics.UpdateAPIView):
     serializer_class = UserFullNameUpdateSerializer
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [UserFullNameRateThrottle]
 
     def get_object(self):
         return self.request.user
