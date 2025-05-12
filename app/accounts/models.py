@@ -132,6 +132,13 @@ class AvailableCountry(AppModel):
         blank=True,
         help_text=_("Default currency for this country (e.g., USD, EUR, XAF)"),
     )
+    flag = AppCharField(
+        _("Flag"),
+        max_length=10,
+        null=True,
+        blank=True,
+        help_text=_("Flag emoji for this country"),
+    )
 
     class Meta:
         indexes = [models.Index(fields=["iso_code"])]
