@@ -44,6 +44,23 @@ class GenerateOTPView(APIView):
             429: OpenApiResponse(description="Too many OTP requests"),
             500: OpenApiResponse(description="Internal server error"),
         },
+        examples=[
+            OpenApiExample(
+                name="Generate OTP via SMS",
+                value={
+                    "phone_number": "698765432",
+                    "country_id": 1,
+                    "country_dial_code": "237",
+                    "channel": "sms",
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                name="Generate OTP via Email",
+                value={"email": "user@example.com", "channel": "email"},
+                request_only=True,
+            ),
+        ],
     )
     def post(self, request, *args, **kwargs):
         serializer = GenerateOTPSerializer(data=request.data)

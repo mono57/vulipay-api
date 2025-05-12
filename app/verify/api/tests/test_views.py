@@ -23,7 +23,8 @@ class GenerateOTPViewTestCase(APITestCase):
 
         self.valid_phone_data = {
             "phone_number": "698765432",
-            "country_iso_code": "CM",
+            "country_id": self.country.id,
+            "country_dial_code": "237",
             "channel": "sms",
         }
 
@@ -123,13 +124,13 @@ class GenerateOTPViewTestCase(APITestCase):
         # Missing both phone_number and email
         response = self.client.post(
             self.url,
-            {"country_iso_code": "CM"},
+            {"country_id": self.country.id, "country_dial_code": "237"},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(response.data["success"])
 
-        # Missing country_iso_code with phone_number
+        # Missing country_id and country_dial_code with phone_number
         response = self.client.post(
             self.url,
             {"phone_number": "698765432"},
@@ -138,10 +139,14 @@ class GenerateOTPViewTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(response.data["success"])
 
-        # Invalid country_iso_code
+        # Invalid country_id
         response = self.client.post(
             self.url,
-            {"phone_number": "698765432", "country_iso_code": "XX"},
+            {
+                "phone_number": "698765432",
+                "country_id": 999,
+                "country_dial_code": "237",
+            },
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

@@ -18,7 +18,8 @@ class GenerateOTPSerializerTestCase(TestCase):
 
         self.valid_phone_data = {
             "phone_number": "698765432",
-            "country_iso_code": "CM",
+            "country_id": self.country.id,
+            "country_dial_code": "237",
             "channel": "sms",
         }
 
@@ -42,7 +43,7 @@ class GenerateOTPSerializerTestCase(TestCase):
         serializer = GenerateOTPSerializer(data={"channel": "sms"})
         self.assertFalse(serializer.is_valid())
 
-        # Missing country_iso_code when phone_number is provided
+        # Missing country_id and country_dial_code when phone_number is provided
         serializer = GenerateOTPSerializer(data={"phone_number": "698765432"})
         self.assertFalse(serializer.is_valid())
 

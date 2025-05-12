@@ -21,8 +21,13 @@ class GenerateOTPSerializer(serializers.Serializer):
     email = serializers.EmailField(
         required=False, help_text="Email address to send the OTP to"
     )
-    country_iso_code = serializers.CharField(
-        required=False, help_text="ISO code of the country (e.g., 'CM' for Cameroon)"
+    country_id = serializers.IntegerField(
+        required=False,
+        help_text="ID of the country (required when phone_number is provided)",
+    )
+    country_dial_code = serializers.CharField(
+        required=False,
+        help_text="Dial code of the country (required when phone_number is provided)",
     )
     channel = serializers.ChoiceField(
         choices=OTP.CHANNEL_CHOICES,
@@ -36,19 +41,27 @@ class GenerateOTPSerializer(serializers.Serializer):
                 _("Either phone_number or email must be provided.")
             )
 
-        if attrs.get("phone_number") and not attrs.get("country_iso_code"):
+        if attrs.get("phone_number") and (
+            not attrs.get("country_id") or not attrs.get("country_dial_code")
+        ):
             raise serializers.ValidationError(
-                _("country_iso_code is required when phone_number is provided.")
+                _(
+                    "country_id and country_dial_code are required when phone_number is provided."
+                )
             )
 
-        if attrs.get("phone_number") and attrs.get("country_iso_code"):
-            try:
-                country = AvailableCountry.objects.get(
-                    iso_code=attrs["country_iso_code"]
+        if (
+            attrs.get("phone_number")
+            and attrs.get("country_id")
+            and attrs.get("country_dial_code")
+        ):
+            if not is_valid_country_id(attrs.get("country_id")):
+                raise serializers.ValidationError(
+                    _("Invalid country_id. Country does not exist.")
                 )
-                attrs["identifier"] = f"+{country.dial_code}{attrs['phone_number']}"
-            except AvailableCountry.DoesNotExist:
-                raise serializers.ValidationError(_("Invalid country_iso_code."))
+            attrs["identifier"] = (
+                f"+{attrs['country_dial_code']}{attrs['phone_number']}"
+            )
 
         if attrs.get("email"):
             attrs["identifier"] = attrs["email"]
