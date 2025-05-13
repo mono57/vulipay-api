@@ -54,3 +54,15 @@ class AvailableCountryFactory(django.DjangoModelFactory):
     iso_code = factory.Sequence(lambda n: f"C{n}")
     phone_number_regex = "^\\+\\d{3}\\d{8}$"
     currency = factory.Sequence(lambda n: f"CUR{n}")
+
+    @classmethod
+    def _create(cls, model_class, *args, **kwargs):
+        """Override the default _create method to handle flag field"""
+        if "flag" not in kwargs:
+            # Only create a test image if not explicitly provided
+            kwargs["flag"] = SimpleUploadedFile(
+                name="test_flag.png",
+                content=b"",  # Empty content for testing
+                content_type="image/png",
+            )
+        return super()._create(model_class, *args, **kwargs)

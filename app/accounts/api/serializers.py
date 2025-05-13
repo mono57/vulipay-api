@@ -226,4 +226,4 @@ class UserPINSetupSerializer(serializers.Serializer):
 class CountrySerializer(serializers.ModelSerializer):
     class Meta:
         model = AvailableCountry
-        fields = ["id", "name", "dial_code", "iso_code", "currency"]
+        fields = ["id", "name", "dial_code", "iso_code", "currency", "flag"]

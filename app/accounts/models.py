@@ -132,12 +132,12 @@ class AvailableCountry(AppModel):
         blank=True,
         help_text=_("Default currency for this country (e.g., USD, EUR, XAF)"),
     )
-    flag = AppCharField(
+    flag = models.ImageField(
         _("Flag"),
-        max_length=10,
+        upload_to="country_flags/",
         null=True,
         blank=True,
-        help_text=_("Flag emoji for this country"),
+        help_text=_("Country flag image"),
     )
 
     class Meta:
