@@ -319,7 +319,7 @@ class ProfilePicturePresignedUrlViewTestCase(APITestCase):
 
         # Then
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("file_extension", response.data)
+        self.assertIn("file_extension", response.data["errors"])
 
     def test_it_should_validate_content_type(self):
         # Given
@@ -330,7 +330,7 @@ class ProfilePicturePresignedUrlViewTestCase(APITestCase):
 
         # Then
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("content_type", response.data)
+        self.assertIn("content_type", response.data["errors"])
 
     def test_it_should_require_authentication(self):
         # Given
