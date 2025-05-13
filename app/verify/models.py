@@ -10,6 +10,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from rest_framework.exceptions import APIException
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from app.core.utils.fields import AppCharField
@@ -96,12 +97,20 @@ class OTPManager(models.Manager):
         )
 
 
-class OTPWaitingPeriodError(Exception):
+class OTPWaitingPeriodError(APIException):
+    status_code = 429
+    default_detail = "Too many OTP requests."
+    default_code = "throttled"
+
     def __init__(self, message, waiting_seconds=0, next_allowed_at=None):
-        self.message = message
+        self.detail = {
+            "message": message,
+            "waiting_seconds": waiting_seconds,
+            "next_allowed_at": next_allowed_at,
+        }
         self.waiting_seconds = waiting_seconds
         self.next_allowed_at = next_allowed_at
-        super().__init__(self.message)
+        super().__init__(detail=self.detail)
 
 
 class OTP(AppModel):
@@ -207,4 +216,5 @@ class OTP(AppModel):
             "channel": channel,
             "otp": otp,
             "expires_at": otp.expires_at,
+            "next_allowed_at": otp.next_otp_allowed_at,
         }

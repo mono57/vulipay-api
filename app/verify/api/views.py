@@ -9,8 +9,11 @@ from app.core.utils.responses import success_response, validation_error_response
 from app.verify.api.serializers import (
     AccountRecoverySerializer,
     GenerateOTPSerializer,
+    NotFoundException,
+    TooManyRequestsException,
     VerifyOTPSerializer,
 )
+from app.verify.models import OTPWaitingPeriodError
 
 
 class GenerateOTPView(APIView):
@@ -74,47 +77,21 @@ class GenerateOTPView(APIView):
         serializer = GenerateOTPSerializer(data=request.data)
 
         if serializer.is_valid():
-            try:
-                result = serializer.generate_otp()
+            _data = serializer.generate_otp()
 
-                if result:
-                    data = {
-                        "expires_at": result["expires_at"],
-                    }
+            response_data = {
+                "identifier": _data["identifier"],
+                "expires_at": _data["expires_at"],
+                "next_allowed_at": _data["next_allowed_at"],
+            }
 
-                    if "otp" in result and result["otp"].next_otp_allowed_at:
-                        data["next_allowed_at"] = result["otp"].next_otp_allowed_at
-
-                    return success_response(
-                        message=_("Verification code sent to {identifier}.").format(
-                            identifier=result["identifier"]
-                        ),
-                        data=result,
-                        status_code=status.HTTP_200_OK,
-                    )
-                else:
-                    if "waiting_seconds" in result:
-                        return error_response(
-                            message=result["message"],
-                            errors={
-                                "waiting_seconds": result["waiting_seconds"],
-                                "next_allowed_at": result["next_allowed_at"],
-                            },
-                            error_code="RATE_LIMITED",
-                            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                        )
-                    else:
-                        return error_response(
-                            message=result["message"],
-                            error_code="SERVER_ERROR",
-                            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        )
-            except Exception as e:
-                return error_response(
-                    message=str(e),
-                    error_code="SERVER_ERROR",
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
+            return success_response(
+                message=_("Verification code sent to {identifier}.").format(
+                    identifier=_data["identifier"]
+                ),
+                data=response_data,
+                status_code=status.HTTP_200_OK,
+            )
 
         return validation_error_response(
             message="Invalid request data.",
@@ -222,23 +199,30 @@ class VerifyOTPView(APIView):
         serializer = VerifyOTPSerializer(data=request.data)
 
         if serializer.is_valid():
-            response = serializer.verify_otp()
-
-            if response["success"]:
-                # Extract user, wallet, and tokens from the response
-                data = {}
-                for key in ["user", "wallet", "tokens"]:
-                    if key in response:
-                        data[key] = response[key]
+            try:
+                response = serializer.verify_otp()
 
                 return success_response(
-                    message=response["message"],
-                    data=data,
+                    message=_("OTP verified successfully."),
+                    data=response,
                     status_code=status.HTTP_200_OK,
                 )
-            else:
+            except (
+                NotFoundException,
+                TooManyRequestsException,
+                serializers.ValidationError,
+            ) as e:
+                if hasattr(e, "detail"):
+                    return validation_error_response(
+                        message=str(e.detail),
+                        status_code=(
+                            e.status_code
+                            if hasattr(e, "status_code")
+                            else status.HTTP_400_BAD_REQUEST
+                        ),
+                    )
                 return validation_error_response(
-                    message=response["message"],
+                    message=str(e),
                     status_code=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -286,53 +270,49 @@ class AccountRecoveryView(APIView):
         try:
             if serializer.is_valid():
                 result = serializer.recover_account()
-
-                if result["success"]:
-                    return Response(
-                        {
-                            "message": result["message"],
-                            "masked_email": result["masked_email"],
-                            "expires_at": result["expires_at"],
+                return success_response(
+                    message=_("Recovery code sent to your email address."),
+                    data=result,
+                    status_code=status.HTTP_200_OK,
+                )
+            else:
+                return validation_error_response(
+                    message=next(iter(serializer.errors.values()))[0],
+                    errors=serializer.errors,
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+        except TooManyRequestsException as e:
+            if hasattr(e, "detail") and "waiting_seconds" in e.detail:
+                return Response(
+                    {
+                        "message": str(e.detail),
+                        "error_code": "RATE_LIMITED",
+                        "errors": {
+                            "waiting_seconds": e.detail["waiting_seconds"],
+                            "next_allowed_at": e.detail["next_allowed_at"],
                         },
-                        status=status.HTTP_200_OK,
-                    )
-                else:
-                    if "waiting_seconds" in result:
-                        return Response(
-                            {
-                                "message": result["message"],
-                                "error_code": "RATE_LIMITED",
-                                "errors": {
-                                    "waiting_seconds": result["waiting_seconds"],
-                                    "next_allowed_at": result["next_allowed_at"],
-                                },
-                            },
-                            status=status.HTTP_429_TOO_MANY_REQUESTS,
-                        )
-                    else:
-                        return Response(
-                            {
-                                "message": result["message"],
-                                "error_code": None,
-                                "errors": None,
-                            },
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
+                        "data": None,
+                    },
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
             else:
                 return Response(
                     {
-                        "message": next(iter(serializer.errors.values()))[0],
-                        "error_code": "VALIDATION_ERROR",
-                        "errors": serializer.errors,
+                        "message": (str(e.detail) if hasattr(e, "detail") else str(e)),
+                        "error_code": "RATE_LIMITED",
+                        "errors": None,
+                        "data": None,
                     },
-                    status=status.HTTP_400_BAD_REQUEST,
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
                 )
+        except (NotFoundException, serializers.ValidationError) as e:
+            return validation_error_response(
+                message=(str(e.detail) if hasattr(e, "detail") else str(e)),
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
         except serializers.ValidationError as e:
-            return Response(
-                {
-                    "message": str(e.detail[0]),
-                    "error_code": "VALIDATION_ERROR",
-                    "errors": e.detail,
-                },
-                status=status.HTTP_400_BAD_REQUEST,
+            return validation_error_response(
+                message=str(e.detail[0]),
+                errors=e.detail,
+                status_code=status.HTTP_400_BAD_REQUEST,
             )

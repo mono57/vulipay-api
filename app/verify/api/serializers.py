@@ -3,6 +3,7 @@ import logging
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
+from rest_framework.exceptions import APIException
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from app.accounts.cache import is_valid_country_id
@@ -78,6 +79,18 @@ class GenerateOTPSerializer(serializers.Serializer):
         return OTP.generate(identifier, channel)
 
 
+class NotFoundException(APIException):
+    status_code = 404
+    default_detail = "Resource not found."
+    default_code = "NOT_FOUND"
+
+
+class TooManyRequestsException(APIException):
+    status_code = 429
+    default_detail = "Too many requests."
+    default_code = "TOO_MANY_REQUESTS"
+
+
 class VerifyOTPSerializer(serializers.Serializer):
     phone_number = serializers.CharField(
         required=False, help_text="Phone number the OTP was sent to"
@@ -144,7 +157,7 @@ class VerifyOTPSerializer(serializers.Serializer):
         otp = OTP.objects.get_active_otp(identifier)
 
         if not otp:
-            raise serializers.ValidationError(
+            raise NotFoundException(
                 code="NO_ACTIVE_OTP",
                 detail=_("No active OTP found. Please request a new code."),
             )
@@ -193,6 +206,10 @@ class VerifyOTPSerializer(serializers.Serializer):
                 }
             except Exception as e:
                 logger.error(f"Failed to create wallet for user {user.id}: {str(e)}")
+                raise serializers.ValidationError(
+                    code="WALLET_CREATION_FAILED",
+                    detail=_("Failed to create wallet for user."),
+                )
 
         else:
             from django.conf import settings
@@ -201,7 +218,7 @@ class VerifyOTPSerializer(serializers.Serializer):
             remaining_attempts = max_attempts - otp.attempt_count
 
             if remaining_attempts <= 0:
-                raise serializers.ValidationError(
+                raise TooManyRequestsException(
                     code="MAX_ATTEMPTS_REACHED",
                     detail=_(
                         "Maximum verification attempts reached. Please request a new code."
@@ -230,7 +247,7 @@ class AccountRecoverySerializer(serializers.Serializer):
             user = User.objects.get(phone_number=identifier)
 
             if not user.email:
-                raise serializers.ValidationError(
+                raise NotFoundException(
                     code="NO_EMAIL_ASSOCIATED",
                     detail=_(
                         "No email address associated with this account. Please contact support."
@@ -241,7 +258,7 @@ class AccountRecoverySerializer(serializers.Serializer):
             return attrs
 
         except User.DoesNotExist:
-            raise serializers.ValidationError(
+            raise NotFoundException(
                 code="NO_ACCOUNT_FOUND",
                 detail=_("No account found with this phone number."),
             )

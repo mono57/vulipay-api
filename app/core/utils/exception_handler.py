@@ -9,19 +9,34 @@ from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
 
 from app.core.utils.responses import error_response, validation_error_response
+from app.verify.models import OTPWaitingPeriodError
 
 
 def exception_handler(exc, context):
     response = drf_exception_handler(exc, context)
 
-    if response is None:
+    if isinstance(exc, OTPWaitingPeriodError):
+        return Response(
+            {
+                "message": exc.detail["message"],
+                "data": None,
+                "error_code": "RATE_LIMITED",
+                "errors": {
+                    "waiting_seconds": exc.detail["waiting_seconds"],
+                    "next_allowed_at": exc.detail["next_allowed_at"],
+                },
+            },
+            status=exc.status_code,
+        )
+
+    if not response:
         if isinstance(exc, DjangoValidationError):
             return validation_error_response(
-                message=exc.message if exc.message else exc.detail,
-                error_code=exc.code,
+                message="Validation error",
                 errors={"non_field_errors": exc.messages},
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
+        print("response from custom exception handler", response)
 
         return error_response(
             message="Internal server error",
