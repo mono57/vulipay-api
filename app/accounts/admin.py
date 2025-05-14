@@ -17,9 +17,10 @@ class UserAdmin(BaseUserAdmin):
     list_filter = ("is_staff", "is_superuser", "is_active", "country")
     search_fields = ("phone_number", "email", "full_name")
     ordering = ("email", "phone_number")
+    readonly_fields = ("pin",)
 
     fieldsets = (
-        (None, {"fields": ("email", "phone_number", "password")}),
+        (None, {"fields": ("email", "phone_number", "password", "pin")}),
         (
             _("Personal info"),
             {"fields": ("full_name", "profile_picture", "country", "preferences")},
