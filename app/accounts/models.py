@@ -7,7 +7,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from app.accounts.managers import UserManager
+from app.accounts.managers import AppUserManager
 from app.core.utils import (
     AppCharField,
     AppModel,
@@ -75,7 +75,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     date_joined = models.DateTimeField(_("date joined"), default=timezone.now)
     pin = AppCharField(_("PIN"), max_length=128, null=True, blank=True)
 
-    objects = UserManager()
+    objects = AppUserManager()
 
     USERNAME_FIELD = "email"
     EMAIL_FIELD = "email"

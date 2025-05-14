@@ -12,6 +12,7 @@ from app.transactions.models import Wallet, WalletType
 from app.verify.models import OTP
 
 User = get_user_model()
+
 logger = logging.getLogger(__name__)
 
 

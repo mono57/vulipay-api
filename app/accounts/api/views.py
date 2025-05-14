@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.authentication import SessionAuthentication
@@ -219,6 +220,20 @@ class CountryListView(generics.ListAPIView):
     queryset = AvailableCountry.objects.all().order_by("name")
     serializer_class = CountrySerializer
     permission_classes = [permissions.AllowAny]
+    pagination_class = None
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+
+        countries_data = serializer.data
+
+        return Response(
+            {
+                "data": countries_data,
+                "message": _("Countries fetched successfully"),
+            }
+        )
 
 
 @extend_schema(

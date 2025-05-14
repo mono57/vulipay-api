@@ -5,12 +5,39 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
 from app.accounts.api.serializers import (
+    CountrySerializer,
     UserFullNameUpdateSerializer,
     UserPINSetupSerializer,
     UserProfilePictureSerializer,
 )
+from app.accounts.models import AvailableCountry
 
 User = get_user_model()
+
+
+class CountrySerializerTestCase(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.country = AvailableCountry.objects.create(
+            name="Test Country",
+            dial_code="123",
+            iso_code="TC",
+            phone_number_regex=r"^(?:\+123|00123)?[0-9]{9}$",
+            currency="TCN",
+        )
+
+    def test_serializer_output(self):
+        """Test that the serializer output contains the correct fields"""
+        serializer = CountrySerializer(instance=self.country)
+        data = serializer.data
+
+        # Verify country data directly
+        self.assertEqual(data["id"], self.country.id)
+        self.assertEqual(data["name"], "Test Country")
+        self.assertEqual(data["dial_code"], "123")
+        self.assertEqual(data["iso_code"], "TC")
+        self.assertEqual(data["currency"], "TCN")
+        self.assertIn("flag", data)
 
 
 class UserFullNameUpdateSerializerTestCase(TestCase):
@@ -59,8 +86,13 @@ class UserFullNameUpdateSerializerTestCase(TestCase):
         serializer = UserFullNameUpdateSerializer(instance=self.user)
         data = serializer.data
 
-        self.assertIn("full_name", data)
-        self.assertEqual(data["full_name"], self.user.full_name)
+        self.assertIn("data", data)
+        self.assertIn("message", data)
+        self.assertEqual(data["data"]["full_name"], self.user.full_name)
+        self.assertEqual(data["data"]["email"], self.user.email)
+        self.assertIn("phone_number", data["data"])
+        self.assertIn("country", data["data"])
+        self.assertIn("profile_picture", data["data"])
 
 
 class UserPINSetupSerializerTestCase(TestCase):

@@ -276,7 +276,7 @@ if not DEBUG:
         "rest_framework.throttling.UserRateThrottle",
     ]
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {
-        "anon": "20/day",
+        "anon": "20000/day",
         "user": "100/hour",
     }
 

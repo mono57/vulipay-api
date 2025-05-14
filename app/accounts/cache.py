@@ -16,7 +16,7 @@ CACHE_TIMEOUT = 60 * 60 * 24
 
 def get_valid_country_ids():
     country_ids = cache.get(COUNTRY_IDS_CACHE_KEY)
-
+    print(country_ids)
     if not country_ids:
         logger.info("Country IDs cache miss, fetching from database")
         country_ids = set(AvailableCountry.objects.values_list("id", flat=True))

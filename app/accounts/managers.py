@@ -12,7 +12,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 
-class UserManager(BaseUserManager):
+class AppUserManager(BaseUserManager):
     def create_user(self, phone_number=None, email=None, password=None, **extra_fields):
         if not phone_number and not email:
             raise ValidationError(
