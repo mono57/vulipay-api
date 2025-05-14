@@ -28,12 +28,19 @@ class UserFullNameUpdateViewTestCase(APITestCase):
         self.url = reverse("api:accounts:user_full_name_update")
 
     def test_it_should_update_full_name_successfully(self):
-        # Given
-        # Create a fresh user for this test to avoid rate limiting
+        country = AvailableCountry.objects.create(
+            name="United Kingdom",
+            dial_code="44",
+            iso_code="GB",
+            phone_number_regex=r"^(?:\+44|0044)?[7]\d{9}$",
+            currency="GBP",
+        )
         fresh_user = User.objects.create_user(
             email="fresh_user@example.com",
+            phone_number="+447987654321",
             full_name="Original Name",
             password="testpass123",
+            country=country,
         )
         self.client.force_authenticate(user=fresh_user)
         new_name = "Updated Name"
@@ -45,6 +52,13 @@ class UserFullNameUpdateViewTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         fresh_user.refresh_from_db()
         self.assertEqual(fresh_user.full_name, new_name)
+
+        # Check that full user info is returned
+        self.assertEqual(response.data["full_name"], new_name)
+        self.assertEqual(response.data["email"], "fresh_user@example.com")
+        self.assertEqual(response.data["phone_number"], "+447987654321")
+        self.assertEqual(response.data["country"], "United Kingdom")
+        self.assertIsNone(response.data["profile_picture"])
 
     def test_it_should_not_update_with_invalid_data(self):
         # Given

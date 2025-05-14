@@ -23,6 +23,19 @@ class UserFullNameUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(_("Full name cannot be empty."))
         return value.strip()
 
+    def to_representation(self, instance):
+        representation = {
+            "full_name": instance.full_name,
+            "email": instance.email,
+            "phone_number": instance.phone_number,
+            "country": instance.country.name if instance.country else None,
+            "profile_picture": (
+                instance.profile_picture.url if instance.profile_picture else None
+            ),
+        }
+
+        return representation
+
 
 class UserPreferencesSerializer(serializers.ModelSerializer):
     class Meta:
