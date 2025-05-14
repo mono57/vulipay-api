@@ -88,11 +88,15 @@ class UserFullNameUpdateSerializerTestCase(TestCase):
 
         self.assertIn("data", data)
         self.assertIn("message", data)
+        self.assertIn("error_code", data)
+        self.assertIn("errors", data)
         self.assertEqual(data["data"]["full_name"], self.user.full_name)
         self.assertEqual(data["data"]["email"], self.user.email)
         self.assertIn("phone_number", data["data"])
         self.assertIn("country", data["data"])
         self.assertIn("profile_picture", data["data"])
+        self.assertIsNone(data["error_code"])
+        self.assertIsNone(data["errors"])
 
 
 class UserPINSetupSerializerTestCase(TestCase):

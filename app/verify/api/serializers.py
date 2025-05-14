@@ -275,7 +275,6 @@ class AccountRecoverySerializer(serializers.Serializer):
         masked_email = f"{masked_username}@{domain}"
 
         return {
-            "message": _("Recovery code sent to your email address."),
             "masked_email": masked_email,
             "expires_at": result["expires_at"],
         }

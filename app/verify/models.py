@@ -214,7 +214,6 @@ class OTP(AppModel):
         return {
             "identifier": identifier,
             "channel": channel,
-            "otp": otp,
             "expires_at": otp.expires_at,
             "next_allowed_at": otp.next_otp_allowed_at,
         }

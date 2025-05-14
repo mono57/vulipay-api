@@ -24,7 +24,6 @@ class ExceptionHandlerTestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["message"], "Validation failed")
-        self.assertIsNone(response.data["data"])
         self.assertEqual(response.data["error_code"], "VALIDATION_ERROR")
         self.assertEqual(response.data["errors"], {"field": ["Error"]})
 
@@ -36,7 +35,6 @@ class ExceptionHandlerTestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(response.data["message"], "Authentication required")
-        self.assertIsNone(response.data["data"])
         self.assertEqual(response.data["error_code"], "NOT_AUTHENTICATED")
         self.assertIsNone(response.data["errors"])
 
@@ -48,7 +46,6 @@ class ExceptionHandlerTestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(response.data["message"], "Authentication failed")
-        self.assertIsNone(response.data["data"])
         self.assertEqual(response.data["error_code"], "AUTHENTICATION_FAILED")
         self.assertIsNone(response.data["errors"])
 
@@ -60,7 +57,6 @@ class ExceptionHandlerTestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(response.data["message"], "Permission denied")
-        self.assertIsNone(response.data["data"])
         self.assertEqual(response.data["error_code"], "PERMISSION_DENIED")
         self.assertIsNone(response.data["errors"])
 
@@ -72,7 +68,6 @@ class ExceptionHandlerTestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(response.data["message"], "Resource not found")
-        self.assertIsNone(response.data["data"])
         self.assertEqual(response.data["error_code"], "NOT_FOUND")
         self.assertIsNone(response.data["errors"])
 
@@ -84,7 +79,6 @@ class ExceptionHandlerTestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(response.data["message"], "Resource not found")
-        self.assertIsNone(response.data["data"])
         self.assertEqual(response.data["error_code"], "NOT_FOUND")
         self.assertIsNone(response.data["errors"])
 
@@ -96,7 +90,6 @@ class ExceptionHandlerTestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
         self.assertEqual(response.data["message"], "Method not allowed")
-        self.assertIsNone(response.data["data"])
         self.assertEqual(response.data["error_code"], "METHOD_NOT_ALLOWED")
         self.assertIsNone(response.data["errors"])
 
@@ -110,7 +103,6 @@ class ExceptionHandlerTestCase(TestCase):
         self.assertEqual(
             response.data["message"], "Request throttled. Try again in 60 seconds."
         )
-        self.assertIsNone(response.data["data"])
         self.assertEqual(response.data["error_code"], "THROTTLED")
         self.assertIsNone(response.data["errors"])
 
@@ -127,7 +119,6 @@ class ExceptionHandlerTestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["message"], "Validation error")
-        self.assertIsNone(response.data["data"])
         self.assertEqual(response.data["error_code"], "VALIDATION_ERROR")
         self.assertEqual(
             response.data["errors"], {"non_field_errors": ["Error 1", "Error 2"]}
@@ -146,6 +137,5 @@ class ExceptionHandlerTestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
         self.assertEqual(response.data["message"], "Internal server error")
-        self.assertIsNone(response.data["data"])
         self.assertEqual(response.data["error_code"], "SERVER_ERROR")
         self.assertIsNone(response.data["errors"])

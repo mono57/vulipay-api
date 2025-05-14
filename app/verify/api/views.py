@@ -5,7 +5,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from app.core.utils.responses import success_response, validation_error_response
+from app.core.utils.responses import validation_error_response
 from app.verify.api.serializers import (
     AccountRecoverySerializer,
     GenerateOTPSerializer,
@@ -29,25 +29,25 @@ class GenerateOTPView(APIView):
                 response={
                     "type": "object",
                     "properties": {
-                        "message": {"type": "string", "description": "Success message"},
-                        "data": {
-                            "type": "object",
-                            "properties": {
-                                "expires_at": {
-                                    "type": "string",
-                                    "format": "date-time",
-                                    "description": "OTP expiration time",
-                                },
-                                "next_allowed_at": {
-                                    "type": "string",
-                                    "format": "date-time",
-                                    "description": "Time when next OTP can be requested",
-                                    "nullable": True,
-                                },
-                            },
+                        "identifier": {
+                            "type": "string",
+                            "description": "Identifier (phone number or email address)",
                         },
-                        "error_code": {"type": "null"},
-                        "errors": {"type": "null"},
+                        "channel": {
+                            "type": "string",
+                            "description": "Channel (sms or email)",
+                        },
+                        "expires_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "OTP expiration time",
+                        },
+                        "next_allowed_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "Time when next OTP can be requested",
+                            "nullable": True,
+                        },
                     },
                 },
             ),
@@ -77,20 +77,11 @@ class GenerateOTPView(APIView):
         serializer = GenerateOTPSerializer(data=request.data)
 
         if serializer.is_valid():
-            _data = serializer.generate_otp()
+            response = serializer.generate_otp()
 
-            response_data = {
-                "identifier": _data["identifier"],
-                "expires_at": _data["expires_at"],
-                "next_allowed_at": _data["next_allowed_at"],
-            }
-
-            return success_response(
-                message=_("Verification code sent to {identifier}.").format(
-                    identifier=_data["identifier"]
-                ),
-                data=response_data,
-                status_code=status.HTTP_200_OK,
+            return Response(
+                response,
+                status=status.HTTP_200_OK,
             )
 
         return validation_error_response(
@@ -113,82 +104,74 @@ class VerifyOTPView(APIView):
                 response={
                     "type": "object",
                     "properties": {
-                        "message": {"type": "string", "description": "Success message"},
-                        "data": {
+                        "user": {
                             "type": "object",
                             "properties": {
-                                "user": {
-                                    "type": "object",
-                                    "properties": {
-                                        "full_name": {
-                                            "type": "string",
-                                            "description": "User full name",
-                                        },
-                                        "email": {
-                                            "type": "string",
-                                            "description": "User email",
-                                        },
-                                        "phone_number": {
-                                            "type": "string",
-                                            "description": "User phone number",
-                                            "nullable": True,
-                                        },
-                                        "country": {
-                                            "type": "string",
-                                            "description": "User country name",
-                                            "nullable": True,
-                                        },
-                                        "profile_picture": {
-                                            "type": "string",
-                                            "description": "URL to user's profile picture",
-                                            "nullable": True,
-                                        },
-                                    },
+                                "full_name": {
+                                    "type": "string",
+                                    "description": "User full name",
                                 },
-                                "wallet": {
-                                    "type": "object",
-                                    "properties": {
-                                        "id": {
-                                            "type": "integer",
-                                            "description": "Wallet ID",
-                                        },
-                                        "balance": {
-                                            "type": "string",
-                                            "description": "Current wallet balance",
-                                        },
-                                        "wallet_type": {
-                                            "type": "string",
-                                            "description": "Type of wallet (MAIN, BUSINESS)",
-                                        },
-                                        "currency": {
-                                            "type": "string",
-                                            "description": "Wallet currency",
-                                            "nullable": True,
-                                        },
-                                        "is_active": {
-                                            "type": "boolean",
-                                            "description": "Whether the wallet is active",
-                                        },
-                                    },
+                                "email": {
+                                    "type": "string",
+                                    "description": "User email",
+                                },
+                                "phone_number": {
+                                    "type": "string",
+                                    "description": "User phone number",
                                     "nullable": True,
                                 },
-                                "tokens": {
-                                    "type": "object",
-                                    "properties": {
-                                        "access": {
-                                            "type": "string",
-                                            "description": "JWT access token",
-                                        },
-                                        "refresh": {
-                                            "type": "string",
-                                            "description": "JWT refresh token",
-                                        },
-                                    },
+                                "country": {
+                                    "type": "string",
+                                    "description": "User country name",
+                                    "nullable": True,
+                                },
+                                "profile_picture": {
+                                    "type": "string",
+                                    "description": "URL to user's profile picture",
+                                    "nullable": True,
                                 },
                             },
                         },
-                        "error_code": {"type": "null"},
-                        "errors": {"type": "null"},
+                        "wallet": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer",
+                                    "description": "Wallet ID",
+                                },
+                                "balance": {
+                                    "type": "string",
+                                    "description": "Current wallet balance",
+                                },
+                                "wallet_type": {
+                                    "type": "string",
+                                    "description": "Type of wallet (MAIN, BUSINESS)",
+                                },
+                                "currency": {
+                                    "type": "string",
+                                    "description": "Wallet currency",
+                                    "nullable": True,
+                                },
+                                "is_active": {
+                                    "type": "boolean",
+                                    "description": "Whether the wallet is active",
+                                },
+                            },
+                            "nullable": True,
+                        },
+                        "tokens": {
+                            "type": "object",
+                            "properties": {
+                                "access": {
+                                    "type": "string",
+                                    "description": "JWT access token",
+                                },
+                                "refresh": {
+                                    "type": "string",
+                                    "description": "JWT refresh token",
+                                },
+                            },
+                        },
                     },
                 },
             ),
@@ -202,10 +185,9 @@ class VerifyOTPView(APIView):
             try:
                 response = serializer.verify_otp()
 
-                return success_response(
-                    message=_("OTP verified successfully."),
-                    data=response,
-                    status_code=status.HTTP_200_OK,
+                return Response(
+                    response,
+                    status=status.HTTP_200_OK,
                 )
             except (
                 NotFoundException,
@@ -246,7 +228,6 @@ class AccountRecoveryView(APIView):
                 response={
                     "type": "object",
                     "properties": {
-                        "message": {"type": "string", "description": "Success message"},
                         "masked_email": {
                             "type": "string",
                             "description": "Masked email address where the recovery code was sent",
@@ -269,11 +250,11 @@ class AccountRecoveryView(APIView):
 
         try:
             if serializer.is_valid():
-                result = serializer.recover_account()
-                return success_response(
-                    message=_("Recovery code sent to your email address."),
-                    data=result,
-                    status_code=status.HTTP_200_OK,
+                response = serializer.recover_account()
+
+                return Response(
+                    response,
+                    status=status.HTTP_200_OK,
                 )
             else:
                 return validation_error_response(
@@ -291,7 +272,6 @@ class AccountRecoveryView(APIView):
                             "waiting_seconds": e.detail["waiting_seconds"],
                             "next_allowed_at": e.detail["next_allowed_at"],
                         },
-                        "data": None,
                     },
                     status=status.HTTP_429_TOO_MANY_REQUESTS,
                 )
@@ -301,7 +281,6 @@ class AccountRecoveryView(APIView):
                         "message": (str(e.detail) if hasattr(e, "detail") else str(e)),
                         "error_code": "RATE_LIMITED",
                         "errors": None,
-                        "data": None,
                     },
                     status=status.HTTP_429_TOO_MANY_REQUESTS,
                 )

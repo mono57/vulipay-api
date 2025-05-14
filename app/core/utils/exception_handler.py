@@ -19,7 +19,6 @@ def exception_handler(exc, context):
         return Response(
             {
                 "message": exc.detail["message"],
-                "data": None,
                 "error_code": "RATE_LIMITED",
                 "errors": {
                     "waiting_seconds": exc.detail["waiting_seconds"],

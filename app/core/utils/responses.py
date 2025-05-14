@@ -5,20 +5,6 @@ from rest_framework import status
 from rest_framework.response import Response
 
 
-def success_response(
-    message: str,
-    data: Optional[Union[Dict, List, Any]] = None,
-    status_code: int = status.HTTP_200_OK,
-) -> Response:
-    response_data = {
-        "message": message,
-        "data": data,
-        "error_code": None,
-        "errors": None,
-    }
-    return Response(response_data, status=status_code)
-
-
 def error_response(
     message: str,
     errors: Optional[Union[Dict, List, Any]] = None,
@@ -27,7 +13,6 @@ def error_response(
 ) -> Response:
     response_data = {
         "message": message,
-        "data": None,
         "error_code": error_code,
         "errors": errors,
     }

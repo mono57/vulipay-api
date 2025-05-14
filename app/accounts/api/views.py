@@ -39,7 +39,34 @@ class UserFullNameRateThrottle(UserRateThrottle):
     operation_id="update_user_full_name",
     description="Update the user's full name",
     responses={
-        200: UserFullNameUpdateSerializer,
+        200: OpenApiResponse(
+            description="Full name updated successfully",
+            response={
+                "type": "object",
+                "properties": {
+                    "full_name": {
+                        "type": "string",
+                        "description": "User full name",
+                    },
+                    "email": {"type": "string", "description": "User email"},
+                    "phone_number": {
+                        "type": "string",
+                        "description": "User phone number",
+                        "nullable": True,
+                    },
+                    "country": {
+                        "type": "string",
+                        "description": "User country",
+                        "nullable": True,
+                    },
+                    "profile_picture": {
+                        "type": "string",
+                        "description": "User profile picture",
+                        "nullable": True,
+                    },
+                },
+            },
+        ),
         400: OpenApiResponse(description="Validation error"),
     },
     request=UserFullNameUpdateSerializer,
@@ -213,7 +240,32 @@ class AppTokenRefreshView(TokenRefreshView):
     operation_id="list_countries",
     description="List all available countries with their details",
     responses={
-        200: CountrySerializer(many=True),
+        200: OpenApiResponse(
+            description="Countries fetched successfully",
+            response={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Country name"},
+                    "dial_code": {
+                        "type": "string",
+                        "description": "Country dial code",
+                    },
+                    "iso_code": {
+                        "type": "string",
+                        "description": "Country ISO code",
+                    },
+                    "currency": {
+                        "type": "string",
+                        "description": "Country currency",
+                    },
+                    "flag": {
+                        "type": "string",
+                        "description": "Country flag",
+                        "nullable": True,
+                    },
+                },
+            },
+        ),
     },
 )
 class CountryListView(generics.ListAPIView):
@@ -221,19 +273,6 @@ class CountryListView(generics.ListAPIView):
     serializer_class = CountrySerializer
     permission_classes = [permissions.AllowAny]
     pagination_class = None
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-        serializer = self.get_serializer(queryset, many=True)
-
-        countries_data = serializer.data
-
-        return Response(
-            {
-                "data": countries_data,
-                "message": _("Countries fetched successfully"),
-            }
-        )
 
 
 @extend_schema(
