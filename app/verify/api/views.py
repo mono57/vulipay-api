@@ -1,14 +1,19 @@
+from django.utils.translation import gettext as _
 from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema
 from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from app.core.utils.responses import success_response, validation_error_response
 from app.verify.api.serializers import (
     AccountRecoverySerializer,
     GenerateOTPSerializer,
+    NotFoundException,
+    TooManyRequestsException,
     VerifyOTPSerializer,
 )
+from app.verify.models import OTPWaitingPeriodError
 
 
 class GenerateOTPView(APIView):
@@ -24,19 +29,25 @@ class GenerateOTPView(APIView):
                 response={
                     "type": "object",
                     "properties": {
-                        "success": {"type": "boolean", "description": "Success status"},
                         "message": {"type": "string", "description": "Success message"},
-                        "expires_at": {
-                            "type": "string",
-                            "format": "date-time",
-                            "description": "OTP expiration time",
+                        "data": {
+                            "type": "object",
+                            "properties": {
+                                "expires_at": {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "description": "OTP expiration time",
+                                },
+                                "next_allowed_at": {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "description": "Time when next OTP can be requested",
+                                    "nullable": True,
+                                },
+                            },
                         },
-                        "next_allowed_at": {
-                            "type": "string",
-                            "format": "date-time",
-                            "description": "Time when next OTP can be requested",
-                            "nullable": True,
-                        },
+                        "error_code": {"type": "null"},
+                        "errors": {"type": "null"},
                     },
                 },
             ),
@@ -66,43 +77,26 @@ class GenerateOTPView(APIView):
         serializer = GenerateOTPSerializer(data=request.data)
 
         if serializer.is_valid():
-            result = serializer.generate_otp()
+            _data = serializer.generate_otp()
 
-            if result["success"]:
-                response_data = {
-                    "success": True,
-                    "message": result["message"],
-                    "expires_at": result["expires_at"],
-                }
+            response_data = {
+                "identifier": _data["identifier"],
+                "expires_at": _data["expires_at"],
+                "next_allowed_at": _data["next_allowed_at"],
+            }
 
-                if "otp" in result and result["otp"].next_otp_allowed_at:
-                    response_data["next_allowed_at"] = result["otp"].next_otp_allowed_at
+            return success_response(
+                message=_("Verification code sent to {identifier}.").format(
+                    identifier=_data["identifier"]
+                ),
+                data=response_data,
+                status_code=status.HTTP_200_OK,
+            )
 
-                return Response(response_data, status=status.HTTP_200_OK)
-            else:
-                if "waiting_seconds" in result:
-                    return Response(
-                        {
-                            "success": False,
-                            "message": result["message"],
-                            "waiting_seconds": result["waiting_seconds"],
-                            "next_allowed_at": result["next_allowed_at"],
-                        },
-                        status=status.HTTP_429_TOO_MANY_REQUESTS,
-                    )
-                else:
-                    return Response(
-                        {"success": False, "message": result["message"]},
-                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    )
-
-        return Response(
-            {
-                "success": False,
-                "message": "Invalid request data.",
-                "errors": serializer.errors,
-            },
-            status=status.HTTP_400_BAD_REQUEST,
+        return validation_error_response(
+            message="Invalid request data.",
+            errors=serializer.errors,
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
 
 
@@ -119,76 +113,82 @@ class VerifyOTPView(APIView):
                 response={
                     "type": "object",
                     "properties": {
-                        "success": {"type": "boolean", "description": "Success status"},
                         "message": {"type": "string", "description": "Success message"},
-                        "user": {
+                        "data": {
                             "type": "object",
                             "properties": {
-                                "full_name": {
-                                    "type": "string",
-                                    "description": "User full name",
+                                "user": {
+                                    "type": "object",
+                                    "properties": {
+                                        "full_name": {
+                                            "type": "string",
+                                            "description": "User full name",
+                                        },
+                                        "email": {
+                                            "type": "string",
+                                            "description": "User email",
+                                        },
+                                        "phone_number": {
+                                            "type": "string",
+                                            "description": "User phone number",
+                                            "nullable": True,
+                                        },
+                                        "country": {
+                                            "type": "string",
+                                            "description": "User country name",
+                                            "nullable": True,
+                                        },
+                                        "profile_picture": {
+                                            "type": "string",
+                                            "description": "URL to user's profile picture",
+                                            "nullable": True,
+                                        },
+                                    },
                                 },
-                                "email": {
-                                    "type": "string",
-                                    "description": "User email",
-                                },
-                                "phone_number": {
-                                    "type": "string",
-                                    "description": "User phone number",
+                                "wallet": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "integer",
+                                            "description": "Wallet ID",
+                                        },
+                                        "balance": {
+                                            "type": "string",
+                                            "description": "Current wallet balance",
+                                        },
+                                        "wallet_type": {
+                                            "type": "string",
+                                            "description": "Type of wallet (MAIN, BUSINESS)",
+                                        },
+                                        "currency": {
+                                            "type": "string",
+                                            "description": "Wallet currency",
+                                            "nullable": True,
+                                        },
+                                        "is_active": {
+                                            "type": "boolean",
+                                            "description": "Whether the wallet is active",
+                                        },
+                                    },
                                     "nullable": True,
                                 },
-                                "country": {
-                                    "type": "string",
-                                    "description": "User country name",
-                                    "nullable": True,
-                                },
-                                "profile_picture": {
-                                    "type": "string",
-                                    "description": "URL to user's profile picture",
-                                    "nullable": True,
+                                "tokens": {
+                                    "type": "object",
+                                    "properties": {
+                                        "access": {
+                                            "type": "string",
+                                            "description": "JWT access token",
+                                        },
+                                        "refresh": {
+                                            "type": "string",
+                                            "description": "JWT refresh token",
+                                        },
+                                    },
                                 },
                             },
                         },
-                        "wallet": {
-                            "type": "object",
-                            "properties": {
-                                "id": {
-                                    "type": "integer",
-                                    "description": "Wallet ID",
-                                },
-                                "balance": {
-                                    "type": "string",
-                                    "description": "Current wallet balance",
-                                },
-                                "wallet_type": {
-                                    "type": "string",
-                                    "description": "Type of wallet (MAIN, BUSINESS)",
-                                },
-                                "currency": {
-                                    "type": "string",
-                                    "description": "Wallet currency",
-                                    "nullable": True,
-                                },
-                                "is_active": {
-                                    "type": "boolean",
-                                    "description": "Whether the wallet is active",
-                                },
-                            },
-                            "nullable": True,
-                        },
-                        "tokens": {
-                            "type": "object",
-                            "properties": {
-                                "access": {
-                                    "type": "string",
-                                    "description": "JWT access token",
-                                },
-                                "refresh": {
-                                    "type": "string",
-                                    "description": "JWT refresh token",
-                                },
-                            },
-                        },
+                        "error_code": {"type": "null"},
+                        "errors": {"type": "null"},
                     },
                 },
             ),
@@ -199,23 +199,37 @@ class VerifyOTPView(APIView):
         serializer = VerifyOTPSerializer(data=request.data)
 
         if serializer.is_valid():
-            response = serializer.verify_otp()
+            try:
+                response = serializer.verify_otp()
 
-            if response["success"]:
-                return Response(response, status=status.HTTP_200_OK)
-            else:
-                return Response(
-                    {"success": False, "message": response["message"]},
-                    status=status.HTTP_400_BAD_REQUEST,
+                return success_response(
+                    message=_("OTP verified successfully."),
+                    data=response,
+                    status_code=status.HTTP_200_OK,
+                )
+            except (
+                NotFoundException,
+                TooManyRequestsException,
+                serializers.ValidationError,
+            ) as e:
+                if hasattr(e, "detail"):
+                    return validation_error_response(
+                        message=str(e.detail),
+                        status_code=(
+                            e.status_code
+                            if hasattr(e, "status_code")
+                            else status.HTTP_400_BAD_REQUEST
+                        ),
+                    )
+                return validation_error_response(
+                    message=str(e),
+                    status_code=status.HTTP_400_BAD_REQUEST,
                 )
 
-        return Response(
-            {
-                "success": False,
-                "message": "Invalid request data.",
-                "errors": serializer.errors,
-            },
-            status=status.HTTP_400_BAD_REQUEST,
+        return validation_error_response(
+            message="Invalid request data.",
+            errors=serializer.errors,
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
 
 
@@ -232,7 +246,6 @@ class AccountRecoveryView(APIView):
                 response={
                     "type": "object",
                     "properties": {
-                        "success": {"type": "boolean", "description": "Success status"},
                         "message": {"type": "string", "description": "Success message"},
                         "masked_email": {
                             "type": "string",
@@ -257,40 +270,49 @@ class AccountRecoveryView(APIView):
         try:
             if serializer.is_valid():
                 result = serializer.recover_account()
-
-                if result["success"]:
-                    return Response(result, status=status.HTTP_200_OK)
-                else:
-                    if "waiting_seconds" in result:
-                        return Response(
-                            {
-                                "success": False,
-                                "message": result["message"],
-                                "waiting_seconds": result["waiting_seconds"],
-                                "next_allowed_at": result["next_allowed_at"],
-                            },
-                            status=status.HTTP_429_TOO_MANY_REQUESTS,
-                        )
-                    else:
-                        return Response(
-                            {"success": False, "message": result["message"]},
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
+                return success_response(
+                    message=_("Recovery code sent to your email address."),
+                    data=result,
+                    status_code=status.HTTP_200_OK,
+                )
+            else:
+                return validation_error_response(
+                    message=next(iter(serializer.errors.values()))[0],
+                    errors=serializer.errors,
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+        except TooManyRequestsException as e:
+            if hasattr(e, "detail") and "waiting_seconds" in e.detail:
+                return Response(
+                    {
+                        "message": str(e.detail),
+                        "error_code": "RATE_LIMITED",
+                        "errors": {
+                            "waiting_seconds": e.detail["waiting_seconds"],
+                            "next_allowed_at": e.detail["next_allowed_at"],
+                        },
+                        "data": None,
+                    },
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
             else:
                 return Response(
                     {
-                        "success": False,
-                        "message": next(iter(serializer.errors.values()))[0],
-                        "errors": serializer.errors,
+                        "message": (str(e.detail) if hasattr(e, "detail") else str(e)),
+                        "error_code": "RATE_LIMITED",
+                        "errors": None,
+                        "data": None,
                     },
-                    status=status.HTTP_400_BAD_REQUEST,
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
                 )
+        except (NotFoundException, serializers.ValidationError) as e:
+            return validation_error_response(
+                message=(str(e.detail) if hasattr(e, "detail") else str(e)),
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
         except serializers.ValidationError as e:
-            return Response(
-                {
-                    "success": False,
-                    "message": str(e.detail[0]),
-                    "errors": e.detail,
-                },
-                status=status.HTTP_400_BAD_REQUEST,
+            return validation_error_response(
+                message=str(e.detail[0]),
+                errors=e.detail,
+                status_code=status.HTTP_400_BAD_REQUEST,
             )

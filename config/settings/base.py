@@ -266,6 +266,7 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
     "PAGE_SIZE": 20,
+    "EXCEPTION_HANDLER": "app.core.utils.exception_handler.exception_handler",
 }
 
 # Add throttling settings only when not in DEBUG mode

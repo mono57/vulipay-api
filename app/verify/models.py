@@ -6,8 +6,11 @@ from typing import Dict, Optional, Union
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
+from rest_framework.exceptions import APIException
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from app.core.utils.fields import AppCharField
@@ -94,12 +97,20 @@ class OTPManager(models.Manager):
         )
 
 
-class OTPWaitingPeriodError(Exception):
+class OTPWaitingPeriodError(APIException):
+    status_code = 429
+    default_detail = "Too many OTP requests."
+    default_code = "throttled"
+
     def __init__(self, message, waiting_seconds=0, next_allowed_at=None):
-        self.message = message
+        self.detail = {
+            "message": message,
+            "waiting_seconds": waiting_seconds,
+            "next_allowed_at": next_allowed_at,
+        }
         self.waiting_seconds = waiting_seconds
         self.next_allowed_at = next_allowed_at
-        super().__init__(self.message)
+        super().__init__(detail=self.detail)
 
 
 class OTP(AppModel):
@@ -177,46 +188,33 @@ class OTP(AppModel):
     def generate(
         cls, identifier: str, channel: str = "sms", length: int = 6
     ) -> Dict[str, Union[bool, str, "OTP", timezone.datetime]]:
-        try:
-            if channel not in DELIVERY_CHANNELS:
-                logger.error(f"Unsupported OTP delivery channel: {channel}")
-                return {
-                    "success": False,
-                    "message": f"Unsupported delivery channel: {channel}",
-                }
+        if channel not in DELIVERY_CHANNELS:
+            logger.error(f"Unsupported OTP delivery channel: {channel}")
+            raise ValidationError(
+                code="UNSUPPORTED_DELIVERY_CHANNEL",
+                message=_("Unsupported delivery channel: {channel}").format(
+                    channel=channel
+                ),
+            )
 
-            try:
-                otp = cls.objects.create_otp(identifier, channel, length)
+        otp = cls.objects.create_otp(identifier, channel, length)
 
-                delivery_channel = DELIVERY_CHANNELS[channel]
-                if delivery_channel.send(identifier, otp.code):
-                    logger.info(f"OTP sent to {identifier} via {channel}")
-                    return {
-                        "success": True,
-                        "message": f"Verification code sent to {identifier} via {channel}.",
-                        "otp": otp,
-                        "expires_at": otp.expires_at,
-                    }
-                else:
-                    otp.mark_as_expired()
-                    logger.error(f"Failed to send OTP to {identifier} via {channel}")
-                    return {
-                        "success": False,
-                        "message": f"Failed to send verification code to {identifier}.",
-                    }
-            except OTPWaitingPeriodError as e:
-                logger.info(
-                    f"OTP waiting period not over for {identifier}: {e.message}"
-                )
-                return {
-                    "success": False,
-                    "message": e.message,
-                    "waiting_seconds": e.waiting_seconds,
-                    "next_allowed_at": e.next_allowed_at,
-                }
-        except Exception as e:
-            logger.error(f"Error generating OTP for {identifier}: {str(e)}")
-            return {
-                "success": False,
-                "message": f"An error occurred while generating the verification code: {str(e)}",
-            }
+        delivery_channel = DELIVERY_CHANNELS[channel]
+        if not delivery_channel.send(identifier, otp.code):
+            otp.mark_as_expired()
+            logger.error(f"Failed to send OTP to {identifier} via {channel}")
+            raise ValidationError(
+                code="FAILED_TO_SEND_OTP",
+                message=_("Failed to send verification code to {identifier}.").format(
+                    identifier=identifier
+                ),
+            )
+
+        logger.info(f"OTP sent to {identifier} via {channel}")
+        return {
+            "identifier": identifier,
+            "channel": channel,
+            "otp": otp,
+            "expires_at": otp.expires_at,
+            "next_allowed_at": otp.next_otp_allowed_at,
+        }

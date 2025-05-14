@@ -3,6 +3,7 @@ import logging
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
+from rest_framework.exceptions import APIException
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from app.accounts.cache import is_valid_country_id
@@ -78,6 +79,18 @@ class GenerateOTPSerializer(serializers.Serializer):
         return OTP.generate(identifier, channel)
 
 
+class NotFoundException(APIException):
+    status_code = 404
+    default_detail = "Resource not found."
+    default_code = "NOT_FOUND"
+
+
+class TooManyRequestsException(APIException):
+    status_code = 429
+    default_detail = "Too many requests."
+    default_code = "TOO_MANY_REQUESTS"
+
+
 class VerifyOTPSerializer(serializers.Serializer):
     phone_number = serializers.CharField(
         required=False, help_text="Phone number the OTP was sent to"
@@ -97,27 +110,35 @@ class VerifyOTPSerializer(serializers.Serializer):
     def validate(self, attrs):
         if not attrs["code"].isdigit():
             raise serializers.ValidationError(
-                {"code": _("Code must contain only digits.")}
+                code="INVALID_CODE",
+                detail=_("Code must contain only digits."),
             )
 
         if not attrs.get("phone_number") and not attrs.get("email"):
             raise serializers.ValidationError(
-                _("Either phone_number or email must be provided.")
+                code="IDENTIFIER_REQUIRED",
+                detail=_("Either phone_number or email must be provided."),
             )
 
         if not attrs.get("country_id"):
-            raise serializers.ValidationError(_("country_id is required."))
-
-        if not isinstance(attrs.get("country_id"), int):
-            raise serializers.ValidationError(_("country_id must be an integer."))
-
-        if not is_valid_country_id(attrs.get("country_id")):
             raise serializers.ValidationError(
-                _("Invalid country_id. Country does not exist.")
+                code="COUNTRY_REQUIRED",
+                detail=_("Country is required."),
+            )
+
+        if not isinstance(attrs.get("country_id"), int) or not is_valid_country_id(
+            attrs.get("country_id")
+        ):
+            raise serializers.ValidationError(
+                code="INVALID_COUNTRY",
+                detail=_("Invalid country."),
             )
 
         if not attrs.get("country_dial_code"):
-            raise serializers.ValidationError(_("country_dial_code is required."))
+            raise serializers.ValidationError(
+                code="COUNTRY_DIAL_CODE_REQUIRED",
+                detail=_("country_dial_code is required."),
+            )
 
         if attrs.get("phone_number"):
             attrs["identifier"] = (
@@ -136,10 +157,10 @@ class VerifyOTPSerializer(serializers.Serializer):
         otp = OTP.objects.get_active_otp(identifier)
 
         if not otp:
-            return {
-                "success": False,
-                "message": "No active OTP found. Please request a new code.",
-            }
+            raise NotFoundException(
+                code="NO_ACTIVE_OTP",
+                detail=_("No active OTP found. Please request a new code."),
+            )
 
         if otp.verify(code):
             user, created = User.objects.get_or_create(phone_number=identifier)
@@ -161,8 +182,6 @@ class VerifyOTPSerializer(serializers.Serializer):
                 refresh = RefreshToken.for_user(user)
 
                 return {
-                    "success": True,
-                    "message": "OTP verified successfully.",
                     "created": created,
                     "user": {
                         "full_name": user.full_name,
@@ -187,6 +206,10 @@ class VerifyOTPSerializer(serializers.Serializer):
                 }
             except Exception as e:
                 logger.error(f"Failed to create wallet for user {user.id}: {str(e)}")
+                raise serializers.ValidationError(
+                    code="WALLET_CREATION_FAILED",
+                    detail=_("Failed to create wallet for user."),
+                )
 
         else:
             from django.conf import settings
@@ -195,15 +218,19 @@ class VerifyOTPSerializer(serializers.Serializer):
             remaining_attempts = max_attempts - otp.attempt_count
 
             if remaining_attempts <= 0:
-                return {
-                    "success": False,
-                    "message": "Maximum verification attempts reached. Please request a new code.",
-                }
+                raise TooManyRequestsException(
+                    code="MAX_ATTEMPTS_REACHED",
+                    detail=_(
+                        "Maximum verification attempts reached. Please request a new code."
+                    ),
+                )
             else:
-                return {
-                    "success": False,
-                    "message": f"Invalid code. {remaining_attempts} attempts remaining.",
-                }
+                raise serializers.ValidationError(
+                    code="INVALID_CODE",
+                    detail=_(
+                        "Invalid code. {remaining_attempts} attempts remaining."
+                    ).format(remaining_attempts=remaining_attempts),
+                )
 
 
 class AccountRecoverySerializer(serializers.Serializer):
@@ -220,36 +247,34 @@ class AccountRecoverySerializer(serializers.Serializer):
             user = User.objects.get(phone_number=identifier)
 
             if not user.email:
-                raise serializers.ValidationError(
-                    _(
+                raise NotFoundException(
+                    code="NO_EMAIL_ASSOCIATED",
+                    detail=_(
                         "No email address associated with this account. Please contact support."
-                    )
+                    ),
                 )
 
             attrs["user_email"] = user.email
             return attrs
 
         except User.DoesNotExist:
-            raise serializers.ValidationError(
-                _("No account found with this phone number.")
+            raise NotFoundException(
+                code="NO_ACCOUNT_FOUND",
+                detail=_("No account found with this phone number."),
             )
 
     def recover_account(self):
         result = OTP.generate(self.validated_data["user_email"], channel="email")
 
-        if result["success"]:
-            email_parts = self.validated_data["user_email"].split("@")
-            username = email_parts[0]
-            domain = email_parts[1]
+        email_parts = self.validated_data["user_email"].split("@")
+        username = email_parts[0]
+        domain = email_parts[1]
 
-            masked_username = username[:2] + "*" * (len(username) - 2)
-            masked_email = f"{masked_username}@{domain}"
+        masked_username = username[:2] + "*" * (len(username) - 2)
+        masked_email = f"{masked_username}@{domain}"
 
-            return {
-                "success": True,
-                "message": _("Recovery code sent to your email address."),
-                "masked_email": masked_email,
-                "expires_at": result["expires_at"],
-            }
-        else:
-            return {"success": False, "message": result["message"]}
+        return {
+            "message": _("Recovery code sent to your email address."),
+            "masked_email": masked_email,
+            "expires_at": result["expires_at"],
+        }

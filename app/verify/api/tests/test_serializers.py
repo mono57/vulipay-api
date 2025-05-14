@@ -1,9 +1,15 @@
 from unittest.mock import Mock, patch
 
 from django.test import TestCase
+from rest_framework import serializers
 
 from app.accounts.models import AvailableCountry
-from app.verify.api.serializers import GenerateOTPSerializer, VerifyOTPSerializer
+from app.verify.api.serializers import (
+    GenerateOTPSerializer,
+    NotFoundException,
+    TooManyRequestsException,
+    VerifyOTPSerializer,
+)
 
 
 class GenerateOTPSerializerTestCase(TestCase):
@@ -148,7 +154,9 @@ class VerifyOTPSerializerTestCase(TestCase):
         }
         serializer = VerifyOTPSerializer(data=data)
         self.assertFalse(serializer.is_valid())
-        self.assertIn("code", serializer.errors)
+        self.assertTrue(
+            "code" in serializer.errors or "non_field_errors" in serializer.errors
+        )
 
     @patch("app.verify.models.OTP.objects.get_active_otp")
     def test_verify_otp_no_active_otp(self, mock_get_active_otp):
@@ -158,11 +166,11 @@ class VerifyOTPSerializerTestCase(TestCase):
         serializer = VerifyOTPSerializer(data=self.valid_phone_data)
         self.assertTrue(serializer.is_valid())
 
-        result = serializer.verify_otp()
+        with self.assertRaises(NotFoundException) as context:
+            serializer.verify_otp()
 
-        self.assertFalse(result["success"])
         self.assertEqual(
-            result["message"], "No active OTP found. Please request a new code."
+            context.exception.detail, "No active OTP found. Please request a new code."
         )
         mock_get_active_otp.assert_called_once_with("+237698765432")
 
@@ -177,10 +185,13 @@ class VerifyOTPSerializerTestCase(TestCase):
         serializer = VerifyOTPSerializer(data=self.valid_phone_data)
         self.assertTrue(serializer.is_valid())
 
-        result = serializer.verify_otp()
+        with self.assertRaises(serializers.ValidationError) as context:
+            serializer.verify_otp()
 
-        self.assertFalse(result["success"])
-        self.assertEqual(result["message"], "Invalid code. 2 attempts remaining.")
+        # The error text should contain the remaining attempts message
+        self.assertIn(
+            "Invalid code. 2 attempts remaining.", str(context.exception.detail)
+        )
         mock_get_active_otp.assert_called_once_with("+237698765432")
         mock_otp.verify.assert_called_once_with("123456")
 
@@ -195,11 +206,11 @@ class VerifyOTPSerializerTestCase(TestCase):
         serializer = VerifyOTPSerializer(data=self.valid_phone_data)
         self.assertTrue(serializer.is_valid())
 
-        result = serializer.verify_otp()
+        with self.assertRaises(TooManyRequestsException) as context:
+            serializer.verify_otp()
 
-        self.assertFalse(result["success"])
         self.assertEqual(
-            result["message"],
+            context.exception.detail,
             "Maximum verification attempts reached. Please request a new code.",
         )
         mock_get_active_otp.assert_called_once_with("+237698765432")

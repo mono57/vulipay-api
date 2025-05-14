@@ -232,7 +232,7 @@ class ProcessTransactionAPIViewTestCase(APITestCase):
 
         # Assertions
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("currency", response.data)
+        self.assertIn("currency", response.data["errors"])
 
     @patch("app.accounts.models.User.verify_pin")
     @patch("app.transactions.models.TransactionFee.objects.get_applicable_fee")
@@ -272,15 +272,13 @@ class ProcessTransactionAPIViewTestCase(APITestCase):
 
         # Check if there's any error message containing 'insufficient funds'
         error_found = False
-        if "detail" in response.data:
-            if isinstance(response.data["detail"], list):
-                for error in response.data["detail"]:
-                    if "insufficient funds" in str(error).lower():
-                        error_found = True
-                        break
-            else:
-                if "insufficient funds" in str(response.data["detail"]).lower():
+        for field, errors in response.data["errors"].items():
+            for error in errors:
+                if "insufficient funds" in str(error).lower():
                     error_found = True
+                    break
+            if error_found:
+                break
 
         self.assertTrue(error_found, "No error message about insufficient funds found")
 
@@ -312,9 +310,12 @@ class ProcessTransactionAPIViewTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         # Check if there's any error message about invalid payment method
         error_found = False
-        for error in response.data.get("detail", []):
-            if "invalid payment method" in str(error).lower():
-                error_found = True
+        for field, errors in response.data["errors"].items():
+            for error in errors:
+                if "invalid payment method" in str(error).lower():
+                    error_found = True
+                    break
+            if error_found:
                 break
 
         self.assertTrue(
@@ -351,9 +352,12 @@ class ProcessTransactionAPIViewTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         # Check if there's any error message containing 'source wallet'
         error_found = False
-        for error in response.data.get("detail", []):
-            if "source wallet" in str(error).lower():
-                error_found = True
+        for field, errors in response.data["errors"].items():
+            for error in errors:
+                if "source wallet" in str(error).lower():
+                    error_found = True
+                    break
+            if error_found:
                 break
 
         self.assertTrue(error_found, "No error message about source wallet found")
@@ -401,14 +405,12 @@ class ProcessTransactionAPIViewTestCase(APITestCase):
 
         # Check if there's any error message containing 'insufficient funds'
         error_found = False
-        if "detail" in response.data:
-            if isinstance(response.data["detail"], list):
-                for error in response.data["detail"]:
-                    if "insufficient funds" in str(error).lower():
-                        error_found = True
-                        break
-            else:
-                if "insufficient funds" in str(response.data["detail"]).lower():
+        for field, errors in response.data["errors"].items():
+            for error in errors:
+                if "insufficient funds" in str(error).lower():
                     error_found = True
+                    break
+            if error_found:
+                break
 
         self.assertTrue(error_found, "No error message about insufficient funds found")

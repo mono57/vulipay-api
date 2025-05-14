@@ -9,6 +9,7 @@ Vulipay API is a Django-based backend service for the Vulipay payment platform. 
 - Payment transaction processing and history
 - Internationalization support
 - RESTful API endpoints
+- Consistent API response format
 
 ## Technology Stack
 - **Framework**: Django 5.1.6
@@ -195,72 +196,58 @@ if serializer.is_valid():
         error_message = result["message"]
 ```
 
-### API Response Examples
+## API Response Format
 
-#### Generate OTP Success
+All API responses follow a consistent structure:
+
 ```json
 {
-  "success": true,
-  "message": "Verification code sent to +237698765432 via sms.",
-  "expires_at": "2023-03-08T12:34:56Z",
-  "next_allowed_at": "2023-03-08T12:35:01Z"
+  "message": "Human-readable message",
+  "data": {...} | null,
+  "error_code": null | "ERROR_CODE",
+  "errors": null | {...}
 }
 ```
 
-#### Generate OTP Success (First Request)
-```json
-{
-  "success": true,
-  "message": "Verification code sent to +237698765432 via sms.",
-  "expires_at": "2023-03-08T12:34:56Z"
-}
-```
+### Fields
 
-#### Generate OTP Waiting Period Error
-```json
-{
-  "success": false,
-  "message": "Please wait 30 seconds before requesting a new OTP.",
-  "waiting_seconds": 30,
-  "next_allowed_at": "2023-03-08T12:35:26Z"
-}
-```
+- `message`: A human-readable message describing the result
+- `data`: The response data (for successful requests) or null (for errors)
+- `error_code`: A string code identifying the error type (null for successful requests)
+- `errors`: Detailed validation or other errors (null for successful requests)
 
-#### Verify OTP Success (With User Details)
+### Example Responses
+
+#### Success Response
+
 ```json
 {
-  "success": true,
-  "message": "OTP verified successfully.",
-  "user": {
+  "message": "User details retrieved successfully",
+  "data": {
     "id": 1,
     "email": "user@example.com",
-    "first_name": "Test",
-    "last_name": "User",
-    "phone_number": "+237698765432",
-    "account_id": 1
+    "full_name": "John Doe"
   },
-  "tokens": {
-    "access": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
-    "refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+  "error_code": null,
+  "errors": null
+}
+```
+
+#### Error Response
+
+```json
+{
+  "message": "Validation failed",
+  "data": null,
+  "error_code": "VALIDATION_ERROR",
+  "errors": {
+    "email": ["This field is required"],
+    "password": ["Must be at least 8 characters long"]
   }
 }
 ```
 
-#### Verify OTP Success (No User Found)
-```json
-{
-  "success": true,
-  "message": "OTP verified successfully, but no user found with this identifier."
-}
-```
-
-#### Verify OTP Error
-```json
-{
-  "success": false,
-  "message": "Invalid code. 2 attempts remaining."
-}
-```
+See the [API Response Utilities](app/core/utils/README.md) documentation for more details on how this is implemented.
 
 ## Payment API Guide
 

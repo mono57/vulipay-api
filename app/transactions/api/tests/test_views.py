@@ -328,15 +328,13 @@ class PaymentMethodAPITestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_prevent_duplicate_card_payment_method(self):
-        """Test that creating a duplicate card payment method returns an error"""
-        # First create a card payment method
         data = {
             "type": "card",
-            "cardholder_name": "Jane Doe",
+            "cardholder_name": "John Doe",
             "card_number": "4111 1111 1111 1111",
             "expiry_date": "12/2025",
             "cvv": "123",
-            "billing_address": "456 Main St, City, Country",
+            "billing_address": "123 Main St, City, Country",
             "payment_method_type": self.visa_type.id,
         }
 
@@ -346,7 +344,7 @@ class PaymentMethodAPITestCase(APITestCase):
         # Try to create another card payment method with the same card number
         data = {
             "type": "card",
-            "cardholder_name": "Different Name",
+            "cardholder_name": "Jane Smith",  # Different name
             "card_number": "4111 1111 1111 1111",  # Same card number
             "expiry_date": "12/2026",  # Different expiry date
             "cvv": "456",  # Different CVV
@@ -356,8 +354,8 @@ class PaymentMethodAPITestCase(APITestCase):
 
         response = self.client.post(self.list_create_url, data, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("card_number", response.data)
-        self.assertIn("already exists", response.data["card_number"][0])
+        self.assertIn("card_number", response.data["errors"])
+        self.assertIn("already exists", response.data["errors"]["card_number"][0])
 
     def test_prevent_duplicate_mobile_money_payment_method(self):
         # Create a valid phone number for Cameroon
@@ -383,8 +381,8 @@ class PaymentMethodAPITestCase(APITestCase):
 
         response = self.client.post(self.list_create_url, data, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("mobile_number", response.data)
-        self.assertIn("already exists", response.data["mobile_number"][0])
+        self.assertIn("mobile_number", response.data["errors"])
+        self.assertIn("already exists", response.data["errors"]["mobile_number"][0])
 
 
 class AddFundsTransactionAPITestCase(APITestCase):
