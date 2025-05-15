@@ -3,6 +3,8 @@ import logging
 from decimal import Decimal
 
 from django.db import models, transaction
+from django.db.models import Q
+from django.http import Http404
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
@@ -637,3 +639,59 @@ class TransactionListAPIView(ListAPIView):
                 pass
 
         return queryset
+
+
+@extend_schema(
+    tags=["Transactions"],
+    operation_id="get_wallet_balance",
+    description="Get a user's wallet balance by wallet type. If no wallet type is provided, returns the main wallet balance.",
+    parameters=[
+        OpenApiParameter(
+            name="wallet_type",
+            type=str,
+            description="Wallet type (e.g., MAIN, BUSINESS). Defaults to MAIN if not provided.",
+            required=False,
+        ),
+    ],
+    responses={
+        200: OpenApiResponse(
+            description="Wallet balance",
+            response=inline_serializer(
+                name="WalletBalanceResponse",
+                fields={
+                    "balance": drf_serializers.DecimalField(
+                        max_digits=12, decimal_places=2
+                    ),
+                },
+            ),
+        ),
+        404: OpenApiResponse(description="Wallet not found for the specified type"),
+    },
+)
+class WalletBalanceAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        wallet_type = request.query_params.get("wallet_type", WalletType.MAIN)
+
+        try:
+            wallet_balance = (
+                Wallet.objects.filter(user=request.user, wallet_type=wallet_type)
+                .values_list("balance", flat=True)
+                .first()
+            )
+
+            if wallet_balance is None:
+                return Response(
+                    {"detail": _("Wallet not found for the specified type")},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            return Response({"balance": wallet_balance}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Error retrieving wallet balance: {str(e)}")
+            return Response(
+                {"detail": _("Error retrieving wallet balance")},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

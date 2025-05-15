@@ -10,6 +10,7 @@ from app.transactions.api.views import (
     ReceiveFundsPaymentCodeAPIView,
     TransactionListAPIView,
     UserDataDecryptionAPIView,
+    WalletBalanceAPIView,
 )
 
 app_name = "transactions"
@@ -59,5 +60,10 @@ urlpatterns = [
         "list",
         TransactionListAPIView.as_view(),
         name="transactions-list",
+    ),
+    path(
+        "wallet/balance",
+        WalletBalanceAPIView.as_view(),
+        name="wallet-balance",
     ),
 ]
