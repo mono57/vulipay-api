@@ -1,6 +1,7 @@
 import logging
 from functools import wraps
 
+from django.conf import settings
 from django.core.cache import cache
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
@@ -11,25 +12,22 @@ from app.accounts.models import AvailableCountry
 logger = logging.getLogger(__name__)
 
 COUNTRY_IDS_CACHE_KEY = "available_country_ids"
-CACHE_TIMEOUT = 60 * 60 * 24
+COUNTRY_IDS_CACHE_TIMEOUT = 60 * 60 * 24
 
 
-def get_valid_country_ids():
-    country_ids = cache.get(COUNTRY_IDS_CACHE_KEY)
-    print(country_ids)
-    if not country_ids:
-        logger.info("Country IDs cache miss, fetching from database")
-        country_ids = set(AvailableCountry.objects.values_list("id", flat=True))
-        cache.set(COUNTRY_IDS_CACHE_KEY, country_ids, CACHE_TIMEOUT)
-
+def refresh_country_ids_cache() -> set[int]:
+    country_ids = set(AvailableCountry.objects.values_list("id", flat=True))
+    cache.set(COUNTRY_IDS_CACHE_KEY, country_ids, COUNTRY_IDS_CACHE_TIMEOUT)
+    logger.info("Country IDs cache refreshed")
     return country_ids
 
 
-def refresh_country_ids_cache():
-    """Force refresh the country IDs cache."""
-    country_ids = set(AvailableCountry.objects.values_list("id", flat=True))
-    cache.set(COUNTRY_IDS_CACHE_KEY, country_ids, CACHE_TIMEOUT)
-    logger.info("Country IDs cache refreshed")
+def get_valid_country_ids() -> set[int]:
+    country_ids = cache.get(COUNTRY_IDS_CACHE_KEY)
+    if not country_ids and not settings.DEBUG:
+        logger.info("Country IDs cache miss, fetching from database")
+        country_ids = refresh_country_ids_cache()
+
     return country_ids
 
 

@@ -42,26 +42,19 @@ class CountryCacheTestCase(TestCase):
         )
 
     def test_get_valid_country_ids(self):
-        # Clear cache to ensure first call will be a cache miss
         cache.delete(COUNTRY_IDS_CACHE_KEY)
 
-        # First call should fetch from database and cache
         with patch("app.accounts.cache.logger") as mock_logger:
             country_ids = get_valid_country_ids()
-            mock_logger.info.assert_called_with(
-                "Country IDs cache miss, fetching from database"
-            )
+            mock_logger.info.assert_called_with("Country IDs cache refreshed")
 
-        # Should contain our test countries
         self.assertIn(self.country1.id, country_ids)
         self.assertIn(self.country2.id, country_ids)
 
-        # Second call should get from cache
         with patch("app.accounts.cache.logger") as mock_logger:
             country_ids_again = get_valid_country_ids()
             mock_logger.info.assert_not_called()
 
-        # Should be the same results
         self.assertEqual(country_ids, country_ids_again)
 
     def test_refresh_country_ids_cache(self):
@@ -144,3 +137,34 @@ class CountryCacheTestCase(TestCase):
         self.assertEqual(stats["connected_clients"], 5)
         self.assertEqual(stats["uptime_in_seconds"], 3600)
         self.assertEqual(stats["country_ids_ttl_seconds"], 86400)
+
+    @patch("app.accounts.cache.get_redis_connection")
+    def test_get_cache_stats_error_handling(self, mock_get_redis_connection):
+        # Mock the Redis connection to raise an exception
+        mock_redis = Mock()
+        mock_redis.info.side_effect = Exception("Connection error")
+        mock_get_redis_connection.return_value = mock_redis
+
+        # Call the function
+        with patch("app.accounts.cache.logger") as mock_logger:
+            stats = get_cache_stats()
+
+        # Verify results
+        self.assertIn("error", stats)
+        self.assertEqual(stats["error"], "Connection error")
+        mock_logger.error.assert_called_once()
+        self.assertIn("Error getting Redis stats", mock_logger.error.call_args[0][0])
+
+    @override_settings(DEBUG=True)
+    def test_get_valid_country_ids_debug_mode(self):
+        # Clear cache to ensure cache miss
+        cache.delete(COUNTRY_IDS_CACHE_KEY)
+
+        # In DEBUG mode, if cache is empty, it should return None
+        with patch("app.accounts.cache.refresh_country_ids_cache") as mock_refresh:
+            # Call the function
+            result = get_valid_country_ids()
+
+            # Verify the function returned None and didn't call refresh_country_ids_cache
+            self.assertIsNone(result)
+            mock_refresh.assert_not_called()

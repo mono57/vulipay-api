@@ -232,6 +232,72 @@ class CountryListViewTests(APITestCase):
             self.assertIn("currency", country_data)
             self.assertIn("flag", country_data)
 
+    def test_country_ids_cache_updated(self):
+        from django.core.cache import cache
+
+        from app.accounts.api.views import CountryListView
+        from app.accounts.cache import COUNTRY_IDS_CACHE_KEY
+
+        cache.delete(COUNTRY_IDS_CACHE_KEY)
+
+        self.assertIsNone(cache.get(COUNTRY_IDS_CACHE_KEY))
+
+        view = CountryListView()
+        view.request = self.client.request().wsgi_request  # Mock the request
+
+        view.get_queryset()
+
+        cached_country_ids = cache.get(COUNTRY_IDS_CACHE_KEY)
+        self.assertIsNotNone(cached_country_ids)
+
+        all_country_ids = set(AvailableCountry.objects.values_list("id", flat=True))
+
+        if not isinstance(cached_country_ids, set):
+            cached_country_ids = set(cached_country_ids)
+
+        self.assertEqual(cached_country_ids, all_country_ids)
+
+    def test_cache_updates_on_country_changes(self):
+        from django.core.cache import cache
+
+        from app.accounts.api.views import CountryListView
+        from app.accounts.cache import COUNTRY_IDS_CACHE_KEY
+
+        view = CountryListView()
+        view.request = self.client.request().wsgi_request
+        view.get_queryset()
+
+        initial_cached_ids = cache.get(COUNTRY_IDS_CACHE_KEY)
+        self.assertIsNotNone(initial_cached_ids)
+
+        new_country = AvailableCountry.objects.create(
+            name="Ghana",
+            dial_code="233",
+            iso_code="GH",
+            phone_number_regex=r"^(?:\+233|00233)?[235]\d{8}$",
+            currency="GHS",
+        )
+
+        updated_cached_ids = cache.get(COUNTRY_IDS_CACHE_KEY)
+        self.assertIsNotNone(updated_cached_ids)
+
+        if not isinstance(initial_cached_ids, set):
+            initial_cached_ids = set(initial_cached_ids)
+        if not isinstance(updated_cached_ids, set):
+            updated_cached_ids = set(updated_cached_ids)
+
+        self.assertNotEqual(initial_cached_ids, updated_cached_ids)
+        self.assertIn(new_country.id, updated_cached_ids)
+
+        new_country.delete()
+
+        after_delete_cached_ids = cache.get(COUNTRY_IDS_CACHE_KEY)
+        if not isinstance(after_delete_cached_ids, set):
+            after_delete_cached_ids = set(after_delete_cached_ids)
+
+        self.assertNotIn(new_country.id, after_delete_cached_ids)
+        self.assertEqual(initial_cached_ids, after_delete_cached_ids)
+
 
 class CacheHealthCheckViewTestCase(APITestCase):
     def setUp(self):

@@ -1,5 +1,8 @@
 from django.conf import settings
+from django.core.cache import cache
+from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
+from django.views.decorators.cache import cache_page
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.authentication import SessionAuthentication
@@ -25,7 +28,11 @@ from app.accounts.api.serializers import (
     UserProfilePictureSerializer,
 )
 from app.accounts.authentication import AppJWTAuthentication
-from app.accounts.cache import get_cache_stats
+from app.accounts.cache import (
+    COUNTRY_IDS_CACHE_KEY,
+    COUNTRY_IDS_CACHE_TIMEOUT,
+    get_cache_stats,
+)
 from app.accounts.models import AvailableCountry, User
 from app.core.utils import ProfilePictureStorage
 
@@ -235,6 +242,7 @@ class AppTokenRefreshView(TokenRefreshView):
         return super().post(request, *args, **kwargs)
 
 
+# cache this view
 @extend_schema(
     tags=["Accounts"],
     operation_id="list_countries",
@@ -273,6 +281,16 @@ class CountryListView(generics.ListAPIView):
     serializer_class = CountrySerializer
     permission_classes = [permissions.AllowAny]
     pagination_class = None
+
+    @method_decorator(cache_page(COUNTRY_IDS_CACHE_TIMEOUT))
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        qs = super().get_queryset().order_by("name")
+        countries_ids = qs.values_list("id", flat=True)
+        cache.set(COUNTRY_IDS_CACHE_KEY, countries_ids, COUNTRY_IDS_CACHE_TIMEOUT)
+        return qs
 
 
 @extend_schema(
