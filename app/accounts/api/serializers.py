@@ -44,13 +44,11 @@ class UserProfilePictureSerializer(serializers.ModelSerializer):
 
     def validate_profile_picture(self, value):
         if value:
-            # Validate file size - limit to 5MB
-            if value.size > 5 * 1024 * 1024:
+            if value.size > 5 * 1024 * 1024:  # 5MB
                 raise serializers.ValidationError(
                     _("Image file size should not exceed 5MB.")
                 )
 
-            # Validate file type
             if not value.content_type.startswith("image/"):
                 raise serializers.ValidationError(
                     _("Uploaded file is not a valid image.")
@@ -126,7 +124,6 @@ class ProfilePictureConfirmationSerializer(serializers.Serializer):
                     )
             except Exception as e:
                 logger.warning(f"Error validating file existence: {e}")
-                # In tests, we'll skip this validation
                 pass
 
         return value
@@ -138,37 +135,29 @@ class ProfilePictureConfirmationSerializer(serializers.Serializer):
         if instance.profile_picture:
             old_picture_name = instance.profile_picture.name
 
-        # In testing, we simulate the file contents
         from django.conf import settings
 
         if not getattr(settings, "USE_S3_STORAGE", False):
-            # For testing: Create a dummy file with the given name
             dummy_content = BytesIO(b"test image content")
             dummy_file = ContentFile(dummy_content.getvalue())
             dummy_file.name = file_key
             instance.profile_picture = dummy_file
         else:
-            # In production: The file should already exist in S3, so we just update the reference
             storage = ProfilePictureStorage()
             if storage.exists(file_key):
-                # Get the current field instance
                 field = instance._meta.get_field("profile_picture")
 
-                # Create an appropriate file descriptor
                 from django.core.files.storage import get_storage_class
                 from django.db.models.fields.files import FieldFile
 
-                # Update the instance's profile_picture attribute with the new file reference
                 file_field = FieldFile(instance, field, file_key)
                 instance.profile_picture = file_field
             else:
-                # If the file doesn't exist in storage, log a warning
                 logger.warning(f"File {file_key} does not exist in storage")
                 return instance
 
         instance.save()
 
-        # Delete the old picture if it exists and has been changed
         if old_picture_name and old_picture_name != file_key:
             try:
                 storage = instance.profile_picture.storage
@@ -195,9 +184,6 @@ class UserPINSetupSerializer(serializers.Serializer):
     pin2 = serializers.CharField(max_length=4, min_length=4, write_only=True)
 
     def _validate_pin(self, value):
-        """
-        Validate that the PIN is 4 digits.
-        """
         if not value.isdigit():
             raise serializers.ValidationError(_("PIN must contain only digits."))
         if len(value) != 4:
@@ -211,9 +197,6 @@ class UserPINSetupSerializer(serializers.Serializer):
         return self._validate_pin(value)
 
     def validate(self, data):
-        """
-        Check that pin1 and pin2 match.
-        """
         if data["pin1"] != data["pin2"]:
             raise serializers.ValidationError(_("PINs do not match."))
         return data
