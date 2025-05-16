@@ -61,11 +61,16 @@ class GenerateOTPSerializer(serializers.Serializer):
                 raise serializers.ValidationError(
                     _("Invalid country_id. Country does not exist.")
                 )
-            attrs["identifier"] = (
+            from phonenumber_field.phonenumber import PhoneNumber
+
+            wrapped_phone_number = PhoneNumber.from_string(
                 f"+{attrs['country_dial_code']}{attrs['phone_number']}"
             )
+            if not wrapped_phone_number.is_valid():
+                raise serializers.ValidationError(_("Invalid phone number."))
+            attrs["identifier"] = wrapped_phone_number.as_e164
 
-        if attrs.get("email"):
+        if attrs.get("email"):  # prioritize email
             attrs["identifier"] = attrs["email"]
 
             if attrs.get("channel") == "sms" and not attrs.get("phone_number"):

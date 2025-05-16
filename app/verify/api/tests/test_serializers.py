@@ -63,6 +63,35 @@ class GenerateOTPSerializerTestCase(TestCase):
         self.assertTrue(serializer.is_valid())
         self.assertEqual(serializer.validated_data["channel"], "email")
 
+    def test_validate_with_invalid_phone_number(self):
+        invalid_data = {
+            "phone_number": "invalidphone",
+            "country_id": self.country.id,
+            "country_dial_code": "237",
+            "channel": "sms",
+        }
+        serializer = GenerateOTPSerializer(data=invalid_data)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("Invalid phone number", str(serializer.errors))
+
+    def test_validate_with_valid_phone_numbers(self):
+        test_numbers = [
+            "698765432",
+            "6 98 76 54 32",
+            "698-765-432",
+        ]
+
+        for number in test_numbers:
+            data = {
+                "phone_number": number,
+                "country_id": self.country.id,
+                "country_dial_code": "237",
+                "channel": "sms",
+            }
+            serializer = GenerateOTPSerializer(data=data)
+            self.assertTrue(serializer.is_valid(), f"Failed for number: {number}")
+            self.assertTrue(serializer.validated_data["identifier"].startswith("+237"))
+
 
 class VerifyOTPSerializerTestCase(TestCase):
     def setUp(self):
