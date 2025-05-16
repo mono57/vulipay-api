@@ -8,8 +8,7 @@ from app.core.utils import AppModelAdmin
 
 class UserAdmin(BaseUserAdmin):
     list_display = (
-        "email",
-        "phone_number",
+        "get_identifier",
         "full_name",
         "country",
         "is_staff",
@@ -49,6 +48,13 @@ class UserAdmin(BaseUserAdmin):
             },
         ),
     )
+
+    def get_identifier(self, obj):
+        if obj.phone_number:
+            return obj.phone_number
+        return obj.email
+
+    get_identifier.short_description = "Identifier"
 
 
 @admin.register(models.User)
