@@ -92,6 +92,7 @@ logger = logging.getLogger(__name__)
 class PaymentMethodListCreateAPIView(ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = serializers.PaymentMethodSerializer
+    pagination_class = None
 
     def get_queryset(self):
         queryset = PaymentMethod.objects.filter(user=self.request.user)

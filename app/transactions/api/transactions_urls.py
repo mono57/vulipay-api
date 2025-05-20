@@ -27,27 +27,27 @@ urlpatterns = [
         name="transactions_cash_in_callback",
     ),
     path(
-        "payment-methods/",
+        "payment-methods",
         PaymentMethodListCreateAPIView.as_view(),
         name="payment_methods_list_create",
     ),
     path(
-        "payment-methods/<int:pk>/",
+        "payment-methods/<int:pk>",
         PaymentMethodDetailAPIView.as_view(),
         name="payment_method_detail",
     ),
     path(
-        "payment-method-types/",
+        "payment-method-types",
         PaymentMethodTypeListAPIView.as_view(),
         name="payment-method-types-list",
     ),
     path(
-        "payment-code/",
+        "payment-code",
         ReceiveFundsPaymentCodeAPIView.as_view(),
         name="receive-funds-payment-code",
     ),
     path(
-        "payment-code/decrypt/",
+        "payment-code/decrypt",
         UserDataDecryptionAPIView.as_view(),
         name="decrypt-user-data",
     ),

@@ -39,6 +39,13 @@ class PaymentMethodType(AppModel):
         blank=True,
         help_text=_("List of transaction types allowed for this payment method"),
     )
+    logo = models.ImageField(
+        _("Logo"),
+        upload_to="payment_methods/logos/",
+        null=True,
+        blank=True,
+        help_text=_("Full logo of the payment method (recommended size: 200x100px)"),
+    )
 
     class Meta:
         verbose_name = _("Payment Method Type")
