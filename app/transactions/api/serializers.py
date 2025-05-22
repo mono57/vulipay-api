@@ -53,6 +53,8 @@ User = get_user_model()
                         "fee_type": "percentage",
                     },
                 ],
+                "image": "https://example.com/logo.png",
+                "description": "Card ending with 1234",
             },
             summary="Example of a payment method",
         )
@@ -71,6 +73,14 @@ class PaymentMethodSerializer(serializers.ModelSerializer):
     payment_method_type_name = serializers.SerializerMethodField(
         help_text="Name of the payment method type"
     )
+    description = serializers.SerializerMethodField(
+        help_text="Description of the payment method type"
+    )
+    image = serializers.ImageField(
+        source="payment_method_type.logo",
+        read_only=True,
+        help_text="Logo image for the payment method type",
+    )
 
     class Meta:
         model = PaymentMethod
@@ -86,11 +96,15 @@ class PaymentMethodSerializer(serializers.ModelSerializer):
             "payment_method_type",
             "payment_method_type_name",
             "transactions_fees",
+            "image",
+            "description",
         ]
         read_only_fields = [
             "id",
             "payment_method_type_name",
             "transactions_fees",
+            "image",
+            "description",
         ]
 
     def get_payment_method_type(self, obj):
@@ -173,6 +187,21 @@ class PaymentMethodSerializer(serializers.ModelSerializer):
     def get_payment_method_type_name(self, obj):
         payment_method_type = self.get_payment_method_type(obj)
         return payment_method_type.name if payment_method_type else None
+
+    def get_description(self, obj):
+        if obj.type == "card":
+            # Use the last 4 digits from masked_card_number
+            if obj.masked_card_number and len(obj.masked_card_number) >= 4:
+                last_four = obj.masked_card_number[-4:]
+                return f"Card ending with {last_four}"
+            return "Card"
+        elif obj.type == "mobile_money":
+            if obj.provider:
+                return f"Mobile Money ending with {obj.mobile_number[-4:]}"
+            return "Mobile Money"
+        elif obj.type == "wallet":
+            return "Wallet"
+        return None
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
@@ -643,6 +672,7 @@ class AddFundsTransactionSerializer(serializers.Serializer):
                     },
                     # Additional fields omitted for brevity
                 },
+                "image": "https://example.com/logo.png",
             },
             summary="Example of a payment method type",
         )
@@ -654,6 +684,11 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
     required_fields = serializers.SerializerMethodField()
     transactions_fees = serializers.SerializerMethodField(
         help_text="List of transaction fees for different transaction types"
+    )
+    image = serializers.ImageField(
+        source="logo",
+        read_only=True,
+        help_text="Logo image for the payment method type",
     )
 
     class Meta:
@@ -667,6 +702,7 @@ class PaymentMethodTypeSerializer(serializers.ModelSerializer):
             "country_code",
             "required_fields",
             "transactions_fees",
+            "image",
         ]
         read_only_fields = fields
 
