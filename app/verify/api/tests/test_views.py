@@ -286,6 +286,39 @@ class VerifyOTPViewTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(response.data["success"])
 
+    @patch("app.verify.api.serializers.VerifyOTPSerializer.verify_otp")
+    @patch("app.verify.api.serializers.VerifyOTPSerializer.is_valid", return_value=True)
+    def test_verify_otp_sets_is_business(self, mock_is_valid, mock_verify_otp):
+        mock_verify_otp.return_value = {
+            "success": True,
+            "message": "OTP verified successfully.",
+            "user": {
+                "full_name": "Test User",
+                "email": "test@example.com",
+                "phone_number": "+237698765432",
+                "country": "Cameroon",
+                "is_business": True,
+            },
+            "wallet": {
+                "id": 1,
+                "balance": "0.00",
+                "wallet_type": "MAIN",
+                "currency": "XAF",
+                "is_active": True,
+            },
+            "tokens": {
+                "access": "access_token_value",
+                "refresh": "refresh_token_value",
+            },
+        }
+        data = self.valid_phone_data.copy()
+        data["is_business"] = True
+        response = self.client.post(self.url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["success"])
+        self.assertIn("user", response.data)
+        self.assertTrue(response.data["user"]["is_business"])
+
 
 @unittest.skip("Rate limiting issues need to be resolved")
 class AccountRecoveryViewTestCase(APITestCase):

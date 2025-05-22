@@ -112,6 +112,9 @@ class VerifyOTPSerializer(serializers.Serializer):
         required=True, help_text="Dial code of the country"
     )
     code = serializers.CharField(required=True, help_text="OTP code to verify")
+    is_business = serializers.BooleanField(
+        required=False, help_text="Whether the account is a business account"
+    )
 
     def validate(self, attrs):
         if not attrs["code"].isdigit():
@@ -159,6 +162,7 @@ class VerifyOTPSerializer(serializers.Serializer):
         identifier = self.validated_data["identifier"]
         code = self.validated_data["code"]
         country_id = self.validated_data.get("country_id")
+        is_business = self.validated_data.get("is_business", None)
 
         otp = OTP.objects.get_active_otp(identifier)
 
@@ -171,6 +175,8 @@ class VerifyOTPSerializer(serializers.Serializer):
         if otp.verify(code):
             user, created = User.objects.get_or_create(phone_number=identifier)
             user.country_id = country_id
+            if is_business is not None:
+                user.is_business = is_business
             user.save()
 
             try:
@@ -197,6 +203,7 @@ class VerifyOTPSerializer(serializers.Serializer):
                         "profile_picture": (
                             user.profile_picture.url if user.profile_picture else None
                         ),
+                        "is_business": user.is_business,
                     },
                     "wallet": {
                         "id": wallet.id,

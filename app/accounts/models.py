@@ -72,6 +72,13 @@ class User(AbstractBaseUser, PermissionsMixin):
             "Unselect this instead of deleting accounts."
         ),
     )
+    is_business = models.BooleanField(
+        _("business account"),
+        default=False,
+        help_text=_(
+            "Designates whether this is a business account or a personal account."
+        ),
+    )
     date_joined = models.DateTimeField(_("date joined"), default=timezone.now)
     pin = AppCharField(_("PIN"), max_length=128, null=True, blank=True)
 
