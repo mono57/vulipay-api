@@ -1,3 +1,4 @@
+import hashlib
 import logging
 from unittest import mock
 from unittest.mock import Mock, patch
@@ -529,3 +530,87 @@ class UserPreferencesUpdateViewTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class CheckHashedPhoneNumbersViewTestCase(APITestCase):
+    def setUp(self):
+        super().setUp()
+        self.url = reverse("api:accounts:check_hashed_phone_numbers")
+
+        # Create a few users with known hashed phone numbers
+        self.user1 = User.objects.create(
+            phone_number="+123456789",
+            email="user1@example.com",
+        )
+        self.user2 = User.objects.create(
+            phone_number="+987654321",
+            email="user2@example.com",
+        )
+
+        # Save the users to generate the hashed phone numbers
+        self.user1.save()
+        self.user2.save()
+
+        # A hashed phone number that doesn't exist in the database
+        self.non_existent_hash = hashlib.sha256("non_existent".encode()).hexdigest()
+
+    def test_check_hashed_phone_numbers_authenticated(self):
+        """Test checking hashed phone numbers when authenticated."""
+        self.client.force_authenticate(user=self.user1)
+
+        data = {
+            "hashed_phone_numbers": [
+                self.user1.hashed_phone_number,
+                self.user2.hashed_phone_number,
+                self.non_existent_hash,
+            ]
+        }
+
+        response = self.client.post(self.url, data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check that only existing hashed phone numbers are returned with detailed user info
+        user_details = response.data
+        self.assertIsInstance(user_details, list)
+        self.assertEqual(len(user_details), 2)
+
+        # Extract all hashed phone numbers from the response for easier comparison
+        response_hashed_numbers = [user["hashed_phone_number"] for user in user_details]
+        self.assertIn(self.user1.hashed_phone_number, response_hashed_numbers)
+        self.assertIn(self.user2.hashed_phone_number, response_hashed_numbers)
+        self.assertNotIn(self.non_existent_hash, response_hashed_numbers)
+
+        # Check the structure of each user detail
+        for user_detail in user_details:
+            self.assertIn("full_name", user_detail)
+            self.assertIn("profile_url", user_detail)
+            self.assertIn("hashed_phone_number", user_detail)
+            self.assertIn("username", user_detail)
+
+    def test_check_hashed_phone_numbers_unauthenticated(self):
+        """Test checking hashed phone numbers when unauthenticated."""
+        data = {
+            "hashed_phone_numbers": [
+                self.user1.hashed_phone_number,
+            ]
+        }
+
+        response = self.client.post(self.url, data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_check_hashed_phone_numbers_invalid_data(self):
+        """Test checking hashed phone numbers with invalid data."""
+        self.client.force_authenticate(user=self.user1)
+
+        # Empty list (should fail min_length validation)
+        data = {"hashed_phone_numbers": []}
+
+        response = self.client.post(self.url, data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["message"], "Validation failed")
+        self.assertEqual(response.data["error_code"], "VALIDATION_ERROR")
+        self.assertIn("hashed_phone_numbers", response.data["errors"])
+        self.assertIsNone(response.data["data"])
