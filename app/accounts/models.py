@@ -1,4 +1,5 @@
 import datetime
+import hashlib
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
@@ -34,6 +35,14 @@ def compute_next_verif_attempt_time(count) -> datetime.datetime:
 class User(AbstractBaseUser, PermissionsMixin):
     phone_number = AppCharField(
         _("Phone Number"), max_length=20, unique=True, null=True, blank=True
+    )
+    hashed_phone_number = AppCharField(
+        _("Hashed Phone Number"),
+        max_length=64,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=_("SHA-256 hash of the phone number"),
     )
     email = models.EmailField(_("Email address"), unique=True, null=True, blank=True)
     full_name = AppCharField(_("Full name"), max_length=150, null=True, blank=True)
@@ -124,6 +133,12 @@ class User(AbstractBaseUser, PermissionsMixin):
             raise ValidationError(
                 _("User must have either a phone number or an email address")
             )
+
+        if self.phone_number:
+            self.hashed_phone_number = hashlib.sha256(
+                self.phone_number.encode()
+            ).hexdigest()
+
         super().save(*args, **kwargs)
 
 

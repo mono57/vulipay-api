@@ -24,7 +24,7 @@ def refresh_country_ids_cache() -> set[int]:
 
 def get_valid_country_ids() -> set[int]:
     country_ids = cache.get(COUNTRY_IDS_CACHE_KEY)
-    if not country_ids and not settings.DEBUG:
+    if not country_ids or len(country_ids) == 0:
         logger.info("Country IDs cache miss, fetching from database")
         country_ids = refresh_country_ids_cache()
 

@@ -2,6 +2,7 @@ from django.urls import path
 
 from app.accounts.api.views import (
     AppTokenRefreshView,
+    CheckHashedPhoneNumbersView,
     CountryListView,
     ProfilePictureConfirmationView,
     ProfilePicturePresignedUrlView,
@@ -47,5 +48,10 @@ urlpatterns = [
         "admin/user/<int:user_id>/token",
         generate_token_for_user,
         name="admin_generate_token",
+    ),
+    path(
+        "contacts/sync",
+        CheckHashedPhoneNumbersView.as_view(),
+        name="check_hashed_phone_numbers",
     ),
 ]

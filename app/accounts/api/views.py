@@ -4,7 +4,7 @@ from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.cache import cache_page
 from drf_spectacular.utils import OpenApiResponse, extend_schema
-from rest_framework import generics, permissions, status, viewsets
+from rest_framework import generics, permissions, serializers, status, viewsets
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import (
     api_view,
@@ -347,3 +347,95 @@ def generate_token_for_user(request, user_id):
         )
     except User.DoesNotExist:
         return Response({"error": "User not found"}, status=404)
+
+
+@extend_schema(
+    tags=["Accounts"],
+    operation_id="check_hashed_phone_numbers",
+    description="Check if hashed phone numbers exist in the database and return user details for each existing hashed phone number",
+    responses={
+        200: OpenApiResponse(
+            description="User details for existing hashed phone numbers returned successfully",
+            response={
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "full_name": {
+                            "type": "string",
+                            "example": "John Doe",
+                            "description": "User's full name",
+                        },
+                        "profile_url": {
+                            "type": "string",
+                            "example": "https://example.com/profile_pictures/user123.jpg",
+                            "description": "URL to the user's profile picture",
+                        },
+                        "hashed_phone_number": {
+                            "type": "string",
+                            "example": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+                            "description": "SHA-256 hashed phone number",
+                        },
+                        "username": {
+                            "type": "string",
+                            "example": "johndoe",
+                            "description": "Username derived from email",
+                            "nullable": True,
+                        },
+                    },
+                },
+            },
+        ),
+        400: OpenApiResponse(description="Validation error"),
+    },
+)
+class CheckHashedPhoneNumbersView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    class InputSerializer(serializers.Serializer):
+        hashed_phone_numbers = serializers.ListField(
+            child=serializers.CharField(max_length=64),
+            min_length=1,
+            required=False,
+            help_text="List of SHA-256 hashed phone numbers to check",
+        )
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.InputSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {
+                    "message": "Validation failed",
+                    "data": None,
+                    "error_code": "VALIDATION_ERROR",
+                    "errors": serializer.errors,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        hashed_phone_numbers = serializer.validated_data["hashed_phone_numbers"]
+
+        # Get the actual User objects instead of just values
+        matching_users = User.objects.filter(
+            hashed_phone_number__in=hashed_phone_numbers
+        )
+
+        user_details = []
+        for user in matching_users:
+            user_details.append(
+                {
+                    "full_name": user.full_name,
+                    "profile_url": (
+                        user.profile_picture.url
+                        if user.profile_picture
+                        else "https://via.placeholder.com/150"
+                    ),
+                    "hashed_phone_number": user.hashed_phone_number,
+                    "username": user.email.split("@")[0] if user.email else None,
+                }
+            )
+
+        return Response(
+            user_details,
+            status=status.HTTP_200_OK,
+        )

@@ -13,6 +13,7 @@ class UserAdmin(BaseUserAdmin):
         "full_name",
         "country",
         "account_type_badge",
+        "get_wallet_balance",
         "is_staff",
     )
     list_filter = ("is_staff", "is_superuser", "is_active", "country", "is_business")
@@ -86,6 +87,38 @@ class UserAdmin(BaseUserAdmin):
 
     account_type_badge.short_description = "Account Type"
     account_type_badge.admin_order_field = "is_business"
+
+    def get_wallet_balance(self, obj):
+        from decimal import Decimal
+
+        from app.transactions.models import Wallet, WalletType
+
+        try:
+            wallet = Wallet.objects.filter(user=obj).first()
+
+            main_balance_display = "-"
+
+            currency = wallet.currency or ""
+            balance = wallet.balance
+
+            if balance > Decimal("0"):
+                main_balance_display = format_html(
+                    '<span style="color: #28a745; font-weight: bold;" title="Main wallet balance">{} {}</span>',
+                    balance,
+                    currency,
+                )
+            else:
+                main_balance_display = format_html(
+                    '<span style="color: #dc3545;" title="Main wallet balance">{} {}</span>',
+                    balance,
+                    currency,
+                )
+
+            return main_balance_display
+        except Exception as e:
+            return "-"
+
+    get_wallet_balance.short_description = "Wallet Balance"
 
 
 @admin.register(models.User)

@@ -192,6 +192,7 @@ class VerifyOTPViewTestCase(APITestCase):
                 "email": "test@example.com",
                 "phone_number": "+237698765432",
                 "country": "Cameroon",
+                "pin": None,
             },
             "wallet": {
                 "id": 1,
@@ -213,6 +214,7 @@ class VerifyOTPViewTestCase(APITestCase):
         self.assertIn("user", response.data)
         self.assertIn("wallet", response.data)
         self.assertIn("tokens", response.data)
+        self.assertIn("pin", response.data["user"])
         mock_verify_otp.assert_called_once()
 
     @patch("app.verify.api.serializers.VerifyOTPSerializer.verify_otp")
@@ -298,6 +300,7 @@ class VerifyOTPViewTestCase(APITestCase):
                 "phone_number": "+237698765432",
                 "country": "Cameroon",
                 "is_business": True,
+                "pin": None,
             },
             "wallet": {
                 "id": 1,
@@ -318,6 +321,7 @@ class VerifyOTPViewTestCase(APITestCase):
         self.assertTrue(response.data["success"])
         self.assertIn("user", response.data)
         self.assertTrue(response.data["user"]["is_business"])
+        self.assertIn("pin", response.data["user"])
 
 
 @unittest.skip("Rate limiting issues need to be resolved")
