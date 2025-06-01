@@ -268,6 +268,7 @@ class VerifyOTPSerializerTestCase(TestCase):
         mock_user.phone_number = "+237698765432"
         mock_user.profile_picture = Mock()
         mock_user.profile_picture.url = "/media/profile_pictures/test.jpg"
+        mock_user.pin = None
 
         # Mock get_or_create to return a tuple (user, created)
         mock_get_or_create.return_value = (mock_user, False)
@@ -302,6 +303,8 @@ class VerifyOTPSerializerTestCase(TestCase):
         self.assertEqual(result["tokens"]["access"], "access_token_value")
         self.assertEqual(result["tokens"]["refresh"], "refresh_token_value")
         self.assertEqual(result["created"], False)
+        self.assertIn("pin", result["user"])
+        self.assertIsNone(result["user"]["pin"])
 
         # Assert wallet data
         self.assertIn("wallet", result)
@@ -341,6 +344,7 @@ class VerifyOTPSerializerTestCase(TestCase):
         mock_user.country.name = "Cameroon"
         mock_user.profile_picture = Mock()
         mock_user.profile_picture.url = "/media/profile_pictures/test.jpg"
+        mock_user.pin = None
 
         # Mock get_or_create to return a tuple (user, created)
         mock_get_or_create.return_value = (mock_user, False)
@@ -374,6 +378,8 @@ class VerifyOTPSerializerTestCase(TestCase):
 
         # Check that the country is included in the response
         self.assertEqual(result["user"]["country"], "Cameroon")
+        self.assertIn("pin", result["user"])
+        self.assertIsNone(result["user"]["pin"])
 
         # Assert wallet data
         self.assertIn("wallet", result)
@@ -412,6 +418,7 @@ class VerifyOTPSerializerTestCase(TestCase):
         mock_user.country = Mock()
         mock_user.country.name = "Cameroon"
         mock_user.profile_picture = None
+        mock_user.pin = None
 
         # Mock get_or_create to return a tuple (user, created)
         mock_get_or_create.return_value = (
@@ -447,6 +454,8 @@ class VerifyOTPSerializerTestCase(TestCase):
         self.assertEqual(result["tokens"]["access"], "email_access_token")
         self.assertEqual(result["tokens"]["refresh"], "email_refresh_token")
         self.assertEqual(result["created"], True)
+        self.assertIn("pin", result["user"])
+        self.assertIsNone(result["user"]["pin"])
 
         # Ensure the country_id was set
         self.assertEqual(mock_user.country_id, self.country.id)
@@ -490,6 +499,7 @@ class VerifyOTPSerializerTestCase(TestCase):
         mock_user.country = Mock()
         mock_user.country.name = "Cameroon"
         mock_user.profile_picture = None
+        mock_user.pin = None
 
         # Mock get_or_create to return a tuple (user, created)
         mock_get_or_create.return_value = (mock_user, True)

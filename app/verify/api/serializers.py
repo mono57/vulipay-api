@@ -204,6 +204,7 @@ class VerifyOTPSerializer(serializers.Serializer):
                             user.profile_picture.url if user.profile_picture else None
                         ),
                         "is_business": user.is_business,
+                        "pin": user.pin,
                     },
                     "wallet": {
                         "id": wallet.id,

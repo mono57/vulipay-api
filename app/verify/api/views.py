@@ -75,7 +75,6 @@ class GenerateOTPView(APIView):
     )
     def post(self, request, *args, **kwargs):
         serializer = GenerateOTPSerializer(data=request.data)
-
         if serializer.is_valid():
             response = serializer.generate_otp()
 
@@ -83,7 +82,7 @@ class GenerateOTPView(APIView):
                 response,
                 status=status.HTTP_200_OK,
             )
-
+        print(serializer.errors)
         return validation_error_response(
             message="Invalid request data.",
             errors=serializer.errors,
@@ -128,6 +127,11 @@ class VerifyOTPView(APIView):
                                 "profile_picture": {
                                     "type": "string",
                                     "description": "URL to user's profile picture",
+                                    "nullable": True,
+                                },
+                                "pin": {
+                                    "type": "string",
+                                    "description": "User's PIN for transaction authorization",
                                     "nullable": True,
                                 },
                             },

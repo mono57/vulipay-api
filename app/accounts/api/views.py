@@ -415,9 +415,10 @@ class CheckHashedPhoneNumbersView(generics.GenericAPIView):
 
         hashed_phone_numbers = serializer.validated_data["hashed_phone_numbers"]
 
+        # Get the actual User objects instead of just values
         matching_users = User.objects.filter(
             hashed_phone_number__in=hashed_phone_numbers
-        ).values("full_name", "profile_picture", "hashed_phone_number", "email")
+        )
 
         user_details = []
         for user in matching_users:
